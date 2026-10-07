@@ -48,47 +48,40 @@ private data class WidgetCatalogEntry(
     val description: String,
     val iconKey: String,
     val colorId: String,
+    /** True for a hub: a tile whose tap opens its own hub screen. */
+    val hub: Boolean = false,
 )
 
 /**
- * Every widget pinnable from this sheet. People/photos/mail/messages re-add
- * the built-in tiles with a live face (or, for people, the hub) after they've
- * been unpinned. Pinning the app from the app list gives a plain real-icon
- * tile instead. The first three (weather/calendar/
- * clock) moved here from `CategoryFolderSheet`'s old "+ weather/+ calendar/
- * + clock" row now that there's a dedicated catalog for this — one place to
- * add a widget, not two. The rest are new, opt-in-only widgets backed by
- * [com.tileshell.core.data.seed.DefaultLayout.OPT_IN_WIDGET_TILES].
+ * Everything pinnable from this sheet, in two groups. **Hubs** are a tile plus the hub it opens (every hub is named
+ * "<x> hub"). **Widgets** are single-purpose tiles with no hub behind them. Pinning an app from the app list gives
+ * a plain real-icon tile instead. Tiles that a hub already pins on its own (a team, a stock or commodity, a note or
+ * task list, an alarm) are not listed here again: pin them from their hub, and any already on Start keep working.
+ * Backed by [com.tileshell.core.data.seed.DefaultLayout.ALL_TILE_TEMPLATES].
  */
 private val WIDGET_CATALOG = listOf(
-    WidgetCatalogEntry("weather", "weather", "live forecast for your location", "weather", "cyan"),
-    WidgetCatalogEntry("calendar", "calendar", "today's date, flips to your next event", "calendar", "magenta"),
-    WidgetCatalogEntry("clock", "clock", "time, weekday and date", "clock", "cobalt"),
-    WidgetCatalogEntry("productivity", "productivity", "next meeting, open tasks and your office apps, plus the productivity hub", "productivity", "cobalt"),
-    WidgetCatalogEntry("people", "people", "contact photos, plus the people hub — all, what's new and recent", "people", "teal"),
-    WidgetCatalogEntry("photos", "photos", "a slideshow of photos you pick", "photos", "cyan"),
+    WidgetCatalogEntry("weather", "weather hub", "live forecast for your place, with hourly and daily detail", "weather", "cyan", hub = true),
+    WidgetCatalogEntry("calendar", "calendar hub", "today's date, flipping to your next event, with the week and month", "calendar", "magenta", hub = true),
+    WidgetCatalogEntry("clock", "clock hub", "the time on the front and your next alarm on the back; opens alarms, world clocks, timers, a stopwatch and timer sets", "clock", "cobalt", hub = true),
+    WidgetCatalogEntry("people", "people hub", "contact photos, with what's new, favourites and your messaging and mail apps", "people", "teal", hub = true),
+    WidgetCatalogEntry("music", "music hub", "now playing, with your library, podcasts, radio and history", "music", "orange", hub = true),
+    WidgetCatalogEntry("productivity", "productivity hub", "next meeting and open tasks, with notes, task lists and your office apps", "productivity", "cobalt", hub = true),
+    WidgetCatalogEntry("battery", "battery hub", "charge level and time remaining, with the week and what used it", "battery", "green", hub = true),
+    WidgetCatalogEntry("money", "money hub", "bank and payment transactions and bills, with your payment and banking apps", "money", "green", hub = true),
+    WidgetCatalogEntry("markets", "markets hub", "your watchlist, indices and movers; pin a tile each for stocks, commodities, currencies and crypto", "markets", "cobalt", hub = true),
+    WidgetCatalogEntry("sportshub", "sports hub", "live scores, fixtures and results for the sports and teams you follow", "sportshub", "orange", hub = true),
+    WidgetCatalogEntry("newshub", "news hub", "the newest headlines, with topics, saved stories and live news channels", "newshub", "red", hub = true),
+    WidgetCatalogEntry("shophub", "shopping hub", "orders on their way, with your shopping, food and courier apps", "shophub", "magenta", hub = true),
+    WidgetCatalogEntry("panchang", "panchang hub", "today's tithi and the Hindu calendar, with festivals and moon times", "calsys", "cobalt", hub = true),
+
     WidgetCatalogEntry("mail", "mail", "your newest email, from your mail app", "mail", "purple"),
     WidgetCatalogEntry("messages", "messages", "your newest message, from your messaging app", "messages", "amber"),
-    WidgetCatalogEntry("music", "music", "now playing, plus the music hub — library, apps and history", "music", "orange"),
-    WidgetCatalogEntry("battery", "battery", "charge level and time remaining", "battery", "green"),
-    WidgetCatalogEntry("money", "money", "bank and payment transactions, plus your payment and banking apps", "money", "green"),
-    WidgetCatalogEntry("markets", "markets", "your watchlist, indices and movers, plus the markets hub", "markets", "cobalt"),
-    WidgetCatalogEntry("sportshub", "sports hub", "live scores, fixtures and the teams you follow, plus the sports hub", "sportshub", "orange"),
-    WidgetCatalogEntry("clockhub", "timers and clock", "your next alarm, timers, a stopwatch, world clocks and timer sets for a practice or workout, plus the clock hub", "clockhub", "steel"),
-    WidgetCatalogEntry("newshub", "news", "the newest headlines, plus the news hub — top stories, topics, saved stories and live news channels", "newshub", "red"),
-    WidgetCatalogEntry("shophub", "shopping", "orders on their way and your shopping, food and courier apps, plus the shopping hub", "shophub", "magenta"),
-    WidgetCatalogEntry("alarm", "alarm", "next alarm time and active days", "alarm", "purple"),
-    WidgetCatalogEntry("moonphase", "moon phase", "tonight's phase and illumination", "moonphase", "slate"),
-    WidgetCatalogEntry("tasks", "tasks", "a checklist you keep, right on start", "tasks", "blue"),
-    WidgetCatalogEntry("notepad", "notes", "your last note, always one glance away", "notepad", "amber"),
+    WidgetCatalogEntry("photos", "photos", "a slideshow of photos you pick", "photos", "cyan"),
     WidgetCatalogEntry("stickynote", "sticky note", "one note, pinned to its own tile", "stickynote", "amber"),
-    WidgetCatalogEntry("flashlight", "flashlight", "tap the tile to turn it on or off", "flashlight", "steel"),
     WidgetCatalogEntry("countdown", "countdown", "days until a date you set — pin as many as you like", "countdown", "magenta"),
     WidgetCatalogEntry("steps", "steps", "today's step count, from your phone's own sensor", "steps", "lime"),
-    WidgetCatalogEntry("sports", "sports", "follow a team's score — pick one after pinning", "sports", "red"),
-    WidgetCatalogEntry("stock", "stock market", "follow a stock or a whole sector — pick one after pinning", "stock", "teal"),
-    WidgetCatalogEntry("commodity", "commodities", "gold, silver, oil, or a currency pair — pick one after pinning", "commodity", "mauve"),
-    WidgetCatalogEntry("calsys", "calendar systems", "today's date in a calendar system of your choice, and the roman date", "calsys", "cobalt"),
+    WidgetCatalogEntry("moonphase", "moon phase", "tonight's phase and illumination; opens the panchang hub", "moonphase", "slate"),
+    WidgetCatalogEntry("flashlight", "flashlight", "tap the tile to turn it on or off", "flashlight", "steel"),
 )
 
 /**
@@ -179,21 +172,25 @@ fun WidgetListSheet(
                         .navigationBarsPadding()
                         .padding(bottom = 16.dp),
                 ) {
-                    items(WIDGET_CATALOG, key = { it.appId }) { entry ->
-                        val disabled = entry.appId == "notepad" && notesAlreadyPinned
-                        WidgetCatalogRow(
-                            entry = entry,
-                            tokens = tokens,
-                            enabled = !disabled,
-                            onClick = {
-                                onAddWidget(entry.appId)
-                                onDismiss()
-                            },
-                        )
+                    item(key = "hubs-header") { CatalogHeader("hubs", "a tile with its own hub: tap the tile to open it", tokens) }
+                    items(WIDGET_CATALOG.filter { it.hub }, key = { it.appId }) { entry ->
+                        WidgetCatalogRow(entry = entry, tokens = tokens, enabled = true, onClick = { onAddWidget(entry.appId); onDismiss() })
+                    }
+                    item(key = "widgets-header") { CatalogHeader("widgets", "single-purpose tiles", tokens) }
+                    items(WIDGET_CATALOG.filter { !it.hub }, key = { it.appId }) { entry ->
+                        WidgetCatalogRow(entry = entry, tokens = tokens, enabled = true, onClick = { onAddWidget(entry.appId); onDismiss() })
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun CatalogHeader(title: String, subtitle: String, tokens: com.tileshell.core.design.ColorTokens) {
+    Column(modifier = Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 4.dp)) {
+        Text(title, color = tokens.fg, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+        Text(subtitle, color = tokens.fgDim, fontSize = 12.sp)
     }
 }
 

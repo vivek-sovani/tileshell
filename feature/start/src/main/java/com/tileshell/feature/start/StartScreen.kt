@@ -1431,44 +1431,25 @@ fun StartScreen(
                                     // loop — see SportsLinks); no team picked
                                     // yet, or no page cached, falls back to the
                                     // team picker.
-                                    val configured = SportsTile.decode(tile.activityName) != null
-                                    val webUrl = if (configured) SportsLinks.get(tile.id) else null
-                                    when {
-                                        webUrl != null -> runCatching {
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)))
-                                        }
-                                        configured -> Toast.makeText(context, "match details still loading", Toast.LENGTH_SHORT).show()
-                                        else -> viewModel.openSportsEditor(tile.id)
-                                    }
+                                    // A team's tile opens the sports hub (its match detail has the ESPN page);
+                                    // one with no team picked yet opens the team picker.
+                                    if (SportsTile.decode(tile.activityName) != null) viewModel.openSportsHub() else viewModel.openSportsEditor(tile.id)
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "stock") {
                                     // A single-symbol tile opens that stock's real Yahoo
                                     // Finance page (a static URL from the symbol alone —
                                     // no cached-link machinery like SportsLinks needed);
                                     // a category tile, or no selection yet, reopens the
                                     // picker instead — there's no one page for a sector.
-                                    val selection = StockTile.decode(tile.activityName)
-                                    when (selection) {
-                                        is StockTile.Selection.Single -> runCatching {
-                                            val url = "https://finance.yahoo.com/quote/${Uri.encode(selection.symbol)}"
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                        }
-                                        else -> viewModel.openStockEditor(tile.id)
-                                    }
+                                    // A stock tile opens the markets hub (its rows open Yahoo); no selection yet opens the picker.
+                                    if (StockTile.decode(tile.activityName) != null) viewModel.openMarketsHub() else viewModel.openStockEditor(tile.id)
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "commodity") {
                                     // Same "open the real Yahoo Finance page, or the
                                     // picker if nothing's picked yet" pattern as the
                                     // stock tile — a commodity/currency tile is always
                                     // a single symbol, so there's no category-vs-single
                                     // branch needed here.
-                                    val decoded = CommodityTile.decode(tile.activityName)
-                                    if (decoded != null) {
-                                        runCatching {
-                                            val url = "https://finance.yahoo.com/quote/${Uri.encode(decoded.first)}"
-                                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                        }
-                                    } else {
-                                        viewModel.openCommodityEditor(tile.id)
-                                    }
+                                    // A commodity or currency tile opens the markets hub; none picked yet opens the picker.
+                                    if (CommodityTile.decode(tile.activityName) != null) viewModel.openMarketsHub() else viewModel.openCommodityEditor(tile.id)
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "calsys") {
                                     // Same "open the real page, or the picker if
                                     // nothing's picked yet" pattern as stock/
@@ -1539,8 +1520,11 @@ fun StartScreen(
                                     viewModel.openMarketsHub()
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "sportshub") {
                                     viewModel.openSportsHub()
-                                } else if (tile.packageName.isBlank() && tile.iconKey == "clockhub") {
+                                } else if (tile.packageName.isBlank() && (tile.iconKey == "clockhub" || tile.iconKey == "clock" || tile.iconKey == "alarm")) {
                                     viewModel.openClockHub()
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "moonphase") {
+                                    // The moon phase widget opens the panchang hub (tithi, moon times).
+                                    viewModel.openPanchang()
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "newshub") {
                                     viewModel.openNewsHub()
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "shophub") {
@@ -1610,8 +1594,10 @@ fun StartScreen(
                             viewModel.openMarketsHub()
                         } else if (child.packageName.isBlank() && child.iconKey == "sportshub") {
                             viewModel.openSportsHub()
-                        } else if (child.packageName.isBlank() && child.iconKey == "clockhub") {
+                        } else if (child.packageName.isBlank() && (child.iconKey == "clockhub" || child.iconKey == "clock" || child.iconKey == "alarm")) {
                             viewModel.openClockHub()
+                        } else if (child.packageName.isBlank() && child.iconKey == "moonphase") {
+                            viewModel.openPanchang()
                         } else if (child.packageName.isBlank() && child.iconKey == "newshub") {
                             viewModel.openNewsHub()
                         } else if (child.packageName.isBlank() && child.iconKey == "shophub") {
@@ -2189,7 +2175,11 @@ fun StartScreen(
             accentId = settings.accentId,
             notesAlreadyPinned = tiles.hasNotesTile(),
             onAddWidget = { appId ->
-                if (appId == "weather") {
+                if (appId == "panchang") {
+                    // The panchang hub's tile: the calendar-systems tile with the Hindu panchang already chosen.
+                    viewModel.pinPanchangTile(activeSectionId)
+                    viewModel.exitEdit()
+                } else if (appId == "weather") {
                     // Weather needs one more answer before there's a tile to add
                     // at all (user-requested: "ask for current location or
                     // select location") — the location sheet below creates the
@@ -7277,10 +7267,6 @@ private fun AppTileContent(
         }
         LiveFace.NEWSHUB -> {
             com.tileshell.feature.livetiles.NewsHubTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize())
-            return
-        }
-        LiveFace.CLOCKHUB -> {
-            com.tileshell.feature.livetiles.ClockHubTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize())
             return
         }
         LiveFace.SPORTSHUB -> {

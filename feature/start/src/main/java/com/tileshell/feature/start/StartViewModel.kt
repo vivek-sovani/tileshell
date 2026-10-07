@@ -357,6 +357,17 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Pin the panchang hub's tile: the calendar-systems tile with the Hindu panchang chosen. */
+    fun pinPanchangTile(sectionId: String?) {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any {
+                it is TileModel.App && it.iconKey == "calsys" && com.tileshell.core.data.CalendarSystemTile.decode(it.activityName) == com.tileshell.core.data.HINDU_PANCHANG_ID
+            }
+            val result = if (!exists && repository.addDefaultTile("calsys", sectionId, com.tileshell.core.data.CalendarSystemTile.encode(com.tileshell.core.data.HINDU_PANCHANG_ID))) PinResult.PINNED else PinResult.ALREADY_ON_START
+            _pinMessage.tryEmit(pinOutcomeText(result, "panchang"))
+        }
+    }
+
     private val _shoppingHubOpen = MutableStateFlow(false)
     val shoppingHubOpen: StateFlow<Boolean> = _shoppingHubOpen.asStateFlow()
 
@@ -411,8 +422,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Pin the clock hub's own tile (next alarm / running timer). */
     fun pinClockHub() {
         viewModelScope.launch(writeContext) {
-            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "clockhub" }
-            val result = if (!exists && repository.addDefaultTile("clockhub", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
+            val exists = tiles.value.any { it is TileModel.App && (it.iconKey == "clockhub" || it.iconKey == "clock") }
+            val result = if (!exists && repository.addDefaultTile("clock", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
             _pinMessage.tryEmit(pinOutcomeText(result, "clock"))
         }
     }

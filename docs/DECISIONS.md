@@ -11653,3 +11653,24 @@ the main entry and "package/Class" for another (`LauncherEntry`, `openApp` and t
 **Show on tile**: each app on the apps page has an on-tile mark (▣ / ▢, `HubAppsPage` `tileMarks`); the tile's back
 shows the marked apps, or all when none is marked (`ShoppingTileMarks`, `appsOnTile`, `shopping_tile_apps` in prefs
 and backups).
+
+
+## "Add live tiles" organised into hubs and widgets; duplicates removed (2026-10-07)
+
+User-requested. The catalog (`WidgetListSheet`) was 28 flat entries with the same thing under several names. It is now two
+groups: **hubs**, every one named "<x> hub" and a tile plus the hub it opens (weather, calendar, clock, people, music,
+productivity, battery, money, markets, sports, news, shopping, panchang), and **widgets** with no hub behind them (mail,
+messages — kept at the user's choice —, photos, sticky note, countdown, steps, moon phase, flashlight). Removed as
+duplicates of a hub (they are pinned from the hub instead, and any already on Start keep working): clock + alarm +
+"timers and clock" (one clock hub), sports (a team tile: pin it from the sports hub), stock market and commodities
+(the markets hub pins a tile each for stocks, commodities, currencies, crypto and indices), tasks and notes (the
+productivity hub pins a list or a note), calendar systems (now "panchang hub": the same tile with the Hindu panchang
+chosen, `pinPanchangTile`). The big titles inside the hubs stay short ("people", not "people hub").
+
+**Clock hub tile = the clock tile** (user's choice): the time, weekday and date on the front and the next alarm on the
+back (`ClockTileFace`), no timers on the tile; a tap opens the clock hub. `clockhub` tiles already pinned render the
+clock face too (`LiveFace.forIconKey`), `ClockHubTile.kt` and the `t-clockhub` template are gone, and the hub's pin adds
+the clock tile. **Widgets that open their hub** where that is correct: the clock and alarm tiles open the clock hub, the
+moon phase widget the panchang hub, a configured team tile the sports hub, a configured stock or commodity tile the markets
+hub (the hubs' rows and match detail still open Yahoo and ESPN). Left as they were because the tap is their purpose:
+mail and messages (open the app), tasks / notes / sticky note / countdown (open their own editors), flashlight, photos.

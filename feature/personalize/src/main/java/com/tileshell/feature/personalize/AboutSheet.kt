@@ -192,7 +192,7 @@ fun AboutSheet(
                     "hide apps you don't want cluttering the app list — bring them back any time from personalize",
                     "apps with a pending notification show up in the app list's recent section, even if they're not pinned to start",
                     "the settings tile opens home settings; it's locked in place so it can't be unpinned by accident",
-                    "\"add live tiles\" brings back built-in tiles you removed — people, photos, mail, messages and the rest",
+                    "\"add live tiles\" lists hubs (a tile plus the hub it opens — weather, calendar, clock, people, music, productivity, battery, money, markets, sports, news, shopping, panchang) and widgets (mail, messages, photos, sticky note, countdown, steps, moon phase, flashlight); a widget that belongs to a hub opens it when tapped (moon phase opens the panchang hub, and a team, stock or commodity tile opens the sports or markets hub)",
                     "start is organized into pages — swipe left/right between them; the first one is always \"main\", for anything you haven't grouped, with your named pages after it",
                     "a small dot row at the top shows how many pages there are and which one you're on, whenever there's more than one",
                     "in edit mode, tap the \"+\" at the top and name it to add a page; each page's own name (otherwise hidden) appears there too, with ←/→ to reorder it",

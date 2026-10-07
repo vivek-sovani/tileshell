@@ -59,7 +59,6 @@ enum class LiveFace(val flips: Boolean) {
     // Static glyph (markets also shows the NIFTY line); no back face.
     MARKETS(flips = false),
     SPORTSHUB(flips = false),
-    CLOCKHUB(flips = false),
     NEWSHUB(flips = false),
     SHOPHUB(flips = false),
     ;
@@ -98,7 +97,8 @@ enum class LiveFace(val flips: Boolean) {
                 "money" -> MONEY
                 "markets" -> MARKETS
                 "sportshub" -> SPORTSHUB
-                "clockhub" -> CLOCKHUB
+                // The clock hub is the clock tile: the time on the front, the next alarm on the back.
+                "clockhub" -> CLOCK
                 "newshub" -> NEWSHUB
                 "shophub" -> SHOPHUB
                 else -> null
