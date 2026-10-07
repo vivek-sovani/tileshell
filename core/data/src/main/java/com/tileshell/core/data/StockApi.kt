@@ -151,6 +151,14 @@ suspend fun fetchStockSparkline(symbol: String): List<Double> = QuoteCache.get("
     parseSparklinePoints(body)
 }
 
+/** Close prices over [range], oldest first, for the markets hub's chart (cached like a quote). */
+suspend fun fetchStockSeries(symbol: String, range: ChartRange): List<Double> = QuoteCache.get("series:$symbol:${range.range}") {
+    val encoded = URLEncoder.encode(symbol, "UTF-8")
+    val body = httpGetText("$YAHOO_CHART_BASE/$encoded?interval=${range.interval}&range=${range.range}", YAHOO_HEADERS)
+        ?: return@get emptyList()
+    parseSparklinePoints(body)
+}
+
 suspend fun fetchStockSearch(query: String): List<StockSearchResult> {
     if (query.isBlank()) return emptyList()
     val encoded = URLEncoder.encode(query, "UTF-8")

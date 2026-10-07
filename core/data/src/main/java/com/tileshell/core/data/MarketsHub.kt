@@ -221,3 +221,19 @@ object MarketsTile {
     }
 }
 
+
+/** How far back the markets hub's chart looks; [range] and [interval] are Yahoo Finance's own words. */
+enum class ChartRange(val label: String, val range: String, val interval: String) {
+    DAY("day", "1d", "15m"),
+    WEEK("week", "5d", "60m"),
+    MONTH("month", "1mo", "1d"),
+    YEAR("year", "1y", "1d"),
+}
+
+/** First-to-last change of a chart's points in percent, or null when there are fewer than two or the first is zero. Pure. */
+fun seriesChangePercent(points: List<Double>): Double? {
+    val first = points.firstOrNull() ?: return null
+    val last = points.lastOrNull() ?: return null
+    if (points.size < 2 || first == 0.0) return null
+    return (last - first) / first * 100.0
+}

@@ -64,7 +64,10 @@ import com.tileshell.core.data.watchKinds
 import com.tileshell.core.data.StockQuote
 import com.tileshell.core.data.MarketSearchResult
 import com.tileshell.core.data.fetchMarketSearch
+import com.tileshell.core.data.ChartRange
+import com.tileshell.core.data.fetchStockSeries
 import com.tileshell.core.data.kindLabel
+import com.tileshell.core.data.seriesChangePercent
 import com.tileshell.core.data.popularMatches
 import com.tileshell.core.data.priceCurrency
 import com.tileshell.core.data.WatchSymbol
@@ -487,9 +490,10 @@ private fun PickRow(title: String, subtitle: String, tokens: ColorTokens, onClic
 @Composable
 private fun IndicesPage(quotes: Map<String, StockQuote>, enabled: Boolean, marked: List<String>, onToggleMark: (String) -> Unit, tokens: ColorTokens, accent: Color, onPin: () -> Unit) {
     var selected by remember { mutableStateOf(MARKET_INDICES.first().symbol) }
-    val spark by produceState(emptyList<Double>(), selected, enabled) {
+    var range by remember { mutableStateOf(ChartRange.DAY) }
+    val spark by produceState(emptyList<Double>(), selected, enabled, range) {
         value = emptyList()
-        if (enabled) value = fetchStockSparkline(selected)
+        if (enabled) value = fetchStockSeries(selected, range)
     }
     val chosen = MARKET_INDICES.first { it.symbol == selected }
     val q = quotes[selected]
@@ -507,11 +511,22 @@ private fun IndicesPage(quotes: Map<String, StockQuote>, enabled: Boolean, marke
                 } else {
                     Text("···", color = tokens.fgDim, fontSize = 40.sp, fontWeight = FontWeight.ExtraLight)
                 }
+                Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                    ChartRange.entries.forEach { r -> HubFilter(r.label, range == r, tokens, accent) { range = r } }
+                }
+                // The day uses the quote's own change (against the previous close), the same as the figure above.
+                val change = if (range == ChartRange.DAY) q?.changePercent else seriesChangePercent(spark)
                 HubSparkline(
                     spark,
-                    color = if ((q?.changePercent ?: 0.0) >= 0) MarketUp else MarketDown,
-                    modifier = Modifier.fillMaxWidth().height(64.dp).padding(top = 8.dp),
+                    color = if ((change ?: q?.changePercent ?: 0.0) >= 0) MarketUp else MarketDown,
+                    modifier = Modifier.fillMaxWidth().height(120.dp).padding(top = 8.dp),
                 )
+                if (spark.size >= 2) {
+                    Text(
+                        "${range.label}: ${change?.let { formatStockChangePercent(it) } ?: "-"}  ·  low ${formatStockPrice(spark.min(), "")}  ·  high ${formatStockPrice(spark.max(), "")}",
+                        color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
             }
         }
         item(key = "tile-hint") {

@@ -269,4 +269,11 @@ class MarketsHubTest {
         assertEquals(emptyList<WatchSymbol>(), popularMatches(""))
         assertEquals(emptyList<WatchSymbol>(), popularMatches("zzzz"))
     }
+
+    @Test
+    fun `a chart range changes from first to last`() {
+        assertEquals(10.0, seriesChangePercent(listOf(100.0, 90.0, 110.0))!!, 1e-9)
+        assertEquals(null, seriesChangePercent(listOf(100.0)))
+        assertEquals(null, seriesChangePercent(listOf(0.0, 5.0)))
+    }
 }
