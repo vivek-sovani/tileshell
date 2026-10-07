@@ -198,6 +198,8 @@ object DefaultLayout {
         DefaultTile("t-commodity", TileSize.MEDIUM, "mauve", app = "commodity", liveOnly = true),
         DefaultTile("t-calsys", TileSize.MEDIUM, "cobalt", app = "calsys", liveOnly = true),
         DefaultTile("t-money", TileSize.MEDIUM, "green", app = "money", liveOnly = true),
+        DefaultTile("t-markets", TileSize.MEDIUM, "cobalt", app = "markets", liveOnly = true),
+        DefaultTile("t-sportshub", TileSize.MEDIUM, "orange", app = "sportshub", liveOnly = true),
     )
 
     /** Every known tile template — the default-layout set plus opt-in-only widgets. */

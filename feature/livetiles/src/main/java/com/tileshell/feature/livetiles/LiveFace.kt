@@ -56,6 +56,9 @@ enum class LiveFace(val flips: Boolean) {
     PRODUCTIVITY(flips = false),
     // Self-flipping (front / payment apps), so not in the shared scheduler.
     MONEY(flips = false),
+    // Static glyph (markets also shows the NIFTY line); no back face.
+    MARKETS(flips = false),
+    SPORTSHUB(flips = false),
     ;
 
     companion object {
@@ -90,6 +93,8 @@ enum class LiveFace(val flips: Boolean) {
                 "calsys" -> CALENDAR_SYSTEM
                 "productivity" -> PRODUCTIVITY
                 "money" -> MONEY
+                "markets" -> MARKETS
+                "sportshub" -> SPORTSHUB
                 else -> null
             }
         }

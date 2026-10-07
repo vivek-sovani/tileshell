@@ -37,6 +37,20 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — markets and sports hubs (folded into 5.1.0, not uploaded).** User-requested after
+  mockups for markets, sports, news and orders (the last two not built yet). Markets: watchlist
+  (own symbols, search to add) → indices (day line) → movers (ranked among the sector baskets,
+  not the whole market); tile shows the NIFTY 50. Sports: the user marks several sports and
+  teams in the hub (`SportsFavoritesStore`); live page shows just those (favourite teams first,
+  starred), fixtures, and my teams with each team's history, "pin a tile" for a team and recent
+  results in my sports. Refresh only while a hub is open and Start is the live screen, at the
+  stock / sports "live data refresh" rates, resting when markets are shut or nothing is live
+  (`marketsRefreshDelayMs`, `hubSportsRefreshDelayMs`); tiles keep their existing rules. Fixed
+  on the way: Indian index tickers were judged by New York's hours. Unit-tested
+  (`MarketsHubTest`, `SportsHubTest`); checked on the emulator (all pages, picker with several
+  sports and teams, history, pin a tile, markets tile) and the release build launches without a
+  crash (hubs not opened under release: the debug-only intent). Not checked: a live match on a
+  followed team, the week-ahead tab with real fixtures, iconised (small) hub tiles. See DECISIONS.
 - **`main` — "play X" voice requests reach TileShell (folded into 5.1.0).** User-reported in the car:
   Assistant asked for Spotify / YouTube Music. TileShell now declares the standard voice action
   (`PlayFromSearchActivity`, `android.media.action.MEDIA_PLAY_FROM_SEARCH`, no screen) so it

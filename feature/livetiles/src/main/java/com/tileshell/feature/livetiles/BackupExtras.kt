@@ -26,6 +26,7 @@ object BackupExtras {
         "panchang_highlights", "panchang_festivals", "panchang_custom_tithis", "panchang_grahan",
         "productivity_quick_items",
         "hub_apps_people", "hub_apps_money", "hub_apps_productivity",
+        "markets_watchlist", "sports_fav_sports", "sports_fav_teams",
     )
 
     suspend fun export(context: Context): Map<String, String> {
@@ -76,6 +77,8 @@ object BackupExtras {
             MoneyPrefs.reload(app)
             HubAppChoices.reload(app)
             PanchangPrefs.reload(app)
+            MarketsWatchlist.reload(app)
+            SportsFavoritesStore.reload(app)
         }
     }
 

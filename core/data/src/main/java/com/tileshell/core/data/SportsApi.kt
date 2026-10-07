@@ -236,6 +236,19 @@ suspend fun fetchSportsScoreboard(leagueSlug: String): List<SportsMatchEvent> {
 }
 
 /**
+ * [leagueSlug]'s games on one past (or future) day, [dateYyyymmdd] — the same
+ * scoreboard with ESPN's own `dates=` window, for the sports hub's recent
+ * results. Empty on any failure.
+ */
+suspend fun fetchSportsScoreboardOn(leagueSlug: String, dateYyyymmdd: String): List<SportsMatchEvent> {
+    val body = httpGetText("$ESPN_BASE/$leagueSlug/scoreboard?dates=$dateYyyymmdd") ?: return emptyList()
+    return runCatching {
+        val events = JSONObject(body).getJSONArray("events")
+        (0 until events.length()).mapNotNull { i -> parseEvent(events.getJSONObject(i)) }
+    }.getOrDefault(emptyList())
+}
+
+/**
  * The match's own ESPN web page, plus — for a soccer match — its goal
  * scorers (`keyEvents` entries of type `"goal"`, newest first). Other club
  * sports get the web link only for now; [fetchCricketMatchDetail] is the

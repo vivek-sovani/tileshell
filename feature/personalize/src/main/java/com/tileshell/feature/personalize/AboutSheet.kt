@@ -209,7 +209,7 @@ fun AboutSheet(
                 accent = accent,
                 tokens = tokens,
                 items = listOf(
-                    "tap a weather, music, calendar, people, productivity, battery, or money tile to open its full-screen hub; swipe between each hub's pages, windows-phone style",
+                    "tap a weather, music, calendar, people, productivity, battery, money, markets, or sports hub tile to open its full-screen hub; swipe between each hub's pages, windows-phone style",
                     "music, people, productivity and money each have an apps page gathering the related apps on your phone in one place",
                     "weather — now, hourly, and daily forecast; max/min, feels like, wind, humidity, uv index, sunrise and sunset; a moon at night",
                     "music — your own music library with albums, playlists (create and edit real device playlists), shuffle, and background playback; podcasts and internet radio with favourites and recents; history of what you played in other apps",
@@ -236,6 +236,9 @@ fun AboutSheet(
                     "money's transactions are locked behind your fingerprint, face or screen lock; its apps page lists your payment, banking, and credit and debit card apps, and the tile can show your last payment and receipt, with payment apps on the back",
                     "money splits transactions into accounts & upi and cards; cards have spends, bills due and payments — a statement and its reminders are one bill, listed by due date and marked paid once a card payment comes in; paying a card bill never counts as spending",
                     "in money's transactions, tap one to read the full message, swipe it away to remove it (with undo), or clear them all",
+                    "markets — your watchlist (stocks, gold, currencies, crypto: add by search, edit to remove), the big indices with a day line, and the biggest movers among the sector baskets; add it from add live tiles, and its tile shows the NIFTY 50",
+                    "sports hub — mark any number of sports and teams in my teams: the live page then shows just those, my teams shows each team's latest game and history, and \"pin a tile\" makes a tile for a team",
+                    "the markets and sports hubs refresh only while open, at your live data refresh rates, and rest when markets are shut or no match is on",
                 ),
             )
 

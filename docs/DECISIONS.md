@@ -11387,3 +11387,48 @@ showed only one — live first — so the final vanished once the ODI started.
 ESPN's feed listed the India–West Indies match as the 3rd ODI on 3 Oct 2026, live; the user
 reported it wasn't live today — not reproducible from ESPN's data, flagged back to the user.
 Checked on the emulator (India followed: the ODI and the final take turns, dated).
+
+## Markets and sports hubs (2026-10-07)
+
+User-requested, designed first (mockups for markets, sports, news, orders; markets and sports
+built first). Both are Lumia panoramas like the other hubs, reachable from a tile
+(`markets`, `sportshub`; blank-package liveOnly tiles, "add live tiles") and pinned from their own
+app bar.
+
+**Markets** (`MarketsHubScreen`): watchlist → indices → movers. The watchlist is the user's own
+Yahoo symbols (stocks, `=F` commodities, `=X` currencies, crypto), stored in `tileshell.prefs`
+(`markets_watchlist`, in backups); added by search (`fetchStockSearch`, equities only) or a short
+"popular" list for what search doesn't return (gold, silver, crude, USD/INR, bitcoin). Movers are
+ranked among the curated sector baskets (`STOCK_CATEGORIES`), not the whole market: Yahoo's
+screener needs a login crumb, and the page says so. Indian index tickers (`^NSEI`…) have no `.NS`
+suffix, so `marketSessionFor` judged them by New York's hours ("closed" at 2 pm IST, seen on the
+emulator); `isMarketInSession` / `marketsRefreshDelayMs` map them to an NSE symbol.
+
+**Sports** (`SportsHubScreen`), reworked after the first cut when the user asked for favourites:
+the user marks any number of sports (league slugs, cricket included) and teams in the hub
+(`SportsFavoritesStore`, `sports_fav_sports` / `sports_fav_teams`, in backups). Marking a team
+marks its sport; unmarking a sport drops its teams (they'd be hidden). "live": only the favourite
+sports' matches (all, until one is marked, or with "all sports"), favourite teams' games first and
+starred. "fixtures": today from the favourite sports' boards, the week ahead and results from the
+favourite teams' own schedules. "my teams": favourite sports, each team's latest game with its
+history on tap (club sports from the schedule already fetched; cricket, which has no per-team
+schedule, reads 21 past days' feeds only when opened, cached 3 h), "pin a tile" (a sports tile
+already set to that team, skipped if one exists), and recent results across the favourite sports
+(today and two days back, `fetchSportsScoreboardOn`). A whole-sport tile wasn't built: the sports
+tile needs a team, and the sports hub tile is the all-favourites entry.
+
+**Refresh (user's rule: only when loaded; same as the tile rules).** Nothing is fetched unless a
+hub is open. Then: one load on opening, and polling only while `rememberLiveTilesActive` (Start
+resumed, no battery saver, animations on), the stock / sports "live data refresh" rate
+(`stockRefreshRate`, `sportsRefreshRate`), coalesced by `delayUntilNextRefresh`. Markets sleep
+through closed hours to the opening bell (`marketsRefreshDelayMs`, the stock tile's
+`nextMarketRefreshDelayMs` over the soonest symbol); sports sleep until 30 min before the next
+kick-off, at most the 3 h idle cap, unless a match is live (`hubSportsRefreshDelayMs`, the
+widget's `shouldFetchSports` reasoning). The markets tile follows the stock tile's rule. The
+refresh button forces a fetch. Quotes go through `QuoteCache` and a 6-way gate; ESPN fetches
+through a 4-way gate.
+
+Pure logic in `MarketsHub.kt` / `SportsHub.kt` with `MarketsHubTest` / `SportsHubTest`.
+Not done: news and orders hubs (designed, not built); sparkline / live minute checks outside
+market hours; cricket history for a team with no match in 21 days is empty.
+

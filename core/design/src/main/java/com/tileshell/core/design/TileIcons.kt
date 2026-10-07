@@ -677,6 +677,24 @@ object TileIcons {
             p("M14 7h6v6"),
         ))
 
+        // Three bars on a baseline: the markets hub, distinct from "stock"'s
+        // single trend line.
+        put("markets", vector("markets",
+            p("M4 20h16"),
+            p("M7 20v-6"),
+            p("M12 20V8"),
+            p("M17 20v-9"),
+        ))
+
+        // A trophy: the sports hub, distinct from "sports"' ball (one team).
+        put("sportshub", vector("sportshub",
+            p("M8 4h8v5a4 4 0 0 1-8 0z"),
+            p("M8 6H5a3 3 0 0 0 3 4"),
+            p("M16 6h3a3 3 0 0 1-3 4"),
+            p("M12 13v4"),
+            p("M8 20h8"),
+        ))
+
         // A coin: an outer disc rim + a smaller inner ring, distinct from
         // "stock"'s trend-line glyph — generic across metals/energy/currency
         // rather than any one commodity's own symbol.

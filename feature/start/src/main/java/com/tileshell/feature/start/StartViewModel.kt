@@ -356,6 +356,63 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val _marketsHubOpen = MutableStateFlow(false)
+    val marketsHubOpen: StateFlow<Boolean> = _marketsHubOpen.asStateFlow()
+
+    fun openMarketsHub() {
+        _marketsHubOpen.value = true
+    }
+
+    fun closeMarketsHub() {
+        _marketsHubOpen.value = false
+    }
+
+    /** Pin the markets hub's own tile. */
+    fun pinMarketsHub() {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "markets" }
+            val result = if (!exists && repository.addDefaultTile("markets", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
+            _pinMessage.tryEmit(pinOutcomeText(result, "markets"))
+        }
+    }
+
+    private val _sportsHubOpen = MutableStateFlow(false)
+    val sportsHubOpen: StateFlow<Boolean> = _sportsHubOpen.asStateFlow()
+
+    fun openSportsHub() {
+        _sportsHubOpen.value = true
+    }
+
+    fun closeSportsHub() {
+        _sportsHubOpen.value = false
+    }
+
+    /** Pin the sports hub's own tile. */
+    fun pinSportsHub() {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "sportshub" }
+            val result = if (!exists && repository.addDefaultTile("sportshub", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
+            _pinMessage.tryEmit(pinOutcomeText(result, "sports"))
+        }
+    }
+
+    /**
+     * A sports tile for a favourite team, from the sports hub: pinned already
+     * set to that team (no picking), unless one for it is already on Start.
+     */
+    fun pinSportsTeamTile(team: SportsTile.Selection) {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { tile ->
+                when (tile) {
+                    is TileModel.App -> tile.iconKey == "sports" && SportsTile.decode(tile.activityName)?.let { it.leagueSlug == team.leagueSlug && it.teamId == team.teamId } == true
+                    is TileModel.Folder -> false
+                }
+            }
+            val added = !exists && repository.addDefaultTile("sports", activePageSectionId, SportsTile.encode(team.leagueSlug, team.teamId, team.teamLabel))
+            _pinMessage.tryEmit(if (added) "${team.teamLabel} tile added" else "${team.teamLabel} is already on start")
+        }
+    }
+
     private val _batteryHubOpen = MutableStateFlow(false)
     val batteryHubOpen: StateFlow<Boolean> = _batteryHubOpen.asStateFlow()
 
@@ -2113,6 +2170,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeProductivityHub()
         closeBatteryHub()
         closeMoneyHub()
+        closeMarketsHub()
+        closeSportsHub()
         closePanchang()
         closePermissions()
         closeNewsRegion()

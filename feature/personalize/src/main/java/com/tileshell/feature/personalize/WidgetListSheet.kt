@@ -72,6 +72,8 @@ private val WIDGET_CATALOG = listOf(
     WidgetCatalogEntry("music", "music", "now playing, plus the music hub — library, apps and history", "music", "orange"),
     WidgetCatalogEntry("battery", "battery", "charge level and time remaining", "battery", "green"),
     WidgetCatalogEntry("money", "money", "bank and payment transactions, plus your payment and banking apps", "money", "green"),
+    WidgetCatalogEntry("markets", "markets", "your watchlist, indices and movers, plus the markets hub", "markets", "cobalt"),
+    WidgetCatalogEntry("sportshub", "sports hub", "live scores, fixtures and the teams you follow, plus the sports hub", "sportshub", "orange"),
     WidgetCatalogEntry("alarm", "alarm", "next alarm time and active days", "alarm", "purple"),
     WidgetCatalogEntry("moonphase", "moon phase", "tonight's phase and illumination", "moonphase", "slate"),
     WidgetCatalogEntry("tasks", "tasks", "a checklist you keep, right on start", "tasks", "blue"),
