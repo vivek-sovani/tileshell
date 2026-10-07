@@ -98,4 +98,21 @@ class NewsHubTest {
         assertEquals("new", next.last())
         assertFalse("l1" in next)
     }
+
+    @Test
+    fun `a story's topic is its feed's category`() {
+        val sources = listOf(FeedSource("https://a/feed", "A", "sports"), FeedSource("https://b/feed", "B", "tech"))
+        val a = FeedArticle("t", "https://x/1", "A", "paris", null, 1L, feedUrl = "https://a/feed")
+        assertEquals("sports", topicOf(a, sources))
+        assertEquals("other", topicOf(a.copy(feedUrl = "https://gone/feed"), sources))
+        assertEquals("other", topicOf(a.copy(feedUrl = ""), sources))
+    }
+
+    @Test
+    fun `the stream is the video id just before the live flag`() {
+        val page = """"videoId":"AAAAAAAAAAA" ${"x".repeat(20_000)} "videoId":"BBBBBBBBBBB" ${"y".repeat(500)} "isLiveNow":true """
+        val s = parseLiveStatus(page)
+        assertTrue(s.live)
+        assertEquals("BBBBBBBBBBB", s.videoId)
+    }
 }

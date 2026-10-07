@@ -222,7 +222,7 @@ fun NewsHubScreen(
                 ) { page ->
                     when (page) {
                         0 -> TopStoriesPage(articles, read, saved.map { it.link }.toSet(), nowMs, tokens, accent, context)
-                        1 -> TopicsPage(articles, read, saved.map { it.link }.toSet(), nowMs, tokens, accent, context)
+                        1 -> TopicsPage(articles, feed.sources, read, saved.map { it.link }.toSet(), nowMs, tokens, accent, context)
                         2 -> SavedPage(saved, read, nowMs, tokens, accent, context)
                         else -> LiveTvPage(
                             regions = regions,
@@ -328,6 +328,7 @@ private fun TopStoriesPage(
 @Composable
 private fun TopicsPage(
     articles: List<FeedArticle>,
+    sources: List<FeedSource>,
     read: List<String>,
     saved: Set<String>,
     nowMs: Long,
@@ -335,13 +336,14 @@ private fun TopicsPage(
     accent: Color,
     context: Context,
 ) {
-    val topics = remember(articles) {
-        val present = articles.map { it.tag }.distinct()
-        FEED_CATEGORIES.filter { it in present } + present.filter { it !in FEED_CATEGORIES }
+    // Topics are the categories of the feeds the stories came from, in the settings' order.
+    val byTopic = remember(articles, sources) { articles.groupBy { topicOf(it, sources) } }
+    val topics = remember(byTopic) {
+        TOPIC_LABELS.keys.filter { it in byTopic } + byTopic.keys.filter { it !in TOPIC_LABELS }
     }
     var choice by remember { mutableStateOf<String?>(null) }
     val topic = choice?.takeIf { it in topics } ?: topics.firstOrNull()
-    val shown = remember(articles, topic) { articles.filter { it.tag == topic }.take(50) }
+    val shown = remember(byTopic, topic) { byTopic[topic].orEmpty().take(50) }
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         if (topics.isEmpty()) {
             item(key = "empty") { EmptyNote("no stories yet. they arrive a moment after opening, or press refresh.", tokens) }
@@ -350,7 +352,7 @@ private fun TopicsPage(
                 androidx.compose.foundation.layout.FlowRow(
                     horizontalArrangement = Arrangement.spacedBy(14.dp),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                ) { topics.forEach { t -> HubFilter(t, topic == t, tokens, accent) { choice = t } } }
+                ) { topics.forEach { t -> HubFilter(TOPIC_LABELS[t] ?: t, topic == t, tokens, accent) { choice = t } } }
             }
         }
         items(shown, key = { it.link }) { a -> StoryRow(a, a.link in read, a.link in saved, nowMs, tokens, accent, context) }

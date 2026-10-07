@@ -126,15 +126,29 @@ fun youtubeHandleOf(input: String): String {
 /** Whether a channel is on air now, and the current video's id when the page gave one (for its thumbnail). */
 data class LiveStatus(val live: Boolean, val videoId: String? = null)
 
-/** Reads a channel's `/live` page: "isLiveNow" says it is broadcasting, the first "videoId" is the stream. Pure. */
+/**
+ * Reads a channel's `/live` page: "isLiveNow" says it is broadcasting; the stream is the last
+ * "videoId" before that flag (the page carries other ids earlier, and for some channels the flag
+ * sits near the end of a ~1 MB page). Pure.
+ */
 fun parseLiveStatus(html: String): LiveStatus {
-    val live = html.contains("\"isLiveNow\":true") || html.contains("\"isLive\":true")
-    val id = Regex("\"videoId\":\"([A-Za-z0-9_-]{11})\"").find(html)?.groupValues?.get(1)
-    return LiveStatus(live, if (live) id else null)
+    val marker = "\"isLiveNow\":true"
+    var at = html.indexOf(marker)
+    if (at < 0) {
+        at = html.indexOf("\"isLive\":true")
+        if (at < 0) return LiveStatus(false)
+    }
+    val window = html.substring(maxOf(0, at - 60_000), at)
+    val ids = Regex("\"videoId\":\"([A-Za-z0-9_-]{11})\"").findAll(window).map { it.groupValues[1] }.toList()
+    val id = ids.lastOrNull() ?: Regex("\"videoId\":\"([A-Za-z0-9_-]{11})\"").find(html)?.groupValues?.get(1)
+    return LiveStatus(true, id)
 }
 
 /** A live thumbnail for [videoId]. */
 fun liveThumbnailUrl(videoId: String): String = "https://i.ytimg.com/vi/$videoId/mqdefault.jpg"
+
+/** The most of a channel page read looking for its live flag. */
+private const val LIVE_PAGE_MAX_CHARS = 2_500_000
 
 private const val LIVE_PAGE_UA = "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
 
@@ -149,8 +163,21 @@ suspend fun fetchLiveStatus(handle: String): LiveStatus? = withContext(Dispatche
         }
         try {
             if (conn.responseCode != HttpURLConnection.HTTP_OK) return@runCatching null
-            // The flags sit early in the page; the first 600 kB is plenty and spares the data.
-            val text = conn.inputStream.use { it.readNBytes(600_000).toString(Charsets.UTF_8) }
+            // The page is large (up to ~1 MB, sent compressed) and the flag may sit near its end: read on until
+            // it shows (then a little more) or the cap, so a channel on air is found and one off air costs one page.
+            val sb = StringBuilder()
+            conn.inputStream.bufferedReader(Charsets.UTF_8).use { reader ->
+                val buf = CharArray(64 * 1024)
+                var stop = -1
+                while (sb.length < LIVE_PAGE_MAX_CHARS) {
+                    val n = reader.read(buf)
+                    if (n < 0) break
+                    sb.append(buf, 0, n)
+                    if (stop < 0 && sb.contains("\"isLiveNow\":true")) stop = sb.length + 4_000
+                    if (stop in 0..sb.length) break
+                }
+            }
+            val text = sb.toString()
             parseLiveStatus(text)
         } finally {
             conn.disconnect()
@@ -266,3 +293,11 @@ object NewsMarks {
         runCatching { readFile(context).writeText(next.joinToString("\n")) }
     }
 }
+
+/**
+ * The topic a story belongs to: the category of the feed it came from (national news, sports,
+ * technology…), not the story's own tags, which are free words ("paris", "death") that made a
+ * poor filter. A story from a feed no longer subscribed falls to "other". Pure.
+ */
+fun topicOf(article: FeedArticle, sources: List<FeedSource>): String =
+    sources.firstOrNull { it.url == article.feedUrl }?.category ?: "other"
