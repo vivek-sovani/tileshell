@@ -41,6 +41,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.core.view.WindowCompat
@@ -170,9 +172,22 @@ fun NewsHubScreen(
     val channels = remember(feed.regions, chosen, customChannels) { effectiveLiveChannels(feed.regions, chosen, customChannels) }
 
     val onLivePage = pagerState.currentPage == LIVE_PAGE
-    // The player sits above all the pages, so it keeps playing while you read; it ends when closed, when the hub
-    // closes, or when a sub screen opens. (Turning the phone shifts the panorama's page, which must not end it.)
-    LaunchedEffect(visible, picking, settingsOpen) { if (!visible || picking || settingsOpen) playing = null }
+    // Turning the phone changes the panorama's page width and can leave it on another page (or between two). The
+    // page the person last scrolled to is remembered ([anchorPage], set only after a scroll) and returned to, so the
+    // live tv page, and the video in it, stay put through a turn.
+    var anchorPage by remember { mutableIntStateOf(0) }
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.isScrollInProgress }.collect { scrolling -> if (!scrolling) anchorPage = pagerState.currentPage }
+    }
+    val orientation = LocalConfiguration.current.orientation
+    var firstLayout by remember { mutableStateOf(true) }
+    LaunchedEffect(orientation) {
+        if (firstLayout) firstLayout = false else pagerState.scrollToPage(anchorPage)
+    }
+    // A video ends when closed, when the hub closes, when a sub screen opens, or when the person leaves the live tv page.
+    LaunchedEffect(visible, picking, settingsOpen, anchorPage, fullscreenHide) {
+        if (fullscreenHide == null && (!visible || picking || settingsOpen || anchorPage != LIVE_PAGE)) playing = null
+    }
     val statusCache = remember { mutableMapOf<String, LiveStatus?>() }
     val statuses by produceState(emptyMap<String, LiveStatus?>(), visible, onLivePage, channels, statusTick) {
         if (!visible || !onLivePage) return@produceState
@@ -207,19 +222,6 @@ fun NewsHubScreen(
                 // The keyboard lifts the hub so the field being typed in stays above it.
                 .imePadding(),
         ) {
-            // The player lives here, above the pages (not inside one), so it is always on screen, never scrolled
-            // away, and a page being unloaded when the phone turns cannot take it down.
-            val playingNow = playing
-            val playingId = playingNow?.let { statuses[it.handle]?.videoId }
-            if (playingNow != null && playingId != null && !picking && !settingsOpen) {
-                BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), contentAlignment = Alignment.Center) {
-                    // At most half the screen high (landscape), else the full width.
-                    val width = minOf(maxWidth, maxHeight * 0.5f * 16f / 9f).coerceAtLeast(160.dp)
-                    Box(modifier = Modifier.width(width)) {
-                        LivePlayer(playingNow, playingId, tokens, accent, onClose = { playing = null }, onFullscreen = { hide -> fullscreenHide = hide }, context = context)
-                    }
-                }
-            }
             if (settingsOpen) {
                 NewsSettingsScreen(feed = feed, tokens = tokens, accent = accent, modifier = Modifier.weight(1f))
             } else if (picking) {
@@ -254,6 +256,7 @@ fun NewsHubScreen(
                             onChoose = { picking = true },
                             playing = playing,
                             onPlay = { playing = it },
+                            onFullscreen = { hide -> fullscreenHide = hide },
                             context = context,
                         )
                     }
@@ -476,9 +479,22 @@ private fun LiveTvPage(
     onChoose: () -> Unit,
     playing: LiveChannel?,
     onPlay: (LiveChannel?) -> Unit,
+    onFullscreen: ((() -> Unit)?) -> Unit,
     context: Context,
 ) {
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
+    Column(modifier = Modifier.fillMaxSize()) {
+    // The player sits under the page's heading, above the list (not in it), so it is on screen however far the list is scrolled.
+    val playingId = playing?.let { statuses[it.handle]?.videoId }
+    if (playing != null && playingId != null) {
+        BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), contentAlignment = Alignment.TopStart) {
+            // The page's width, but never more than ~60% of its height (landscape), so the list stays usable.
+            val width = minOf(maxWidth, maxHeight * 0.6f * 16f / 9f).coerceAtLeast(200.dp)
+            Box(modifier = Modifier.width(width)) {
+                LivePlayer(playing, playingId, tokens, accent, onClose = { onPlay(null) }, onFullscreen = onFullscreen, context = context)
+            }
+        }
+    }
+    LazyColumn(modifier = Modifier.weight(1f).fillMaxWidth(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         item(key = "regions") { RegionChips(regions, region, tokens, accent, onRegion) }
         item(key = "note") {
             Text(
@@ -502,6 +518,7 @@ private fun LiveTvPage(
                 if (status?.live == true && status.videoId != null) onPlay(c) else openLink(context, liveUrl(c.handle))
             }
         }
+    }
     }
 }
 

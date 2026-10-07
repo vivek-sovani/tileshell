@@ -11605,7 +11605,7 @@ straight on `FeedStore`, each change asks the worker to refresh). Live tv follow
 row now plays in the hub through YouTube's own embedded player in a WebView (`LivePlayer`, 16:9 above the
 list, "youtube ›" hands it to the YouTube app, "close" ends it); a row whose stream id isn't known still
 opens YouTube. The page loads with `Referer: https://<package>` as YouTube asks of embedding apps, may only
-navigate within youtube.com / googlevideo.com, pauses with the app, is destroyed when closed, and it sits above the pages (so it keeps playing while the user reads, and turning the phone cannot unload it), ending when closed, when the hub closes or when a sub screen opens; the player's full-screen button shows its view over the hub
+navigate within youtube.com / googlevideo.com, pauses with the app, is destroyed when closed, and it sits under the live tv page's heading, pinned above the list; turning the phone returns the panorama to the page last scrolled to (`anchorPage`, set only after a scroll) so the page and its video are not unloaded; it ends when closed, when the hub closes, when a sub screen opens or when the page is left; the player's full-screen button shows its view over the hub
 (`onShowCustomView`). This supersedes "link out, no player" above for live rows: no new library, but a
 WebView with JavaScript for the embed only; a channel that forbids embedding would show YouTube's own
 message in the player. (3) *News tile*: rolls the eight newest stories every 4.5 s while the live tiles are
