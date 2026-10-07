@@ -219,6 +219,10 @@ class MainActivity : ComponentActivity() {
         when (intent.getStringExtra(com.tileshell.feature.livetiles.widget.EXTRA_OPEN_HUB)) {
             "battery" -> startViewModel.openBatteryHub()
             "panchang" -> startViewModel.openPanchang()
+            // Home-screen widgets open the hub they belong to.
+            "weather" -> startViewModel.openWeatherHub(null)
+            "markets" -> startViewModel.openMarketsHub()
+            "sports" -> startViewModel.openSportsHub()
             // A running timer's notification or alarm icon.
             "clock" -> startViewModel.openClockHub()
         }

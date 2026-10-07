@@ -1520,9 +1520,9 @@ fun StartScreen(
                                     viewModel.openMarketsHub()
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "sportshub") {
                                     viewModel.openSportsHub()
-                                } else if (tile.packageName.isBlank() && (tile.iconKey == "clockhub" || tile.iconKey == "clock" || tile.iconKey == "alarm")) {
+                                } else if ((tile.packageName.isBlank() && tile.iconKey == "clockhub") || tile.iconKey == "clock" || tile.iconKey == "alarm") {
                                     viewModel.openClockHub()
-                                } else if (tile.packageName.isBlank() && tile.iconKey == "moonphase") {
+                                } else if (tile.iconKey == "moonphase") {
                                     // The moon phase widget opens the panchang hub (tithi, moon times).
                                     viewModel.openPanchang()
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "newshub") {
@@ -1594,9 +1594,9 @@ fun StartScreen(
                             viewModel.openMarketsHub()
                         } else if (child.packageName.isBlank() && child.iconKey == "sportshub") {
                             viewModel.openSportsHub()
-                        } else if (child.packageName.isBlank() && (child.iconKey == "clockhub" || child.iconKey == "clock" || child.iconKey == "alarm")) {
+                        } else if ((child.packageName.isBlank() && child.iconKey == "clockhub") || child.iconKey == "clock" || child.iconKey == "alarm") {
                             viewModel.openClockHub()
-                        } else if (child.packageName.isBlank() && child.iconKey == "moonphase") {
+                        } else if (child.iconKey == "moonphase") {
                             viewModel.openPanchang()
                         } else if (child.packageName.isBlank() && child.iconKey == "newshub") {
                             viewModel.openNewsHub()

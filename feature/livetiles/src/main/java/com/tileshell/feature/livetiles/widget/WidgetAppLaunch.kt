@@ -35,13 +35,25 @@ private fun activityPendingIntent(context: Context, appWidgetId: Int, intent: In
 private fun webSearchIntent(query: String): Intent =
     Intent(Intent.ACTION_VIEW, Uri.parse("https://www.google.com/search?q=" + Uri.encode(query)))
 
-/** Same fallback the in-app weather tile already uses for a blank-package tap. */
-fun weatherAppPendingIntent(context: Context, appWidgetId: Int): PendingIntent =
-    activityPendingIntent(context, appWidgetId, webSearchIntent("weather"))
+/**
+ * Opens TileShell with its [hub] ("weather", "clock", "markets", "sports", "battery", "panchang", "health") on top: a
+ * home-screen widget that belongs to a hub opens that hub when tapped. Falls back to [fallback] when TileShell has no
+ * launch intent (never in practice).
+ */
+fun hubPendingIntent(context: Context, appWidgetId: Int, hub: String, fallback: Intent): PendingIntent {
+    val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+        ?: return activityPendingIntent(context, appWidgetId, fallback)
+    launch.putExtra(EXTRA_OPEN_HUB, hub).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    return activityPendingIntent(context, appWidgetId, launch)
+}
 
-/** Standard public intent (API 19+) that opens whatever the device's default clock app is. */
+/** The weather widget opens the weather hub (the device's place; a fixed place's widget opens the same hub). */
+fun weatherAppPendingIntent(context: Context, appWidgetId: Int): PendingIntent =
+    hubPendingIntent(context, appWidgetId, "weather", webSearchIntent("weather"))
+
+/** The alarm widget opens the clock hub (alarms, world clocks, timers…). */
 fun alarmAppPendingIntent(context: Context, appWidgetId: Int): PendingIntent =
-    activityPendingIntent(context, appWidgetId, Intent(AlarmClock.ACTION_SHOW_ALARMS))
+    hubPendingIntent(context, appWidgetId, "clock", Intent(AlarmClock.ACTION_SHOW_ALARMS))
 
 /** Opens the system's own battery-usage screen — there's no single "battery app" to open instead. */
 /** Extra on TileShell's launch intent asking it to open a hub (see MainActivity). */
@@ -71,7 +83,7 @@ fun batteryAppPendingIntent(context: Context, appWidgetId: Int): PendingIntent =
  * as weather, since both are informational gadgets with no dedicated app.
  */
 fun moonPhaseAppPendingIntent(context: Context, appWidgetId: Int): PendingIntent =
-    activityPendingIntent(context, appWidgetId, webSearchIntent("moon phase today"))
+    hubPendingIntent(context, appWidgetId, "panchang", webSearchIntent("moon phase today"))
 
 /** Same web-search fallback as weather/moon phase — no OS-standard app for a specific calendar system. */
 fun calendarSystemAppPendingIntent(context: Context, appWidgetId: Int, systemDisplayName: String): PendingIntent =
@@ -79,11 +91,11 @@ fun calendarSystemAppPendingIntent(context: Context, appWidgetId: Int, systemDis
 
 /** Same web-search fallback as weather/moon phase — no OS-standard "stock app" to deep-link into. */
 fun stockAppPendingIntent(context: Context, appWidgetId: Int, displayName: String): PendingIntent =
-    activityPendingIntent(context, appWidgetId, webSearchIntent("$displayName stock price"))
+    hubPendingIntent(context, appWidgetId, "markets", webSearchIntent("$displayName stock price"))
 
 /** Same web-search fallback as weather/moon phase — no OS-standard "commodity app" to deep-link into. */
 fun commodityAppPendingIntent(context: Context, appWidgetId: Int, displayName: String): PendingIntent =
-    activityPendingIntent(context, appWidgetId, webSearchIntent("$displayName price today"))
+    hubPendingIntent(context, appWidgetId, "markets", webSearchIntent("$displayName price today"))
 
 /**
  * Opens the match's own ESPN web page when [webUrl] resolved on the last
@@ -94,6 +106,7 @@ fun commodityAppPendingIntent(context: Context, appWidgetId: Int, displayName: S
  * (a team with nothing scheduled) or the summary call failed.
  */
 fun sportsAppPendingIntent(context: Context, appWidgetId: Int, webUrl: String?, teamLabel: String): PendingIntent {
-    val intent = if (webUrl != null) Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)) else webSearchIntent("$teamLabel score")
-    return activityPendingIntent(context, appWidgetId, intent)
+    // A team's widget opens the sports hub (its match detail has the ESPN page).
+    val fallback = if (webUrl != null) Intent(Intent.ACTION_VIEW, Uri.parse(webUrl)) else webSearchIntent("$teamLabel score")
+    return hubPendingIntent(context, appWidgetId, "sports", fallback)
 }
