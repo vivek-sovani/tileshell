@@ -12,12 +12,16 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -28,6 +32,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.text.BasicTextField
@@ -46,10 +52,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -187,7 +195,10 @@ fun ClockHubScreen(
                     onClick = {},
                 )
                 .statusBarsPadding()
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                // The keyboard lifts the whole hub, so the field being typed in (a text field scrolls
+                // its own cursor into view) stays above it.
+                .imePadding(),
         ) {
             val draft = editor
             val running = runningId?.let { id -> sessions.firstOrNull { it.id == id } }
@@ -225,8 +236,10 @@ fun ClockHubScreen(
                     }
                 }
             }
-            HubPinNote(pinMessages, tokens, accent)
-            HubAppBar(
+            // With the keyboard up the app bar would only eat the room the field needs.
+            val keyboardUp = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+            if (!(keyboardUp && draft != null)) HubPinNote(pinMessages, tokens, accent)
+            if (!(keyboardUp && draft != null)) HubAppBar(
                 tokens = tokens,
                 actions = buildList {
                     add(HubAppBarAction("back", "back") { back() })
@@ -799,6 +812,7 @@ private fun ClockSubScreen(caption: String, title: String, tokens: ColorTokens, 
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun TextBox(
     value: String,
@@ -808,7 +822,15 @@ private fun TextBox(
     accent: Color,
     keyboard: KeyboardType = KeyboardType.Text,
 ) {
-    Box(modifier = Modifier.fillMaxWidth().background(tokens.chip).padding(horizontal = 12.dp, vertical = 10.dp)) {
+    // The keyboard arrives after the field is focused and shrinks the list: scroll the field into the room left.
+    val requester = remember { BringIntoViewRequester() }
+    var focused by remember { mutableStateOf(false) }
+    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+    LaunchedEffect(focused, imeBottom) { if (focused && imeBottom > 0) requester.bringIntoView() }
+    Box(
+        modifier = Modifier.fillMaxWidth().bringIntoViewRequester(requester).onFocusChanged { focused = it.isFocused }
+            .background(tokens.chip).padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
         if (value.isEmpty()) Text(placeholder, color = tokens.fgDim, fontSize = 15.sp, maxLines = 1)
         BasicTextField(
             value = value,
