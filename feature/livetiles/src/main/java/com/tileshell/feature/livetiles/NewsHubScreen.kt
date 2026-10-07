@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -42,6 +43,11 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
@@ -140,7 +146,6 @@ fun NewsHubScreen(
     var liveRegion by remember { mutableStateOf<String?>(null) }
     var settingsOpen by remember { mutableStateOf(false) }
     var playing by remember { mutableStateOf<LiveChannel?>(null) }
-    var fullscreenView by remember { mutableStateOf<View?>(null) }
     var fullscreenHide by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     LaunchedEffect(visible) {
@@ -151,7 +156,7 @@ fun NewsHubScreen(
     }
     BackHandler(enabled = visible) {
         when {
-            fullscreenView != null -> fullscreenHide?.invoke()
+            fullscreenHide != null -> fullscreenHide?.invoke()
             settingsOpen -> settingsOpen = false
             picking -> picking = false
             else -> onDismiss()
@@ -166,7 +171,10 @@ fun NewsHubScreen(
 
     val onLivePage = pagerState.currentPage == LIVE_PAGE
     // A video never keeps playing once the live tv page is left or the hub closed.
-    LaunchedEffect(onLivePage, visible, picking, settingsOpen) { if (!onLivePage || !visible || picking || settingsOpen) playing = null }
+    // (Not while it is full screen: turning the phone moves the panorama and must not end the video.)
+    LaunchedEffect(onLivePage, visible, picking, settingsOpen, fullscreenHide) {
+        if (fullscreenHide == null && (!onLivePage || !visible || picking || settingsOpen)) playing = null
+    }
     val statusCache = remember { mutableMapOf<String, LiveStatus?>() }
     val statuses by produceState(emptyMap<String, LiveStatus?>(), visible, onLivePage, channels, statusTick) {
         if (!visible || !onLivePage) return@produceState
@@ -201,6 +209,19 @@ fun NewsHubScreen(
                 // The keyboard lifts the hub so the field being typed in stays above it.
                 .imePadding(),
         ) {
+            // The player lives here, above the pages (not inside one), so it is always on screen, never scrolled
+            // away, and a page being unloaded when the phone turns cannot take it down.
+            val playingNow = playing
+            val playingId = playingNow?.let { statuses[it.handle]?.videoId }
+            if (playingNow != null && playingId != null && !picking && !settingsOpen) {
+                BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), contentAlignment = Alignment.Center) {
+                    // At most half the screen high (landscape), else the full width.
+                    val width = minOf(maxWidth, maxHeight * 0.5f * 16f / 9f).coerceAtLeast(160.dp)
+                    Box(modifier = Modifier.width(width)) {
+                        LivePlayer(playingNow, playingId, tokens, accent, onClose = { playing = null }, onFullscreen = { hide -> fullscreenHide = hide }, context = context)
+                    }
+                }
+            }
             if (settingsOpen) {
                 NewsSettingsScreen(feed = feed, tokens = tokens, accent = accent, modifier = Modifier.weight(1f))
             } else if (picking) {
@@ -235,7 +256,6 @@ fun NewsHubScreen(
                             onChoose = { picking = true },
                             playing = playing,
                             onPlay = { playing = it },
-                            onFullscreen = { v, hide -> fullscreenView = v; fullscreenHide = hide },
                             context = context,
                         )
                     }
@@ -263,9 +283,6 @@ fun NewsHubScreen(
                     add(HubAppBarAction("pin", "pin news to start", "pin to start", onPinHub))
                 },
             )
-        }
-        fullscreenView?.let { v ->
-            AndroidView(factory = { v }, modifier = Modifier.fillMaxSize().background(Color.Black))
         }
       }
     }
@@ -461,16 +478,9 @@ private fun LiveTvPage(
     onChoose: () -> Unit,
     playing: LiveChannel?,
     onPlay: (LiveChannel?) -> Unit,
-    onFullscreen: (View?, (() -> Unit)?) -> Unit,
     context: Context,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
-        val playingId = playing?.let { statuses[it.handle]?.videoId }
-        if (playing != null && playingId != null) {
-            item(key = "player") {
-                LivePlayer(playing, playingId, tokens, accent, onClose = { onPlay(null) }, onFullscreen = onFullscreen, context = context)
-            }
-        }
         item(key = "regions") { RegionChips(regions, region, tokens, accent, onRegion) }
         item(key = "note") {
             Text(
@@ -640,11 +650,12 @@ private fun LivePlayer(
     tokens: ColorTokens,
     accent: Color,
     onClose: () -> Unit,
-    onFullscreen: (View?, (() -> Unit)?) -> Unit,
+    onFullscreen: ((() -> Unit)?) -> Unit,
     context: Context,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     var web by remember { mutableStateOf<WebView?>(null) }
+    var leaveFullscreen by remember { mutableStateOf<(() -> Unit)?>(null) }
     DisposableEffect(lifecycleOwner, web) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -676,11 +687,37 @@ private fun LivePlayer(
                         }
                         webChromeClient = object : WebChromeClient() {
                             override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
-                                onFullscreen(view) { callback?.onCustomViewHidden(); onFullscreen(null, null) }
+                                val activity = ctx.findActivity()
+                                if (view == null || activity == null) {
+                                    callback?.onCustomViewHidden()
+                                    return
+                                }
+                                // The video's full-screen view goes straight onto the window's decor view (above the app's
+                                // own layers), black, with the system bars hidden; it follows the screen into landscape.
+                                val decor = activity.window.decorView as ViewGroup
+                                val container = FrameLayout(ctx).apply {
+                                    setBackgroundColor(android.graphics.Color.BLACK)
+                                    addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                                }
+                                decor.addView(container, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                                val controller = WindowInsetsControllerCompat(activity.window, decor)
+                                val barsWereShown = androidx.core.view.ViewCompat.getRootWindowInsets(decor)?.isVisible(WindowInsetsCompat.Type.systemBars()) == true
+                                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                                controller.hide(WindowInsetsCompat.Type.systemBars())
+                                val exit = {
+                                    decor.removeView(container)
+                                    container.removeAllViews()
+                                    if (barsWereShown) controller.show(WindowInsetsCompat.Type.systemBars())
+                                    callback?.onCustomViewHidden()
+                                    leaveFullscreen = null
+                                    onFullscreen(null)
+                                }
+                                leaveFullscreen = exit
+                                onFullscreen(exit)
                             }
 
                             override fun onHideCustomView() {
-                                onFullscreen(null, null)
+                                leaveFullscreen?.invoke()
                             }
                         }
                         loadUrl(
@@ -690,7 +727,7 @@ private fun LivePlayer(
                         web = this
                     }
                 },
-                onRelease = { it.stopLoading(); it.destroy(); web = null },
+                onRelease = { leaveFullscreen?.invoke(); it.stopLoading(); it.destroy(); web = null },
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
