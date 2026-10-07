@@ -10,6 +10,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.tileshell.feature.livetiles.HubAppChoices
 import com.tileshell.feature.livetiles.HubKind
+import com.tileshell.feature.livetiles.launcherEntries
+import com.tileshell.feature.livetiles.packageOfEntry
 import com.tileshell.feature.livetiles.rememberAppOpenCounts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -17,6 +19,7 @@ import kotlinx.coroutines.withContext
 /** The sections of the shopping hub's apps page. */
 enum class ShoppingAppKind { SHOPPING, FOOD, COURIER }
 
+/** [packageName] is the entry id: the package for an app's main entry, "package/Class" for another entry of it (Amazon Now). */
 data class ShoppingApp(val packageName: String, val label: String, val kind: ShoppingAppKind)
 
 /** A store the hub knows by name: the words that name it in a message or app label, how it is shown, and its kind. */
@@ -24,6 +27,10 @@ internal data class KnownStore(val words: List<String>, val name: String, val ki
 
 internal val KNOWN_STORES: List<KnownStore> = listOf(
     KnownStore(listOf("amazon"), "Amazon", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("samsung shop"), "Samsung Shop", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("reliance digital"), "Reliance Digital", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("pharmeasy"), "PharmEasy", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("1mg", "tata 1mg"), "Tata 1mg", ShoppingAppKind.SHOPPING),
     KnownStore(listOf("flipkart"), "Flipkart", ShoppingAppKind.SHOPPING),
     KnownStore(listOf("myntra"), "Myntra", ShoppingAppKind.SHOPPING),
     KnownStore(listOf("meesho"), "Meesho", ShoppingAppKind.SHOPPING),
@@ -76,35 +83,36 @@ internal fun storeIn(text: String): KnownStore? {
         .minByOrNull { it.second }?.first
 }
 
+/** Amazon's shopping entries; every other Amazon app (Music, Prime Video, Alexa, Kindle, Audible, Pay, Photos…) is not shopping. */
+private val AMAZON_SHOPPING_WORDS = listOf("shopping", "now", "fresh", "business")
+
 /** The built-in kind of an installed app, ignoring the user's choices: a known package or a store named in its label. */
 internal fun builtInShoppingKind(packageName: String, label: String): ShoppingAppKind? {
+    val l = label.lowercase()
+    // Amazon makes many apps: only its shopping entries count (by label, whatever their package).
+    if (hasWord(l, "amazon")) {
+        val trimmed = l.trim()
+        return if (trimmed == "amazon" || AMAZON_SHOPPING_WORDS.any { hasWord(l, it) }) ShoppingAppKind.SHOPPING else null
+    }
     if (packageName in SHOPPING_PACKAGES) return ShoppingAppKind.SHOPPING
     if (packageName in FOOD_PACKAGES) return ShoppingAppKind.FOOD
     if (packageName in COURIER_PACKAGES) return ShoppingAppKind.COURIER
-    val l = label.lowercase()
     KNOWN_STORES.firstOrNull { s -> s.words.any { hasWord(l, it) } }?.let { return it.kind }
-    if (hasWord(l, "shopping") || hasWord(l, "mart")) return ShoppingAppKind.SHOPPING
+    if (hasWord(l, "shopping") || hasWord(l, "shop") || hasWord(l, "mart")) return ShoppingAppKind.SHOPPING
     return null
 }
 
 /** Every shopping section an app is in: its built-in one plus what the user added, minus what they took off. */
-fun shoppingAppKinds(packageName: String, label: String): List<ShoppingAppKind> {
+fun shoppingAppKinds(entryId: String, label: String): List<ShoppingAppKind> {
     val choice = HubAppChoices.current(HubKind.SHOPPING)
-    val names = choice.sectionsOf(packageName, setOfNotNull(builtInShoppingKind(packageName, label)?.name))
+    val names = choice.sectionsOf(entryId, setOfNotNull(builtInShoppingKind(packageOfEntry(entryId), label)?.name))
     return ShoppingAppKind.entries.filter { it.name in names }
 }
 
-/** Installed launcher apps that are shopping, food and grocery, or courier apps. */
+/** Every launcher entry of an installed app that is a shopping, food and grocery, or courier app (Amazon and Amazon Now apart). */
 internal fun installedShoppingApps(context: Context): List<ShoppingApp> = runCatching {
-    val pm = context.packageManager
-    val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-    pm.queryIntentActivities(intent, 0)
-        .flatMap { info ->
-            val pkg = info.activityInfo?.packageName ?: return@flatMap emptyList<ShoppingApp>()
-            if (pkg == context.packageName) return@flatMap emptyList<ShoppingApp>()
-            val label = info.loadLabel(pm).toString()
-            shoppingAppKinds(pkg, label).map { ShoppingApp(pkg, label, it) }
-        }
+    launcherEntries(context)
+        .flatMap { e -> shoppingAppKinds(e.id, e.label).map { ShoppingApp(e.id, e.label, it) } }
         .distinctBy { it.packageName to it.kind }
 }.getOrDefault(emptyList())
 
@@ -118,13 +126,15 @@ internal fun rememberShoppingApps(): List<ShoppingApp>? {
     }
     val opens = rememberAppOpenCounts()
     return remember(installed, opens) {
-        installed?.sortedWith(compareByDescending<ShoppingApp> { opens[it.packageName] ?: 0 }.thenBy { it.label.lowercase() })
+        installed?.sortedWith(compareByDescending<ShoppingApp> { opens[packageOfEntry(it.packageName)] ?: 0 }.thenBy { it.label.lowercase() })
     }
 }
 
 /** The installed app of the store [merchant] ("Amazon"), for opening it from an order's card; null when none. */
 internal fun appForMerchant(apps: List<ShoppingApp>, merchant: String): ShoppingApp? {
     val store = storeIn(merchant)
-    return apps.firstOrNull { a -> store != null && storeIn(a.label)?.name == store.name }
-        ?: apps.firstOrNull { it.label.equals(merchant, ignoreCase = true) }
+    // The store's main entry (Amazon) before its other ones (Amazon Now).
+    val ordered = apps.sortedBy { it.packageName.contains('/') }
+    return ordered.firstOrNull { a -> store != null && storeIn(a.label)?.name == store.name }
+        ?: ordered.firstOrNull { it.label.equals(merchant, ignoreCase = true) }
 }

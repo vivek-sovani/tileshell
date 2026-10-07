@@ -66,7 +66,7 @@ fun rememberAppIconBitmap(packageName: String, sizePx: Int = 96): ImageBitmap? {
         } else {
             withContext(Dispatchers.IO) {
                 runCatching {
-                    context.packageManager.getApplicationIcon(packageName)
+                    entryIconDrawable(context, packageName)
                         .toBitmap(width = sizePx, height = sizePx)
                         .asImageBitmap()
                 }.getOrNull()
@@ -114,7 +114,7 @@ private fun rememberMaskableAppIcon(packageName: String, sizePx: Int = 96): Mask
         } else {
             withContext(Dispatchers.IO) {
                 runCatching {
-                    val drawable = context.packageManager.getApplicationIcon(packageName)
+                    val drawable = entryIconDrawable(context, packageName)
                     val isAdaptive = drawable is AdaptiveIconDrawable
                     val osBitmap = drawable.toBitmap(width = sizePx, height = sizePx).asImageBitmap()
                     val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable, sizePx) else osBitmap

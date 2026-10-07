@@ -341,6 +341,7 @@ private fun dayLabel(time: Long, now: Long = System.currentTimeMillis()): String
 private fun ShoppingAppsPage(tokens: ColorTokens, accent: Color, editing: Boolean) {
     val context = LocalContext.current
     val apps = rememberShoppingApps() ?: return
+    val marks by ShoppingTileMarks.marks(context).collectAsStateWithLifecycle()
     HubAppsPage(
         kind = HubKind.SHOPPING,
         sectionDefs = listOf(
@@ -354,7 +355,15 @@ private fun ShoppingAppsPage(tokens: ColorTokens, accent: Color, editing: Boolea
         accent = accent,
         emptyText = "no shopping, food or courier apps found",
         onOpen = { openApp(context, it) },
-        header = {},
+        header = {
+            Text(
+                if (marks.isNullOrEmpty()) "▢ marks the apps on the shopping tile. none marked shows them all." else "▣ is on the shopping tile. tap to add or remove.",
+                color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(start = 6.dp, top = 4.dp, bottom = 2.dp),
+            )
+        },
+        subEntries = true,
+        tileMarks = marks ?: emptySet(),
+        onToggleTileMark = { ShoppingTileMarks.toggle(context, it) },
     )
 }
 

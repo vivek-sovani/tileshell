@@ -1204,7 +1204,15 @@ internal fun appLabelOrNull(context: Context, packageName: String): String? = ru
 
 internal fun openApp(context: Context, packageName: String) {
     runCatching {
-        context.packageManager.getLaunchIntentForPackage(packageName)?.let { context.startActivity(it) }
+        if (packageName.contains('/')) {
+            // A sub-entry of an app (Amazon Now): launch that entry itself.
+            val component = android.content.ComponentName.unflattenFromString(packageName) ?: return
+            context.startActivity(
+                Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER).setComponent(component).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+        } else {
+            context.packageManager.getLaunchIntentForPackage(packageName)?.let { context.startActivity(it) }
+        }
     }
 }
 

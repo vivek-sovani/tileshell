@@ -11643,3 +11643,13 @@ count under arriving with minute-level times.
 **Tile** (`shophub`, `ShoppingTileFace`): front shows what is arriving (item and "store · time"), else the bag
 glyph; the back shows ALL the shopping apps as tappable icons (tap opens the app, a tap elsewhere opens the hub),
 and with more apps than fit, each turn to the back shows the next page.
+
+**Follow-ups (same day, user-requested).** Amazon's other apps (Music, Alexa, Prime Video, Kindle, Audible, Pay) are
+not shopping: an Amazon-named app counts only when its label is "Amazon" or has shopping / now / fresh / business
+(`builtInShoppingKind`); Samsung Shop (and any label with the word "shop") is recognised, and Samsung Shop, Reliance
+Digital, PharmEasy and Tata 1mg are known stores. An app with several launcher entries (Amazon, Amazon Now) is listed
+and opened per entry: the apps page's add dialog can list sub-entries (`subEntries`), an entry id is the package for
+the main entry and "package/Class" for another (`LauncherEntry`, `openApp` and the icon loaders understand both).
+**Show on tile**: each app on the apps page has an on-tile mark (▣ / ▢, `HubAppsPage` `tileMarks`); the tile's back
+shows the marked apps, or all when none is marked (`ShoppingTileMarks`, `appsOnTile`, `shopping_tile_apps` in prefs
+and backups).

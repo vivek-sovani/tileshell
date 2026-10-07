@@ -167,4 +167,29 @@ class ShoppingParserTest {
         // An app's own title still can.
         assertEquals("Wireless earbuds", parse("Wireless earbuds", "Out for delivery today")?.title)
     }
+
+    @Test
+    fun `amazon's other apps are not shopping, its shopping entries and samsung shop are`() {
+        val amazonPkg = "in.amazon.mShop.android.shopping"
+        assertEquals(ShoppingAppKind.SHOPPING, builtInShoppingKind(amazonPkg, "Amazon"))
+        assertEquals(ShoppingAppKind.SHOPPING, builtInShoppingKind(amazonPkg, "Amazon Shopping"))
+        assertEquals(ShoppingAppKind.SHOPPING, builtInShoppingKind(amazonPkg, "Amazon Now"))
+        assertEquals(ShoppingAppKind.SHOPPING, builtInShoppingKind(amazonPkg, "Amazon Fresh"))
+        assertNull(builtInShoppingKind(amazonPkg, "Amazon Pay"))
+        assertNull(builtInShoppingKind("com.amazon.mp3", "Amazon Music"))
+        assertNull(builtInShoppingKind("com.amazon.avod.thirdpartyclient", "Prime Video"))
+        assertNull(builtInShoppingKind("com.amazon.dee.app", "Amazon Alexa"))
+        assertNull(builtInShoppingKind("com.amazon.kindle", "Kindle"))
+        assertNull(builtInShoppingKind("com.audible.application", "Amazon Audible"))
+        assertEquals(ShoppingAppKind.SHOPPING, builtInShoppingKind("com.samsung.x", "Samsung Shop"))
+        assertEquals("Samsung Shop", storeIn("Samsung Shop: your order has shipped")?.name)
+    }
+
+    @Test
+    fun `the tile shows the marked apps, or all when none is marked`() {
+        val apps = listOf(ShoppingApp("a", "A", ShoppingAppKind.SHOPPING), ShoppingApp("b", "B", ShoppingAppKind.FOOD), ShoppingApp("c", "C", ShoppingAppKind.COURIER))
+        assertEquals(listOf("a", "b", "c"), appsOnTile(apps, emptySet()).map { it.packageName })
+        assertEquals(listOf("a", "c"), appsOnTile(apps, setOf("c", "a")).map { it.packageName })
+        assertEquals(listOf("a", "b", "c"), appsOnTile(apps, setOf("gone")).map { it.packageName })
+    }
 }

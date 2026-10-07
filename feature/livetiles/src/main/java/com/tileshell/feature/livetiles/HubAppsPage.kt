@@ -58,6 +58,8 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -107,6 +109,11 @@ internal fun HubAppsPage(
     header: @Composable () -> Unit = {},
     longPressLabel: String? = null,
     onLongPress: (String) -> Unit = {},
+    /** List an app's other launcher entries too (Amazon Now beside Amazon) in "add apps"; ids are then "package/Class". */
+    subEntries: Boolean = false,
+    /** "On tile" marks: the entry ids shown on the hub's tile, and the toggle. A mark appears under each app when both are given. */
+    tileMarks: Set<String>? = null,
+    onToggleTileMark: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val choices by remember { HubAppChoices.state(context) }.collectAsState()
@@ -197,6 +204,8 @@ internal fun HubAppsPage(
                                             tokens = tokens,
                                             accent = accent,
                                             longPressLabel = longPressLabel,
+                                            tileMark = tileMarks?.let { app.packageName in it },
+                                            onTileMark = { onToggleTileMark?.invoke(app.packageName) },
                                             onOpen = { onOpen(app.packageName) },
                                             onLongPress = { onLongPress(app.packageName) },
                                             onDrop = { HubAppChoices.update(context, kind) { it.removeFrom(app.packageName, section.key) } },
@@ -266,6 +275,7 @@ internal fun HubAppsPage(
     addTarget?.let { start ->
         AddHubAppsDialog(
             sectionDefs = sectionDefs,
+            subEntries = subEntries,
             initialSection = start,
             existingBySection = sections.associate { it.key to it.apps.map { app -> app.packageName }.toSet() },
             tokens = tokens,
@@ -290,6 +300,8 @@ private fun AppCell(
     tokens: ColorTokens,
     accent: Color,
     longPressLabel: String?,
+    tileMark: Boolean?,
+    onTileMark: () -> Unit,
     onOpen: () -> Unit,
     onLongPress: () -> Unit,
     onDrop: () -> Unit,
@@ -368,6 +380,18 @@ private fun AppCell(
         }
         Spacer(Modifier.height(3.dp))
         Text(app.label.lowercase(), color = tokens.fg, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (tileMark != null) {
+            // "On tile": ▣ when the hub's tile shows this app, ▢ when it doesn't.
+            Text(
+                if (tileMark) "▣" else "▢",
+                color = if (tileMark) accent else tokens.fgDim,
+                fontSize = 16.sp,
+                modifier = Modifier
+                    .semantics { contentDescription = if (tileMark) "on tile" else "not on tile" }
+                    .clickable(onClick = onTileMark)
+                    .padding(horizontal = 14.dp, vertical = 4.dp),
+            )
+        }
     }
 }
 
@@ -392,15 +416,19 @@ private fun AddCell(tokens: ColorTokens, accent: Color, onClick: () -> Unit) {
 }
 
 /** Installed launcher apps (package to label), without TileShell itself, by name. */
-internal fun installedLauncherApps(context: android.content.Context): List<Pair<String, String>> = runCatching {
-    val pm = context.packageManager
-    pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-        .mapNotNull { info ->
-            val pkg = info.activityInfo?.packageName ?: return@mapNotNull null
-            if (pkg == context.packageName) null else pkg to info.loadLabel(pm).toString()
-        }
-        .distinctBy { it.first }
-        .sortedBy { it.second.lowercase() }
+internal fun installedLauncherApps(context: android.content.Context, subEntries: Boolean = false): List<Pair<String, String>> = runCatching {
+    if (subEntries) {
+        launcherEntries(context).map { it.id to it.label }.distinctBy { it.first }.sortedBy { it.second.lowercase() }
+    } else {
+        val pm = context.packageManager
+        pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+            .mapNotNull { info ->
+                val pkg = info.activityInfo?.packageName ?: return@mapNotNull null
+                if (pkg == context.packageName) null else pkg to info.loadLabel(pm).toString()
+            }
+            .distinctBy { it.first }
+            .sortedBy { it.second.lowercase() }
+    }
 }.getOrDefault(emptyList())
 
 /** Pick installed apps, choose the section, add them to the hub's apps page. */
@@ -408,6 +436,7 @@ internal fun installedLauncherApps(context: android.content.Context): List<Pair<
 @Composable
 private fun AddHubAppsDialog(
     sectionDefs: List<Pair<String, String>>,
+    subEntries: Boolean,
     initialSection: String,
     existingBySection: Map<String, Set<String>>,
     tokens: ColorTokens,
@@ -417,7 +446,7 @@ private fun AddHubAppsDialog(
 ) {
     val context = LocalContext.current
     val installed by produceState<List<Pair<String, String>>?>(initialValue = null) {
-        value = withContext(Dispatchers.IO) { installedLauncherApps(context) }
+        value = withContext(Dispatchers.IO) { installedLauncherApps(context, subEntries) }
     }
     var query by remember { mutableStateOf("") }
     // An app can go into several sections (CRED is a payment app and a card app).

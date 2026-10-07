@@ -52,7 +52,8 @@ fun ShoppingTileFace(size: TileSize, active: Boolean, modifier: Modifier = Modif
     val context = LocalContext.current
     LaunchedEffect(Unit) { ShoppingStore.ensureLoaded(context) }
     val orders by ShoppingStore.orders.collectAsStateWithLifecycle()
-    val apps = rememberShoppingApps().orEmpty().distinctBy { it.packageName }
+    val marks by ShoppingTileMarks.marks(context).collectAsStateWithLifecycle()
+    val apps = appsOnTile(rememberShoppingApps().orEmpty().distinctBy { it.packageName }, marks.orEmpty())
     val arriving = remember(orders) { arrivingOrders(orders) }
 
     var flipped by remember { mutableStateOf(false) }
