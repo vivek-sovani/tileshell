@@ -25,6 +25,25 @@ object MusicMediaSession {
     /** What the car may ask for even when nothing is playing. */
     const val IDLE_ACTIONS = PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID or PlaybackStateCompat.ACTION_PLAY_FROM_SEARCH
 
+    /** Plays what a voice request asked for ("play <show / station / artist / song>"); an empty one shuffles the library. */
+    fun playFromSearch(context: Context, query: String) {
+        scope.launch { start(context.applicationContext) { AutoVoiceSearch.resolve(query, it) } }
+    }
+
+    /**
+     * What to search for: the spoken [query], else the artist / album / song the
+     * assistant picked out into the request's media-focus extras
+     * (`MediaStore.EXTRA_MEDIA_*`), since "play something by X" may carry only those.
+     */
+    internal fun voiceQuery(query: String?, extras: Bundle?): String =
+        query?.trim().orEmpty().ifEmpty {
+            listOf(
+                android.provider.MediaStore.EXTRA_MEDIA_ARTIST,
+                android.provider.MediaStore.EXTRA_MEDIA_ALBUM,
+                android.provider.MediaStore.EXTRA_MEDIA_TITLE,
+            ).firstNotNullOfOrNull { extras?.getString(it)?.trim()?.takeIf { v -> v.isNotEmpty() } }.orEmpty()
+        }
+
     /** The heart button on now playing: favourites the show or station that is playing. */
     const val ACTION_TOGGLE_FAVORITE = "com.tileshell.music.TOGGLE_FAVORITE"
 
@@ -96,7 +115,7 @@ object MusicMediaSession {
                 }
 
                 override fun onPlayFromSearch(query: String?, extras: Bundle?) {
-                    scope.launch { start(context) { AutoVoiceSearch.resolve(query.orEmpty(), it) } }
+                    playFromSearch(context, voiceQuery(query, extras))
                 }
 
                 override fun onCustomAction(action: String?, extras: Bundle?) {

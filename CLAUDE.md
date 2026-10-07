@@ -37,6 +37,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — "play X" voice requests reach TileShell (folded into 5.1.0).** User-reported in the car:
+  Assistant asked for Spotify / YouTube Music. TileShell now declares the standard voice action
+  (`PlayFromSearchActivity`, `android.media.action.MEDIA_PLAY_FROM_SEARCH`, no screen) so it
+  counts as a music app the assistant can pick, and the car's `onPlayFromSearch` also uses the
+  artist / album / song extras when the spoken query is empty (`MusicMediaSession.voiceQuery`).
+  Checked on the emulator: the intent now offers TileShell in the chooser and "salt air" played
+  that song. Not tried in a car; the user may still need to choose TileShell as the default music
+  service in Google Assistant settings (or say "on TileShell").
 - **`main` — opening an app clears its notification count, even from a small tile (folded into 5.1.0).**
   User-reported. A small tile / icon deliberately never opens a specific message, so it only
   launched the app and left the badge. `NotificationCenter.clearPackage` now cancels the app's

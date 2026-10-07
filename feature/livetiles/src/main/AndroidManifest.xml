@@ -48,6 +48,23 @@
             </intent-filter>
         </service>
 
+        <!--
+            "Play <something> on TileShell" from the assistant (phone or car): the
+            standard voice action for music apps. Without it the assistant does not
+            know TileShell can play music and asks for Spotify or YouTube Music.
+        -->
+        <activity
+            android:name=".PlayFromSearchActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            <intent-filter>
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
         <!-- Album art for Android Auto (see AutoArtProvider). -->
         <provider
             android:name=".AutoArtProvider"
