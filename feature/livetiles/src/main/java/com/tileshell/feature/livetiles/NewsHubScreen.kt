@@ -78,6 +78,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -214,7 +216,8 @@ fun NewsHubScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { translationY = size.height * (1f - progress) }
+                // Only while sliding in or out: a layer left on the hub keeps the embedded video black.
+                .then(if (progress < 1f) Modifier.graphicsLayer { translationY = size.height * (1f - progress) } else Modifier)
                 .background(tokens.bg)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
                 .statusBarsPadding()
@@ -245,12 +248,12 @@ fun NewsHubScreen(
                         val playingNow = playing
                         val playingId = playingNow?.let { statuses[it.handle]?.videoId }
                         if (playingNow != null && playingId != null) {
-                            BoxWithConstraints(modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 4.dp), contentAlignment = Alignment.TopStart) {
-                                // The full width, but never more than ~45% of the height (landscape), so the list keeps room.
-                                val width = minOf(maxWidth, maxHeight * 0.45f * 16f / 9f).coerceAtLeast(200.dp)
-                                Box(modifier = Modifier.width(width)) {
-                                    LivePlayer(playingNow, playingId, tokens, accent, onClose = { playing = null }, onFullscreen = { hide -> fullscreenHide = hide }, context = context)
-                                }
+                            // The full width, but never more than ~45% of the screen height (landscape), so the list keeps
+                            // room. Worked out from the configuration (no measuring wrapper around the video).
+                            val cfg = LocalConfiguration.current
+                            val width = minOf((cfg.screenWidthDp - 36).dp, (cfg.screenHeightDp * 0.45f * 16f / 9f).dp).coerceAtLeast(200.dp)
+                            Box(modifier = Modifier.padding(horizontal = 18.dp, vertical = 4.dp).width(width)) {
+                                LivePlayer(playingNow, playingId, tokens, accent, onClose = { playing = null }, onFullscreen = { hide -> fullscreenHide = hide }, context = context)
                             }
                         }
                     },
@@ -651,11 +654,13 @@ private fun ChannelPicker(
 // --- playing in place --------------------------------------------------------------
 
 /**
- * A live stream played inside the hub through YouTube's own embedded player in a WebView
- * (the channels probed all allow embedding). The page is loaded with this app as its
- * referrer, as YouTube asks of embedding apps; only YouTube's embed address may load.
- * Paused with the app and released when closed. "youtube" hands the same stream to the
- * YouTube app for full-screen viewing, and the player's own full-screen button works too.
+ * A live stream played inside the hub through YouTube's own embedded player in a WebView (the channels probed all
+ * allow embedding). The WebView lives on the activity window's decor view, not inside the Compose tree: placed in
+ * the layered, sliding hub its video stayed black, while on the window itself it draws properly. The hub reserves
+ * the 16:9 slot and the WebView is laid exactly over it (and follows it when the layout moves or the phone turns).
+ * The page loads with this app as its referrer, as YouTube asks of embedding apps, and may only navigate within
+ * youtube.com. Paused with the app and destroyed when closed. "youtube" hands the same stream to the YouTube
+ * app; the player's own full-screen button covers the whole window, black, with the system bars hidden.
  */
 @Composable
 private fun LivePlayer(
@@ -668,8 +673,87 @@ private fun LivePlayer(
     context: Context,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
+    val activity = remember(context) { context.findActivity() }
     var web by remember { mutableStateOf<WebView?>(null) }
     var leaveFullscreen by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var slot by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+
+    DisposableEffect(videoId, activity) {
+        if (activity == null) return@DisposableEffect onDispose { }
+        val decor = activity.window.decorView as ViewGroup
+        val view = WebView(activity).apply {
+            setBackgroundColor(android.graphics.Color.BLACK)
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.mediaPlaybackRequiresUserGesture = false
+            settings.cacheMode = WebSettings.LOAD_DEFAULT
+            webViewClient = object : WebViewClient() {
+                override fun shouldOverrideUrlLoading(v: WebView?, request: WebResourceRequest?): Boolean {
+                    val host = request?.url?.host.orEmpty()
+                    // Stay on YouTube's embed; anything else (a channel link in the player) is not followed here.
+                    return !(host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com") || host.endsWith("googlevideo.com"))
+                }
+            }
+            webChromeClient = object : WebChromeClient() {
+                override fun onShowCustomView(video: View?, callback: CustomViewCallback?) {
+                    if (video == null) {
+                        callback?.onCustomViewHidden()
+                        return
+                    }
+                    // The full-screen view goes onto the decor view above the inline player, black, bars hidden.
+                    val container = FrameLayout(activity).apply {
+                        setBackgroundColor(android.graphics.Color.BLACK)
+                        addView(video, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                    }
+                    decor.addView(container, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+                    val controller = WindowInsetsControllerCompat(activity.window, decor)
+                    val barsWereShown = androidx.core.view.ViewCompat.getRootWindowInsets(decor)?.isVisible(WindowInsetsCompat.Type.systemBars()) == true
+                    controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    controller.hide(WindowInsetsCompat.Type.systemBars())
+                    val exit = {
+                        decor.removeView(container)
+                        container.removeAllViews()
+                        if (barsWereShown) controller.show(WindowInsetsCompat.Type.systemBars())
+                        callback?.onCustomViewHidden()
+                        leaveFullscreen = null
+                        onFullscreen(null)
+                    }
+                    leaveFullscreen = exit
+                    onFullscreen(exit)
+                }
+
+                override fun onHideCustomView() {
+                    leaveFullscreen?.invoke()
+                }
+            }
+            loadUrl(
+                "https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1",
+                mapOf("Referer" to "https://${activity.packageName}"),
+            )
+        }
+        // Hidden until the slot's place is known.
+        decor.addView(view, FrameLayout.LayoutParams(1, 1).apply { gravity = android.view.Gravity.TOP or android.view.Gravity.START })
+        view.visibility = View.INVISIBLE
+        web = view
+        onDispose {
+            leaveFullscreen?.invoke()
+            decor.removeView(view)
+            view.stopLoading()
+            view.destroy()
+            web = null
+        }
+    }
+    // Lay the WebView over the slot (in window coordinates) whenever either is ready or moves.
+    LaunchedEffect(web, slot) {
+        val v = web ?: return@LaunchedEffect
+        val r = slot ?: return@LaunchedEffect
+        v.layoutParams = FrameLayout.LayoutParams(r.width.toInt().coerceAtLeast(1), r.height.toInt().coerceAtLeast(1)).apply {
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+            leftMargin = r.left.toInt()
+            topMargin = r.top.toInt()
+        }
+        v.visibility = View.VISIBLE
+    }
     DisposableEffect(lifecycleOwner, web) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -682,68 +766,14 @@ private fun LivePlayer(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
     Column(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)) {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { ctx ->
-                    WebView(ctx).apply {
-                        setBackgroundColor(android.graphics.Color.BLACK)
-                        settings.javaScriptEnabled = true
-                        settings.domStorageEnabled = true
-                        settings.mediaPlaybackRequiresUserGesture = false
-                        settings.cacheMode = WebSettings.LOAD_DEFAULT
-                        webViewClient = object : WebViewClient() {
-                            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                                val host = request?.url?.host.orEmpty()
-                                // Stay on YouTube's embed; anything else (a channel link in the player) is not followed here.
-                                return !(host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com") || host.endsWith("googlevideo.com"))
-                            }
-                        }
-                        webChromeClient = object : WebChromeClient() {
-                            override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
-                                val activity = ctx.findActivity()
-                                if (view == null || activity == null) {
-                                    callback?.onCustomViewHidden()
-                                    return
-                                }
-                                // The video's full-screen view goes straight onto the window's decor view (above the app's
-                                // own layers), black, with the system bars hidden; it follows the screen into landscape.
-                                val decor = activity.window.decorView as ViewGroup
-                                val container = FrameLayout(ctx).apply {
-                                    setBackgroundColor(android.graphics.Color.BLACK)
-                                    addView(view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-                                }
-                                decor.addView(container, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-                                val controller = WindowInsetsControllerCompat(activity.window, decor)
-                                val barsWereShown = androidx.core.view.ViewCompat.getRootWindowInsets(decor)?.isVisible(WindowInsetsCompat.Type.systemBars()) == true
-                                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                                controller.hide(WindowInsetsCompat.Type.systemBars())
-                                val exit = {
-                                    decor.removeView(container)
-                                    container.removeAllViews()
-                                    if (barsWereShown) controller.show(WindowInsetsCompat.Type.systemBars())
-                                    callback?.onCustomViewHidden()
-                                    leaveFullscreen = null
-                                    onFullscreen(null)
-                                }
-                                leaveFullscreen = exit
-                                onFullscreen(exit)
-                            }
-
-                            override fun onHideCustomView() {
-                                leaveFullscreen?.invoke()
-                            }
-                        }
-                        loadUrl(
-                            "https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1",
-                            mapOf("Referer" to "https://${ctx.packageName}"),
-                        )
-                        web = this
-                    }
-                },
-                onRelease = { leaveFullscreen?.invoke(); it.stopLoading(); it.destroy(); web = null },
-            )
-        }
+        // The reserved slot; the video itself is the WebView laid over it.
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(16f / 9f)
+                .background(Color.Black)
+                .onGloballyPositioned { slot = it.boundsInWindow() },
+        )
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
             Text(channel.name, color = tokens.fg, fontSize = 15.sp, fontWeight = FontWeight.Light, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("youtube ›", color = accent, fontSize = 14.sp, modifier = Modifier.clickable { openLink(context, liveUrl(channel.handle)) }.padding(horizontal = 10.dp, vertical = 6.dp))
