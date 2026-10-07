@@ -62,10 +62,13 @@ import com.tileshell.core.data.POPULAR_WATCH_SYMBOLS
 import com.tileshell.core.data.tidyName
 import com.tileshell.core.data.watchKinds
 import com.tileshell.core.data.StockQuote
-import com.tileshell.core.data.StockSearchResult
+import com.tileshell.core.data.MarketSearchResult
+import com.tileshell.core.data.fetchMarketSearch
+import com.tileshell.core.data.kindLabel
+import com.tileshell.core.data.popularMatches
+import com.tileshell.core.data.priceCurrency
 import com.tileshell.core.data.WatchSymbol
 import com.tileshell.core.data.fetchStockQuote
-import com.tileshell.core.data.fetchStockSearch
 import com.tileshell.core.data.fetchStockSparkline
 import com.tileshell.core.data.formatStockChangePercent
 import com.tileshell.core.data.formatStockPrice
@@ -134,6 +137,8 @@ fun MarketsHubScreen(
     val context = LocalContext.current
     val watch by MarketsWatchlist.flow(context).collectAsState()
     var adding by remember { mutableStateOf(false) }
+    // What the add page adds: the section it was opened from, so each section has its own add.
+    var addKind by remember { mutableStateOf("stocks") }
     var editing by remember { mutableStateOf(false) }
     var refreshTick by remember { mutableIntStateOf(0) }
     val markedSymbols by MarketsTileMarks.symbolsFlow(context).collectAsState()
@@ -178,7 +183,7 @@ fun MarketsHubScreen(
             ) { page ->
                 when (page) {
                     0 -> if (adding) {
-                        AddSymbolPage(tokens, accent, watch) { picked ->
+                        AddSymbolPage(addKind, tokens, accent, watch) { picked ->
                             MarketsWatchlist.add(context, picked)
                             adding = false
                         }
@@ -187,7 +192,7 @@ fun MarketsHubScreen(
                             watch, watchQuotes, editing, kinds, kind, { kindChoice = it }, markedSymbols, tokens, accent,
                             onRemove = { MarketsWatchlist.remove(context, it) },
                             onToggleMark = { MarketsTileMarks.toggleSymbol(context, it) },
-                            onAdd = { adding = true },
+                            onAdd = { k -> addKind = k; adding = true },
                         )
                     }
                     1 -> IndicesPage(indexQuotes, visible && pagerState.currentPage == 1, markedIndices ?: listOf("^NSEI"), { MarketsTileMarks.toggleIndex(context, it) }, tokens, accent)
@@ -198,8 +203,11 @@ fun MarketsHubScreen(
                 tokens = tokens,
                 actions = buildList {
                     add(HubAppBarAction("back", "back") { if (adding) adding = false else onDismiss() })
-                    add(HubAppBarAction("plus", "add to watchlist", "add") {
+                    // Adds to the section showing (a stock, commodity, currency pair or crypto), stocks otherwise.
+                    val addFor = if (pagerState.currentPage == 0 && !adding) kind ?: "stocks" else "stocks"
+                    add(HubAppBarAction("plus", "add a ${kindLabel(addFor)}", "add ${kindLabel(addFor)}") {
                         editing = false
+                        addKind = addFor
                         adding = true
                         scope.launch { pagerState.animateScrollToPage(0) }
                     })
@@ -281,7 +289,7 @@ private fun WatchlistPage(
     accent: Color,
     onRemove: (String) -> Unit,
     onToggleMark: (String) -> Unit,
-    onAdd: () -> Unit,
+    onAdd: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val shown = remember(watch, kind) { watch.filter { watchKind(it.symbol) == kind } }
@@ -292,10 +300,10 @@ private fun WatchlistPage(
         if (watch.isEmpty()) {
             item {
                 Text(
-                    "your watchlist is empty. add a stock, gold or a currency ›",
+                    "your watchlist is empty. add a stock ›",
                     color = accent,
                     fontSize = 15.sp,
-                    modifier = Modifier.padding(vertical = 10.dp).clickable(onClick = onAdd),
+                    modifier = Modifier.padding(vertical = 10.dp).clickable { onAdd("stocks") },
                 )
             }
             return@LazyColumn
@@ -321,7 +329,7 @@ private fun WatchlistPage(
                 title = item.displayName,
                 subtitle = marketSubtitle(item.symbol, q),
                 quote = q,
-                currency = q?.currency.orEmpty(),
+                currency = priceCurrency(item.symbol, q?.currency.orEmpty()),
                 tokens = tokens,
                 trailing = {
                     TileMark(on, accent, tokens) { onToggleMark(item.symbol) }
@@ -336,6 +344,11 @@ private fun WatchlistPage(
                 },
                 onClick = { if (!editing) openQuotePage(context, item.symbol) },
             )
+        }
+        // One add per section: a stock, a commodity, a currency pair or a crypto.
+        item(key = "add-kind") {
+            val k = kind ?: "stocks"
+            Text("+ add a ${kindLabel(k)}", color = accent, fontSize = 15.sp, modifier = Modifier.padding(vertical = 12.dp).clickable { onAdd(k) })
         }
     }
 }
@@ -404,39 +417,56 @@ private fun MarketRow(
 }
 
 @Composable
-private fun AddSymbolPage(tokens: ColorTokens, accent: Color, watch: List<WatchSymbol>, onPick: (WatchSymbol) -> Unit) {
+private fun AddSymbolPage(kind: String, tokens: ColorTokens, accent: Color, watch: List<WatchSymbol>, onPick: (WatchSymbol) -> Unit) {
     var query by remember { mutableStateOf("") }
-    val results by produceState(emptyList<StockSearchResult>(), query) {
+    val label = kindLabel(kind)
+    val results by produceState(emptyList<MarketSearchResult>(), query) {
         value = emptyList()
         if (query.isBlank()) return@produceState
         delay(350)
-        value = fetchStockSearch(query.trim())
+        value = fetchMarketSearch(query.trim())
     }
     val have = remember(watch) { watch.map { it.symbol }.toSet() }
+    val placeholder = when (kind) {
+        "commodities" -> "search a commodity (gold, crude oil…)"
+        "currencies" -> "search a currency pair (eur usd)"
+        "crypto" -> "search a crypto (bitcoin)"
+        else -> "search a stock or etf"
+    }
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         item(key = "box") {
-            Box(modifier = Modifier.fillMaxWidth().background(tokens.chip).padding(horizontal = 12.dp, vertical = 10.dp)) {
-                if (query.isEmpty()) Text("search a company or symbol", color = tokens.fgDim, fontSize = 16.sp)
-                BasicTextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    singleLine = true,
-                    textStyle = TextStyle(color = tokens.fg, fontSize = 16.sp),
-                    cursorBrush = SolidColor(accent),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+            Column {
+                Text("add a $label", color = accent, fontSize = 15.sp, modifier = Modifier.padding(bottom = 6.dp))
+                Box(modifier = Modifier.fillMaxWidth().background(tokens.chip).padding(horizontal = 12.dp, vertical = 10.dp)) {
+                    if (query.isEmpty()) Text(placeholder, color = tokens.fgDim, fontSize = 16.sp)
+                    BasicTextField(
+                        value = query,
+                        onValueChange = { query = it },
+                        singleLine = true,
+                        textStyle = TextStyle(color = tokens.fg, fontSize = 16.sp),
+                        cursorBrush = SolidColor(accent),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         }
         if (query.isBlank()) {
-            item(key = "popular-h") {
-                Text("popular", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp, bottom = 2.dp))
+            val popular = POPULAR_WATCH_SYMBOLS.filter { watchKind(it.symbol) == kind && it.symbol !in have }
+            if (popular.isNotEmpty()) {
+                item(key = "popular-h") {
+                    Text("popular", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 14.dp, bottom = 2.dp))
+                }
             }
-            items(POPULAR_WATCH_SYMBOLS.filter { it.symbol !in have }, key = { "p-" + it.symbol }) { item ->
-                PickRow(item.displayName, item.symbol, tokens) { onPick(item) }
+            items(popular, key = { "p-" + it.symbol }) { item ->
+                PickRow(item.displayName, "${item.symbol} · $label", tokens) { onPick(item) }
             }
         } else {
-            items(results.filter { it.symbol !in have }, key = { "r-" + it.symbol }) { r ->
-                PickRow(tidyName(r.displayName), "${r.symbol} · ${r.exchange}", tokens) { onPick(WatchSymbol(r.symbol, tidyName(r.displayName))) }
+            // Only this section's kind: a stock search never offers a currency pair, and the other way round.
+            val merged = (popularMatches(query).map { MarketSearchResult(it.symbol, it.displayName, "", kindLabel(watchKind(it.symbol))) } + results)
+                .filter { watchKind(it.symbol) == kind }
+                .distinctBy { it.symbol }
+            items(merged.filter { it.symbol !in have }, key = { "r-" + it.symbol }) { r ->
+                PickRow(tidyName(r.displayName), "${r.symbol} · ${r.kind}", tokens) { onPick(WatchSymbol(r.symbol, tidyName(r.displayName))) }
             }
         }
     }

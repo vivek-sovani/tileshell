@@ -13,14 +13,31 @@ val DEFAULT_WATCHLIST: List<WatchSymbol> = listOf(
     WatchSymbol("USDINR=X", "USD / INR"),
 )
 
-/** Quick adds under the hub's search box, for things the stock search doesn't return. */
+/** Quick adds under the hub's search box: the usual commodities, currency pairs and crypto. */
 val POPULAR_WATCH_SYMBOLS: List<WatchSymbol> = listOf(
     WatchSymbol("GC=F", "Gold"),
     WatchSymbol("SI=F", "Silver"),
     WatchSymbol("CL=F", "Crude oil"),
+    WatchSymbol("NG=F", "Natural gas"),
+    WatchSymbol("HG=F", "Copper"),
     WatchSymbol("USDINR=X", "USD / INR"),
+    WatchSymbol("EURINR=X", "EUR / INR"),
+    WatchSymbol("GBPINR=X", "GBP / INR"),
+    WatchSymbol("EURUSD=X", "EUR / USD"),
+    WatchSymbol("USDJPY=X", "USD / JPY"),
     WatchSymbol("BTC-USD", "Bitcoin"),
+    WatchSymbol("ETH-USD", "Ethereum"),
 )
+
+/** The quick adds whose name contains what was typed ("gold" finds Gold), so the plain commodity or pair comes first. */
+fun popularMatches(query: String): List<WatchSymbol> {
+    val q = query.trim().lowercase()
+    if (q.isEmpty()) return emptyList()
+    val compact = q.replace(" ", "").replace("/", "")
+    return POPULAR_WATCH_SYMBOLS.filter {
+        it.displayName.lowercase().contains(q) || it.displayName.lowercase().replace(" ", "").replace("/", "").contains(compact)
+    }
+}
 
 /** An index on the hub's "indices" page. */
 data class MarketIndex(val symbol: String, val displayName: String)
@@ -166,6 +183,20 @@ fun tileIndices(marked: Collection<String>?): List<MarketIndex> =
 
 /** Marks [symbol] if it isn't, unmarks it if it is. */
 fun toggleMarked(marked: List<String>, symbol: String): List<String> = if (symbol in marked) marked - symbol else marked + symbol
+
+/** The singular for a watchlist kind: "stock", "commodity", "currency pair", "crypto". */
+fun kindLabel(kind: String): String = when (kind) {
+    "stocks" -> "stock"
+    "commodities" -> "commodity"
+    "currencies" -> "currency pair"
+    else -> kind
+}
+
+/**
+ * The currency to put before a price: a currency pair has none (USD/INR at 96.77
+ * is a rate, not rupees), anything else uses the one Yahoo quotes it in.
+ */
+fun priceCurrency(symbol: String, quoteCurrency: String): String = if (watchKind(symbol) == "currencies") "" else quoteCurrency
 
 /** A short name for a tile row: the company name when it fits, else the ticker without its exchange suffix. */
 fun tileLabel(item: WatchSymbol, maxChars: Int = 12): String =

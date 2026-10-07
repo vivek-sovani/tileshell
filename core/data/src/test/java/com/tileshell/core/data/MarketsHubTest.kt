@@ -204,4 +204,69 @@ class MarketsHubTest {
         assertEquals("Wipro Limited", added.single().displayName)
         assertEquals("Infosys Ltd", decodeWatchlist("INFY.NS\tINFOSYS LTD")!!.single().displayName)
     }
+
+    private val searchBody = """
+        {"quotes":[
+          {"quoteType":"CURRENCY","symbol":"EURUSD=X","shortname":"EUR/USD","exchange":"CCY"},
+          {"quoteType":"FUTURE","symbol":"GC=F","shortname":"Gold Dec 26","exchange":"CMX"},
+          {"quoteType":"FUTURE","symbol":"GCZ26.CMX","shortname":"Gold Dec 2026","exchange":"CMX"},
+          {"quoteType":"CRYPTOCURRENCY","symbol":"BTC-USD","shortname":"Bitcoin USD","exchange":"CCC"},
+          {"quoteType":"EQUITY","symbol":"RELIANCE.NS","shortname":"RELIANCE INDUSTRIES LTD","exchange":"NSI"},
+          {"quoteType":"ETF","symbol":"GLD","shortname":"SPDR Gold Shares","exchange":"PCX"},
+          {"quoteType":"MUTUALFUND","symbol":"0P000134T6","shortname":"Some fund"},
+          {"quoteType":"INDEX","symbol":"^SPEUROUSD","shortname":"S&P Euro"}
+        ]}
+    """.trimIndent()
+
+    @Test
+    fun `market search takes stocks, currency pairs, crypto and continuous commodities only`() {
+        val r = parseMarketSearchResults(searchBody)
+        assertEquals(listOf("EURUSD=X", "GC=F", "BTC-USD", "RELIANCE.NS", "GLD"), r.map { it.symbol })
+        assertEquals(listOf("currency pair", "commodity", "crypto", "stock", "stock"), r.map { it.kind })
+    }
+
+    @Test
+    fun `a commodity's contract month is dropped from its name`() {
+        assertEquals("Gold", parseMarketSearchResults(searchBody).first { it.symbol == "GC=F" }.displayName)
+        val dated = """{"quotes":[{"quoteType":"FUTURE","symbol":"MGC=F","shortname":"Micro Gold Futures,Dec-2026"}]}"""
+        assertEquals("Micro Gold Futures", parseMarketSearchResults(dated).single().displayName)
+    }
+
+    @Test
+    fun `junk search results are empty`() {
+        assertEquals(emptyList<MarketSearchResult>(), parseMarketSearchResults("nope"))
+        assertEquals(emptyList<MarketSearchResult>(), parseMarketSearchResults("{}"))
+    }
+
+    @Test
+    fun `a currency pair has no currency sign on its price`() {
+        assertEquals("", priceCurrency("EURINR=X", "INR"))
+        assertEquals("INR", priceCurrency("TCS.NS", "INR"))
+        assertEquals("USD", priceCurrency("GC=F", "USD"))
+    }
+
+    @Test
+    fun `the quick adds include the usual currency pairs and commodities`() {
+        val kinds = POPULAR_WATCH_SYMBOLS.map { watchKind(it.symbol) }.toSet()
+        assertTrue(kinds.containsAll(setOf("commodities", "currencies", "crypto")))
+        assertEquals(POPULAR_WATCH_SYMBOLS.size, POPULAR_WATCH_SYMBOLS.map { it.symbol }.toSet().size)
+    }
+
+    @Test
+    fun `kinds read in the singular`() {
+        assertEquals("stock", kindLabel("stocks"))
+        assertEquals("commodity", kindLabel("commodities"))
+        assertEquals("currency pair", kindLabel("currencies"))
+        assertEquals("crypto", kindLabel("crypto"))
+    }
+
+    @Test
+    fun `typing a name finds the matching quick add first`() {
+        assertEquals(listOf("GC=F"), popularMatches("gold").map { it.symbol })
+        assertEquals(listOf("EURUSD=X"), popularMatches("eurusd").map { it.symbol })
+        assertEquals(listOf("EURUSD=X"), popularMatches("eur/usd").map { it.symbol })
+        assertTrue(popularMatches("inr").size >= 3)
+        assertEquals(emptyList<WatchSymbol>(), popularMatches(""))
+        assertEquals(emptyList<WatchSymbol>(), popularMatches("zzzz"))
+    }
 }

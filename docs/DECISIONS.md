@@ -11525,3 +11525,20 @@ rest 6); zero steps are dropped (`flatten`). Editor fields take "6", "6:30", "90
 `StopwatchRing`. Not done: pin a set as its own tile; a stopwatch that survives a reboot beyond
 its stored start time; alarm days on the dial (the system gives only the next time).
 
+## Markets hub: add per section, wider search, tidy names (2026-10-07)
+
+User-reported: new stocks showed in capitals (Yahoo's search names them "RELIANCE INDUSTRIES
+LTD"; the defaults are title case), and there was no way to add a currency pair or a commodity
+(the add box searched equities only). Now: `tidyName` makes an all-caps company name title case,
+keeping acronyms (HDFC, ICICI, TCS, ITC) and turning LTD / INC / CORP into words, applied when a
+stock is added and when a saved list is read (so entries saved in capitals are fixed). The add
+search (`fetchMarketSearch`, new; the stock tile's picker keeps `fetchStockSearch`) takes stocks
+and ETFs, currency pairs (`EURUSD=X`), crypto (`BTC-USD`) and continuous commodity futures (`GC=F`
+only: dated contracts stop quoting; the contract month is dropped from the name). **Add is per
+section**: the + in the bar and a "+ add a stock / commodity / currency pair / crypto" link under
+each list open an add page for that kind alone (search results and the quick-add list are
+filtered to it, with a typed name matching a quick add, such as "gold", listed first, since Yahoo
+doesn't rank the plain commodity high). A currency pair's price has no currency sign (a rate,
+not rupees: `priceCurrency`). Quick adds: gold, silver, crude oil, natural gas, copper, USD/INR,
+EUR/INR, GBP/INR, EUR/USD, USD/JPY, bitcoin, ethereum.
+

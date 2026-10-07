@@ -33,6 +33,7 @@ import com.tileshell.core.data.WatchSymbol
 import com.tileshell.core.data.formatStockChangePercent
 import com.tileshell.core.data.formatStockPrice
 import com.tileshell.core.data.marketsRefreshDelayMs
+import com.tileshell.core.data.priceCurrency
 import com.tileshell.core.data.settings.LiveRefreshRate
 import com.tileshell.core.data.settings.resolveMs
 import com.tileshell.core.data.tileIndices
@@ -94,7 +95,7 @@ fun MarketsTileFace(
                 Column(modifier = Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.SpaceBetween) {
                     Text(tileLabel(item, 18), color = color, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Column {
-                        Text(formatStockPrice(q.price, if (isIndices) "" else q.currency), color = color, fontSize = if (size.cols >= 2) 26.sp else 18.sp, fontWeight = FontWeight.Light, maxLines = 1)
+                        Text(formatStockPrice(q.price, if (isIndices) "" else priceCurrency(item.symbol, q.currency)), color = color, fontSize = if (size.cols >= 2) 26.sp else 18.sp, fontWeight = FontWeight.Light, maxLines = 1)
                         Text(arrowed(q), color = color, fontSize = 14.sp)
                     }
                     Text(title, color = color, fontSize = 12.sp)
@@ -119,7 +120,7 @@ fun MarketsTileFace(
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                 Text(tileLabel(item, maxName), color = color, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                                 if (showPrice) {
-                                    Text(formatStockPrice(q.price, if (isIndices) "" else q.currency), color = color, fontSize = 13.sp, fontWeight = FontWeight.Light, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
+                                    Text(formatStockPrice(q.price, if (isIndices) "" else priceCurrency(item.symbol, q.currency)), color = color, fontSize = 13.sp, fontWeight = FontWeight.Light, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
                                 }
                                 Text(arrowed(q), color = color, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.padding(start = 6.dp))
                             }

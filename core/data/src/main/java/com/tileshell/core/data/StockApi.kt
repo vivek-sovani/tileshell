@@ -97,6 +97,42 @@ internal fun parseStockSearchResults(body: String): List<StockSearchResult> = ru
     }
 }.getOrDefault(emptyList())
 
+/** A hit from the markets hub's wider search: a stock or ETF, a currency pair, a commodity or a crypto pair. */
+data class MarketSearchResult(val symbol: String, val displayName: String, val exchange: String, val kind: String)
+
+/**
+ * Hits for the markets hub's add box. Unlike [parseStockSearchResults] (which the
+ * stock tile's picker uses and which keeps to stocks) this also takes currency
+ * pairs (`EURUSD=X`), crypto (`BTC-USD`) and commodities. Only the continuous
+ * front-month futures (`GC=F`) count as commodities: the dated contracts
+ * (`GCZ26.CMX`) would stop quoting. A contract's month ("Gold Dec 26") is dropped
+ * from its name. Pure.
+ */
+internal fun parseMarketSearchResults(body: String): List<MarketSearchResult> = runCatching {
+    val quotes = JSONObject(body).optJSONArray("quotes") ?: return emptyList()
+    (0 until quotes.length()).mapNotNull { i ->
+        val q = quotes.getJSONObject(i)
+        val symbol = q.optString("symbol").ifEmpty { return@mapNotNull null }
+        val kind = when (q.optString("quoteType")) {
+            "EQUITY", "ETF" -> "stock"
+            "CURRENCY" -> "currency pair"
+            "CRYPTOCURRENCY" -> "crypto"
+            "FUTURE" -> if (symbol.endsWith("=F")) "commodity" else return@mapNotNull null
+            else -> return@mapNotNull null
+        }
+        val name = q.optString("shortname").ifEmpty { q.optString("longname") }.ifEmpty { symbol }
+            .let { if (kind == "commodity") it.replace(Regex("""[\s,]+[A-Z][a-z]{2}[\s-]?\d{2,4}$"""), "") else it }
+        MarketSearchResult(symbol, name, q.optString("exchange"), kind)
+    }.distinctBy { it.symbol }
+}.getOrDefault(emptyList())
+
+suspend fun fetchMarketSearch(query: String): List<MarketSearchResult> {
+    if (query.isBlank()) return emptyList()
+    val encoded = URLEncoder.encode(query, "UTF-8")
+    val body = httpGetText("$YAHOO_SEARCH_BASE?q=$encoded&quotesCount=20&newsCount=0", YAHOO_HEADERS) ?: return emptyList()
+    return parseMarketSearchResults(body)
+}
+
 // Both go through QuoteCache, which collapses duplicate requests for the same
 // symbol — across widget instances within one refresh pass, and across the
 // widget worker, the Start tile and the glance card, all of which fetch
