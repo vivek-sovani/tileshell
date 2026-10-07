@@ -11432,3 +11432,44 @@ Pure logic in `MarketsHub.kt` / `SportsHub.kt` with `MarketsHubTest` / `SportsHu
 Not done: news and orders hubs (designed, not built); sparkline / live minute checks outside
 market hours; cricket history for a team with no match in 21 days is empty.
 
+## Sports hub: live and results, on demand, with match detail (2026-10-07)
+
+User-requested rework of the first sports hub (which had live / fixtures / my teams and polled).
+Supersedes the sports parts of "Markets and sports hubs" above, including its sports refresh rule.
+
+**Pages.** Two: *live* and *results*. Each has a scope: "my teams" (only games a favourite team
+plays) or "my sports" (every game of the favourite sports; every sport until one is marked).
+Live = today's matches: in play first, then still to come (soonest first, with the kick-off in the
+phone's time), then finished; a match in play stays even if it began on an earlier day (multi-day
+cricket). Results = finished matches from the last week or month, newest first. Favourite sports
+and teams are marked from the + in the app bar (a picker page, stars; "tile" makes a sports tile
+for a team, ✕ drops one).
+
+**On demand, no refresh loop.** The hub reads when it opens, when the scope or window changes, and
+when refresh is pressed (live, results or match detail, by what is showing). The sports tile on
+Start keeps its own refresh rules. No `refreshRate`, no live gate, no polling in the sports hub.
+(The markets hub still refreshes while open, at the stock rate.)
+
+**Results cost.** ESPN's scoreboard ignores date ranges (`dates=A-B` returned nothing, verified),
+so "my sports" results read one day per sport, four days at a time, newest first, filling in as it
+goes (`loadHubResults`). Past days whose matches are all over are cached for the process
+(`SportsDayCache`), so week -> month, month -> week and revisits ask for nothing already seen. "My
+teams" uses each club team's own schedule (the whole season in one request) plus the cricket days
+when a cricket team is followed.
+
+**Match detail** (`MatchDetail.kt`, parsed from ESPN's summary on tap, nothing cached): football:
+key events with minutes, team stats (possession, shots, corners, fouls, cards), line-ups; basketball
+and the other box-score sports: a period-by-period score, team stats, per-team player tables
+(minutes / points / rebounds / assists; hockey and others use their own columns; empty groups such
+as hockey's "skaters" totals row are skipped), top performers; cricket: "right now" (batters at the
+crease with runs and balls, bowling figures), batting and bowling tables per innings with how each
+batter was out and "yet to bat", the toss and close-of-play notes. A web link for live commentary
+(live) or the full page (finished). **Cricket coverage is partial:** of 12 matches probed, ESPN had a
+scorecard for 2; a finished one had only its last innings. Without one the page says "no scorecard
+from espn for this match" and keeps the link. Pure parsers tested against trimmed real responses
+(`src/test/resources/espn`).
+
+Not done: a whole-sport tile (the sports tile needs a team); fall of wickets and ball-by-ball
+(ESPN has none for cricket); American football / baseball detail only checked against the generic
+box-score shape, not against a live game.
+

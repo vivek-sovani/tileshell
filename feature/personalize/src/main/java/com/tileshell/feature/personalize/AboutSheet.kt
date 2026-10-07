@@ -237,8 +237,9 @@ fun AboutSheet(
                     "money splits transactions into accounts & upi and cards; cards have spends, bills due and payments — a statement and its reminders are one bill, listed by due date and marked paid once a card payment comes in; paying a card bill never counts as spending",
                     "in money's transactions, tap one to read the full message, swipe it away to remove it (with undo), or clear them all",
                     "markets — your watchlist (stocks, gold, currencies, crypto: add by search, edit to remove), the big indices with a day line, and the biggest movers among the sector baskets; add it from add live tiles, and its tile shows the NIFTY 50",
-                    "sports hub — mark any number of sports and teams in my teams: the live page then shows just those, my teams shows each team's latest game and history, and \"pin a tile\" makes a tile for a team",
-                    "the markets and sports hubs refresh only while open, at your live data refresh rates, and rest when markets are shut or no match is on",
+                    "sports hub — two pages, live (today's matches: in play, still to come with the time, and finished) and results (last week or month), each for my teams or for all of my sports; the + in its bar picks any number of sports and teams",
+                    "tap a match in the sports hub for its status and scorecard — batters at the crease, bowling figures and the scorecard in cricket, events and stats in football, a box score in basketball and the rest — with a link to espn for live commentary; \"tile\" in the picker makes a tile for a team",
+                    "the sports hub only updates when you open it or press refresh in its bar (the sports tile on start refreshes itself); the markets hub refreshes while open, at your live data refresh rate, and rests when markets are shut",
                 ),
             )
 

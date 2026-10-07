@@ -316,7 +316,7 @@ fun PersonalizeGuideSheet(
                     "pin a note or task list from productivity to give it its own start tile; pin people's apps page for an apps tile",
                     "money: add it from \"add live tiles\"; transactions start appearing as new bank sms and payment notifications arrive (older messages can't be read)",
                     "money · settings (the gear in its bar): what the tile shows (nothing, your last payment and receipt, or the card bills still to pay), the fingerprint/screen-lock lock, reading bank messages on or off, and clearing the history",
-                    "markets and sports hub: add them from \"add live tiles\"; in sports, the + in the bar picks your sports and teams (tap a star), and the live page then shows just those",
+                    "markets and sports hub: add them from \"add live tiles\"; in sports, the + in the bar picks your sports and teams (tap a star); live shows today's matches and results the last week or month, for my teams or my sports, and tapping a match opens its scorecard",
                 ),
             )
 
