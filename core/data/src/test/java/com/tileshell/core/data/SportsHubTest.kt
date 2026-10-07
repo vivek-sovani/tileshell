@@ -174,4 +174,12 @@ class SportsHubTest {
         assertNull(resultLetter(snap("247/4", "250/9")))
         assertNull(resultLetter(snap("3", "1", state = "in")))
     }
+
+    @Test
+    fun `a cricket score splits into runs and its note`() {
+        assertEquals("352/5" to "48.2/50 ov, target 352", splitScoreNote("352/5 (48.2/50 ov, target 352)"))
+        assertEquals("278 & 111" to "28.4 ov, target 279", splitScoreNote("278 & 111 (28.4 ov, target 279)"))
+        assertEquals("351/7" to null, splitScoreNote("351/7"))
+        assertEquals("3" to null, splitScoreNote("3"))
+    }
 }

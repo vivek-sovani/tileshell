@@ -169,6 +169,20 @@ fun snapshotFor(event: SportsMatchEvent, ourId: String): SportsSnapshot {
 fun splitInningsScore(score: String): List<String> =
     score.split(" & ").map { it.trim() }.filter { it.isNotEmpty() }.ifEmpty { listOf(score) }
 
+/**
+ * A cricket score split for display: the runs ("278 & 111", "352/5") and the note in
+ * brackets ("28.4 ov, target 279"), so a long note never squeezes the team's name.
+ * Scores of other sports have no bracket and come back whole with no note. Pure.
+ */
+fun splitScoreNote(score: String): Pair<String, String?> {
+    val open = score.indexOf('(')
+    val close = score.lastIndexOf(')')
+    if (open < 0 || close < open) return score.trim() to null
+    val runs = (score.substring(0, open) + score.substring(close + 1)).trim()
+    val note = score.substring(open + 1, close).trim()
+    return runs to note.ifEmpty { null }
+}
+
 /** ESPN's schedule dates omit seconds ("2026-08-29T11:30Z"), which [Instant.parse] rejects outright. */
 internal fun parseEspnInstant(iso: String): Long? = runCatching { Instant.parse(iso).toEpochMilli() }
     .recoverCatching { Instant.parse(iso.removeSuffix("Z") + ":00Z").toEpochMilli() }

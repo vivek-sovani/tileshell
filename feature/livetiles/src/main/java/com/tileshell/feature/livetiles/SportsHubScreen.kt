@@ -71,7 +71,7 @@ import com.tileshell.core.data.kickoffLabel
 import com.tileshell.core.data.loadHubResults
 import com.tileshell.core.data.resultLetter
 import com.tileshell.core.data.snapshotFor
-import com.tileshell.core.data.splitInningsScore
+import com.tileshell.core.data.splitScoreNote
 import com.tileshell.core.data.sportsLeagueFor
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.HubAppBar
@@ -412,11 +412,19 @@ private fun matchStatus(match: HubMatch, nowMillis: Long): String {
 
 @Composable
 private fun ScoreLine(name: String, score: String, state: String, tokens: ColorTokens, size: androidx.compose.ui.unit.TextUnit) {
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
-        Text(name, color = tokens.fg, fontSize = size, fontWeight = FontWeight.Light, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Spacer(Modifier.width(10.dp))
-        if (state != "pre") {
-            Text(splitInningsScore(score).lastOrNull() ?: score, color = tokens.fg, fontSize = size, fontWeight = FontWeight.Light, maxLines = 1)
+    // Runs on the right, a cricket note ("48.2/50 ov, target 352") under the name: the note is long and
+    // used to squeeze the team's name down to a few letters.
+    val (runs, note) = splitScoreNote(score)
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 2.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(name, color = tokens.fg, fontSize = size, fontWeight = FontWeight.Light, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(10.dp))
+            if (state != "pre") {
+                Text(runs, color = tokens.fg, fontSize = size, fontWeight = FontWeight.Light, maxLines = 1)
+            }
+        }
+        if (state != "pre" && note != null) {
+            Text(note, color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }
