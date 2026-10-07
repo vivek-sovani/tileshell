@@ -177,4 +177,31 @@ class MarketsHubTest {
         assertEquals(MarketsTile.INDICES, MarketsTile.decode("markets:nonsense"))
         assertEquals(MarketsTile.INDICES, MarketsTile.decode("sports:x|y|z"))
     }
+
+    @Test
+    fun `all caps company names are tidied, acronyms kept`() {
+        assertEquals("Reliance Industries Ltd", tidyName("RELIANCE INDUSTRIES LTD"))
+        assertEquals("HDFC Bank Ltd", tidyName("HDFC BANK LTD"))
+        assertEquals("ICICI Bank Limited", tidyName("ICICI BANK LIMITED"))
+        assertEquals("ITC Ltd", tidyName("ITC LTD"))
+        assertEquals("Tata Consultancy Services Limited", tidyName("TATA CONSULTANCY SERVICES LIMITED"))
+        assertEquals("Apple Inc.", tidyName("APPLE INC."))
+        assertEquals("Coca-Cola Co", tidyName("COCA-COLA CO"))
+        assertEquals("TCS", tidyName("TCS"))
+    }
+
+    @Test
+    fun `names that are not all caps are left alone`() {
+        assertEquals("Reliance Industries", tidyName("Reliance Industries"))
+        assertEquals("USD / INR", tidyName("USD / INR"))
+        assertEquals("S&P 500", tidyName("S&P 500"))
+        assertEquals("", tidyName(""))
+    }
+
+    @Test
+    fun `a stock added in capitals is stored tidy, and so is one saved in capitals earlier`() {
+        val added = watchlistWith(emptyList(), WatchSymbol("WIPRO.NS", "WIPRO LIMITED"))
+        assertEquals("Wipro Limited", added.single().displayName)
+        assertEquals("Infosys Ltd", decodeWatchlist("INFY.NS\tINFOSYS LTD")!!.single().displayName)
+    }
 }

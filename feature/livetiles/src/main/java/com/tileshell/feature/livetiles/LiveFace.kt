@@ -59,6 +59,7 @@ enum class LiveFace(val flips: Boolean) {
     // Static glyph (markets also shows the NIFTY line); no back face.
     MARKETS(flips = false),
     SPORTSHUB(flips = false),
+    CLOCKHUB(flips = false),
     ;
 
     companion object {
@@ -95,6 +96,7 @@ enum class LiveFace(val flips: Boolean) {
                 "money" -> MONEY
                 "markets" -> MARKETS
                 "sportshub" -> SPORTSHUB
+                "clockhub" -> CLOCKHUB
                 else -> null
             }
         }

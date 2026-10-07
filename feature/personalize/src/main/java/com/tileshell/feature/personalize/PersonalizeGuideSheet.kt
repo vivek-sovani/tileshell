@@ -317,6 +317,7 @@ fun PersonalizeGuideSheet(
                     "money: add it from \"add live tiles\"; transactions start appearing as new bank sms and payment notifications arrive (older messages can't be read)",
                     "money · settings (the gear in its bar): what the tile shows (nothing, your last payment and receipt, or the card bills still to pay), the fingerprint/screen-lock lock, reading bank messages on or off, and clearing the history",
                     "markets and sports hub: add them from \"add live tiles\"; in sports, the + in the bar picks your sports and teams (tap a star); live shows today's matches and results the last week or month, for my teams or my sports, and tapping a match opens its scorecard",
+                    "timers and clock: add it from \"add live tiles\"; swipe alarms, world, timer, stopwatch and sets, and in sets build a row of timers (the + in the bar) to start with one tap",
                 ),
             )
 

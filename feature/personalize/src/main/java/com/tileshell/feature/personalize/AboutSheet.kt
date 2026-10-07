@@ -240,6 +240,8 @@ fun AboutSheet(
                     "sports hub — two pages, live (today's matches: in play, still to come with the time, and finished) and results (last week or month), each for my teams or for all of my sports; the + in its bar picks any number of sports and teams",
                     "tap a match in the sports hub for its status and scorecard — batters at the crease, bowling figures and the scorecard in cricket, events and stats in football, a box score in basketball and the rest — with a link to espn for live commentary; \"tile\" in the picker makes a tile for a team",
                     "the sports hub only updates when you open it or press refresh in its bar (the sports tile on start refreshes itself); the markets hub refreshes while open, at your live data refresh rate, and rests when markets are shut",
+                    "clock hub — an analog dial with your next alarm as an arc (alarms are made and rung in your clock app, which the hub opens), world clocks with each city's day and night strip, timers with a progress ring, a stopwatch with laps, and timer sets",
+                    "timer sets are saved rows of timers for a practice or workout — parts of steps, a step can take whatever is left of its part — with a short buzz at each step end; while one runs the screen stays on, nearly dark, so every step is exact (turn that off in the clock settings). allow alarms and reminders for tileshell for the buzz to be exact with the screen off",
                 ),
             )
 

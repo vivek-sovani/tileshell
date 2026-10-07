@@ -219,6 +219,8 @@ class MainActivity : ComponentActivity() {
         when (intent.getStringExtra(com.tileshell.feature.livetiles.widget.EXTRA_OPEN_HUB)) {
             "battery" -> startViewModel.openBatteryHub()
             "panchang" -> startViewModel.openPanchang()
+            // A running timer's notification or alarm icon.
+            "clock" -> startViewModel.openClockHub()
         }
         intent.removeExtra(com.tileshell.feature.livetiles.widget.EXTRA_OPEN_HUB)
     }
@@ -252,6 +254,13 @@ class MainActivity : ComponentActivity() {
                 },
             )
         }
+        // `debug.clock_steps=8,8,8` starts a timer set of those step lengths in seconds (alarm and buzz check).
+        intent.getStringExtra("debug.clock_steps")?.let { spec ->
+            val steps = spec.split(",").mapNotNull { it.trim().toLongOrNull() }.mapIndexed { i, sec ->
+                com.tileshell.core.data.clock.SessionStep("test · step ${i + 1}", sec * 1000L)
+            }
+            com.tileshell.core.data.clock.ClockSessions.start(applicationContext, "test set", steps)
+        }
         if (intent.getBooleanExtra("debug.demo_productivity", false)) {
             val appContext = applicationContext
             kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
@@ -283,6 +292,7 @@ class MainActivity : ComponentActivity() {
             "money" -> startViewModel.openMoneyHub()
             "markets" -> startViewModel.openMarketsHub()
             "sports" -> startViewModel.openSportsHub()
+            "clock" -> startViewModel.openClockHub()
             "panchang" -> startViewModel.openPanchang()
         }
     }

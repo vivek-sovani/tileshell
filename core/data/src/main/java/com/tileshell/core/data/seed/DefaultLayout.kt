@@ -200,6 +200,7 @@ object DefaultLayout {
         DefaultTile("t-money", TileSize.MEDIUM, "green", app = "money", liveOnly = true),
         DefaultTile("t-markets", TileSize.MEDIUM, "cobalt", app = "markets", liveOnly = true),
         DefaultTile("t-sportshub", TileSize.MEDIUM, "orange", app = "sportshub", liveOnly = true),
+        DefaultTile("t-clockhub", TileSize.MEDIUM, "steel", app = "clockhub", liveOnly = true),
     )
 
     /** Every known tile template — the default-layout set plus opt-in-only widgets. */

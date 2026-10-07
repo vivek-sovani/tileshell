@@ -53,6 +53,34 @@ fun topMovers(quotes: List<StockQuote>, gainers: Boolean, limit: Int = 6): List<
         .sortedBy { if (gainers) -it.changePercent else it.changePercent }
         .take(limit)
 
+/** Acronyms that stay in capitals when an all-caps company name is tidied. */
+private val KEEP_UPPER = setOf(
+    "ICICI", "ONGC", "NTPC", "HDFC", "HCL", "SBI", "TCS", "ITC", "LIC", "IDFC", "IRCTC", "DLF", "GAIL", "NMDC", "BHEL", "IOC",
+    "UPL", "PNB", "BPCL", "HPCL", "SAIL", "IDBI", "ETF", "USD", "INR", "EUR", "GBP", "JPY", "NSE", "BSE", "IBM", "AMD", "AI",
+)
+
+/** Company-name endings that read as words, not acronyms ("Ltd", not "LTD"). */
+private val TITLE_WORDS = setOf("LTD", "INC", "CORP", "CO", "PLC", "LLC")
+
+/**
+ * Yahoo's search names new stocks in capitals ("RELIANCE INDUSTRIES LTD") while
+ * the defaults read "Reliance Industries". An all-caps [name] becomes title
+ * case, keeping known acronyms and vowel-less ones (HDFC, TCS) in capitals; a
+ * name with any lowercase letter is left as it is. Pure.
+ */
+fun tidyName(name: String): String {
+    val letters = name.filter { it.isLetter() }
+    if (letters.isEmpty() || letters.any { it.isLowerCase() }) return name
+    return Regex("[A-Za-z]+").replace(name) { run ->
+        val w = run.value
+        when {
+            w in TITLE_WORDS -> w.lowercase().replaceFirstChar { it.uppercase() }
+            w in KEEP_UPPER || w.length <= 2 || (w.length <= 5 && w.none { it in "AEIOU" }) -> w
+            else -> w.lowercase().replaceFirstChar { it.uppercase() }
+        }
+    }
+}
+
 /** `symbol<TAB>name` per line; tabs and newlines inside a name are dropped so the format can't be broken. */
 fun encodeWatchlist(list: List<WatchSymbol>): String =
     list.joinToString("\n") { "${clean(it.symbol)}\t${clean(it.displayName)}" }
@@ -67,13 +95,13 @@ fun decodeWatchlist(raw: String?): List<WatchSymbol>? {
     return raw.split("\n").mapNotNull { line ->
         val parts = line.split("\t", limit = 2)
         val symbol = parts[0].trim()
-        if (symbol.isEmpty()) null else WatchSymbol(symbol, parts.getOrNull(1)?.trim().orEmpty().ifEmpty { symbol })
+        if (symbol.isEmpty()) null else WatchSymbol(symbol, tidyName(parts.getOrNull(1)?.trim().orEmpty().ifEmpty { symbol }))
     }.distinctBy { it.symbol }.take(MAX_WATCHLIST)
 }
 
 /** Adds [item] to the end of [list] unless it's already there or the list is full. */
 fun watchlistWith(list: List<WatchSymbol>, item: WatchSymbol): List<WatchSymbol> =
-    if (list.any { it.symbol == item.symbol } || list.size >= MAX_WATCHLIST) list else list + item
+    if (list.any { it.symbol == item.symbol } || list.size >= MAX_WATCHLIST) list else list + item.copy(displayName = tidyName(item.displayName))
 
 fun watchlistWithout(list: List<WatchSymbol>, symbol: String): List<WatchSymbol> = list.filterNot { it.symbol == symbol }
 

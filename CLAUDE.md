@@ -37,6 +37,16 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — clock hub (folded into 5.1.0, not uploaded).** User-requested, designed twice. Alarms
+  (a dial with the system's next alarm as an arc; the Clock app owns and rings alarms), world clocks with
+  day/night strips, timers with a ring, a stopwatch, and timer sets (parts of steps, a "rest" step; a short
+  buzz between steps). A running set keeps the screen on, nearly dark, so steps are exact with no
+  foreground service; step alarms are exact only with "Alarms & reminders" access (Android 16 refuses even
+  `setAlarmClock` without it), else inexact. Tile `clockhub`. Debug-only `debug.clock_steps=10,10,10`
+  starts a test set. Unit-tested (`ClockLogicTest`, 39 cases); checked on the emulator (every page, set
+  running, dim run screen, inexact alarm and the hub's own tick, ongoing notification). Not checked: the
+  exact-alarm path (the emulator would not grant the access), the buzz felt on a phone, a set with the
+  screen off on a real device. See DECISIONS.
 - **`main` — markets and sports hubs (folded into 5.1.0, not uploaded).** User-requested after
   mockups for markets, sports, news and orders (the last two not built yet). Markets: watchlist
   (own symbols, search to add) -> indices (day line) -> movers (ranked among the sector baskets,

@@ -26,7 +26,7 @@ object BackupExtras {
         "panchang_highlights", "panchang_festivals", "panchang_custom_tithis", "panchang_grahan",
         "productivity_quick_items",
         "hub_apps_people", "hub_apps_money", "hub_apps_productivity",
-        "markets_watchlist", "markets_tile_symbols", "markets_tile_indices", "sports_fav_sports", "sports_fav_teams",
+        "markets_watchlist", "clock_timer_sets", "clock_world_cities", "clock_buzz", "clock_sound", "clock_dim", "markets_tile_symbols", "markets_tile_indices", "sports_fav_sports", "sports_fav_teams",
     )
 
     suspend fun export(context: Context): Map<String, String> {
@@ -79,6 +79,7 @@ object BackupExtras {
             PanchangPrefs.reload(app)
             MarketsWatchlist.reload(app)
             MarketsTileMarks.reload(app)
+            com.tileshell.core.data.clock.ClockStore.reload(app)
             SportsFavoritesStore.reload(app)
         }
     }

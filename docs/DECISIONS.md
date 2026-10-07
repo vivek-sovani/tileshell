@@ -11490,3 +11490,38 @@ rows: name and change on a 2-column tile, price too from 3 columns, one entry sh
 (▲ ▼) so direction reads without colour on a coloured tile. Refresh unchanged (stock rate,
 rests when markets are shut).
 
+## Clock hub: dial, world strips, timers, stopwatch and timer sets (2026-10-07)
+
+User-requested, designed first (twice: plain, then the richer one built). Pages: alarms \u2192 world \u2192
+timer \u2192 stopwatch \u2192 sets. Tile: `clockhub` ("timers and clock", add live tiles), showing a running timer
+or set with its countdown, else the next alarm.
+
+**Alarms are the system's.** Android lets an app read only the single next alarm
+(`getNextAlarmClock`, what the alarm tile already shows) and hand off to the Clock app, so the
+page is a dial with that alarm as an arc plus "add or change an alarm" (`ACTION_SHOW_ALARMS`, no
+permission). The hub does not own or ring alarms (ringing needs a service or a full-screen
+intent, both Play-declared).
+
+**Timers and sets run without a service or new permission, with one honest caveat.** A running
+session (`ClockSessions`) is absolute step-end times in prefs; one alarm for the *next* step end
+is set at a time and moves on when it fires (`onAlarm`), buzzing with an alarm-marked vibration
+(`ClockBuzz`, the normal VIBRATE permission) and updating one notification whose countdown is the
+system's own chronometer (nothing ticks it). **Found on an Android 16 emulator: even
+`setAlarmClock` throws SecurityException without the "Alarms & reminders" access**
+(SCHEDULE_EXACT_ALARM, which task reminders already declare and ask for). So the alarm is exact
+when that access is on and inexact (`setAndAllowWhileIdle`) when not; settings and the run
+screen say which and link to the setting. `ClockSessions.tick` (every second while the hub is
+open or the tile ticks) moves a step on exactly on time either way.
+
+**Dim and keep on while a set runs** (user's call, instead of a foreground-service declaration):
+the run screen sets `FLAG_KEEP_SCREEN_ON` and the lowest window brightness (0.02) on a black UI,
+so the app stays in front and every step is exact; tap to brighten for 8 s; setting "dim the
+screen while a set runs" (default on). Leaving the screen restores both.
+
+A set = parts of steps; a step may be the "rest" of its part's total (21 min = 6 + 5 + 4 + the
+rest 6); zero steps are dropped (`flatten`). Editor fields take "6", "6:30", "90s". World clocks:
+50 cities, home (the phone's zone) first, day = 6 am to 6 pm local. Visuals: `ClockDial`,
+`DayStrip`, `ProgressRing`, `SegmentedRing` (gaps between steps, wider between parts, `ringArcs`),
+`StopwatchRing`. Not done: pin a set as its own tile; a stopwatch that survives a reboot beyond
+its stored start time; alarm days on the dial (the system gives only the next time).
+

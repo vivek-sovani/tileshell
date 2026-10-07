@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.MARKET_INDICES
 import com.tileshell.core.data.MarketsTile
 import com.tileshell.core.data.POPULAR_WATCH_SYMBOLS
+import com.tileshell.core.data.tidyName
 import com.tileshell.core.data.watchKinds
 import com.tileshell.core.data.StockQuote
 import com.tileshell.core.data.StockSearchResult
@@ -435,7 +436,7 @@ private fun AddSymbolPage(tokens: ColorTokens, accent: Color, watch: List<WatchS
             }
         } else {
             items(results.filter { it.symbol !in have }, key = { "r-" + it.symbol }) { r ->
-                PickRow(r.displayName, "${r.symbol} · ${r.exchange}", tokens) { onPick(WatchSymbol(r.symbol, r.displayName)) }
+                PickRow(tidyName(r.displayName), "${r.symbol} · ${r.exchange}", tokens) { onPick(WatchSymbol(r.symbol, tidyName(r.displayName))) }
             }
         }
     }

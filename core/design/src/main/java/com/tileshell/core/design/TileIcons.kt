@@ -677,6 +677,15 @@ object TileIcons {
             p("M14 7h6v6"),
         ))
 
+        // A stopwatch: a ring, a hand and the crown on top; the clock hub (the
+        // plain "clock" glyph is the clock tile's own).
+        put("clockhub", vector("clockhub",
+            p(circle(12.0, 13.5, 7.5)),
+            p("M12 13.5V9.5"),
+            p("M9.5 3h5"),
+            p("M12 3v3"),
+        ))
+
         // Three bars on a baseline: the markets hub, distinct from "stock"'s
         // single trend line.
         put("markets", vector("markets",

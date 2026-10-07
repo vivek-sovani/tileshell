@@ -408,6 +408,7 @@ fun StartScreen(
     val moneyHubOpen by viewModel.moneyHubOpen.collectAsStateWithLifecycle()
     val marketsHubOpen by viewModel.marketsHubOpen.collectAsStateWithLifecycle()
     val sportsHubOpen by viewModel.sportsHubOpen.collectAsStateWithLifecycle()
+    val clockHubOpen by viewModel.clockHubOpen.collectAsStateWithLifecycle()
     val panchangOpen by viewModel.panchangOpen.collectAsStateWithLifecycle()
     val productivityHubInitialPage by viewModel.productivityHubInitialPage.collectAsStateWithLifecycle()
     val notesInitialNoteId by viewModel.notesInitialNoteId.collectAsStateWithLifecycle()
@@ -1063,7 +1064,7 @@ fun StartScreen(
         foldersOpen || hiddenAppsOpen || addWidgetsOpen || (tasksOpen != null) || notesOpen ||
         (stickyNoteEditTileId != null) || (countdownEditTileId != null) || (sportsEditTileId != null) || (stockEditTileId != null) ||
         (commodityEditTileId != null) || (calendarSystemEditTileId != null) || (weatherHubTarget != null) || musicHubOpen ||
-        calendarHubOpen || peopleHubOpen || productivityHubOpen || batteryHubOpen || moneyHubOpen || marketsHubOpen || sportsHubOpen || panchangOpen
+        calendarHubOpen || peopleHubOpen || productivityHubOpen || batteryHubOpen || moneyHubOpen || marketsHubOpen || sportsHubOpen || clockHubOpen || panchangOpen
     val quickSearchEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     val quickPanelEnabled = swipeEnabled && restingAtStart && !searchOpen && !quickPanelOpen && !anySheetOpen
     // Runs in the Initial pass like the pager, but keys off pointer *count* (2)
@@ -1536,6 +1537,8 @@ fun StartScreen(
                                     viewModel.openMarketsHub()
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "sportshub") {
                                     viewModel.openSportsHub()
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "clockhub") {
+                                    viewModel.openClockHub()
                                 } else if (tile.iconKey == "people") {
                                     // Same pattern as music/calendar just above —
                                     // not blank-package-gated, since the contacts
@@ -1601,6 +1604,8 @@ fun StartScreen(
                             viewModel.openMarketsHub()
                         } else if (child.packageName.isBlank() && child.iconKey == "sportshub") {
                             viewModel.openSportsHub()
+                        } else if (child.packageName.isBlank() && child.iconKey == "clockhub") {
+                            viewModel.openClockHub()
                         } else if (child.iconKey == "people") {
                             val hubPage = PeopleHubTile.decode(child.activityName)
                             if (hubPage != "what's new" || !NotificationCenter.openWhatsNewDisplayed(context)) {
@@ -7256,6 +7261,10 @@ private fun AppTileContent(
             com.tileshell.feature.livetiles.MarketsTileFace(size = tile.size, active = liveActive, kind = com.tileshell.core.data.MarketsTile.decode(tile.activityName), refreshRate = stockRefreshRate, modifier = Modifier.fillMaxSize())
             return
         }
+        LiveFace.CLOCKHUB -> {
+            com.tileshell.feature.livetiles.ClockHubTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize())
+            return
+        }
         LiveFace.SPORTSHUB -> {
             com.tileshell.feature.livetiles.SportsHubTileFace(size = tile.size, modifier = Modifier.fillMaxSize())
             return
@@ -8899,6 +8908,7 @@ private fun HubScreensLayer(
     val moneyHubOpen by viewModel.moneyHubOpen.collectAsStateWithLifecycle()
     val marketsHubOpen by viewModel.marketsHubOpen.collectAsStateWithLifecycle()
     val sportsHubOpen by viewModel.sportsHubOpen.collectAsStateWithLifecycle()
+    val clockHubOpen by viewModel.clockHubOpen.collectAsStateWithLifecycle()
     val panchangOpen by viewModel.panchangOpen.collectAsStateWithLifecycle()
     // The markets and sports hubs refresh at the same "live data refresh" rates as their tiles.
     val hubSettings by viewModel.settings.collectAsStateWithLifecycle()
@@ -9027,6 +9037,15 @@ private fun HubScreensLayer(
         onDismiss = viewModel::closeSportsHub,
         onPinHub = viewModel::pinSportsHub,
         onPinTeamTile = viewModel::pinSportsTeamTile,
+        rightHalf = false,
+    )
+
+    com.tileshell.feature.livetiles.ClockHubScreen(
+        visible = clockHubOpen,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = viewModel::closeClockHub,
+        onPinHub = viewModel::pinClockHub,
         rightHalf = false,
     )
 

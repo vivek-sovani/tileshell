@@ -357,6 +357,26 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val _clockHubOpen = MutableStateFlow(false)
+    val clockHubOpen: StateFlow<Boolean> = _clockHubOpen.asStateFlow()
+
+    fun openClockHub() {
+        _clockHubOpen.value = true
+    }
+
+    fun closeClockHub() {
+        _clockHubOpen.value = false
+    }
+
+    /** Pin the clock hub's own tile (next alarm / running timer). */
+    fun pinClockHub() {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "clockhub" }
+            val result = if (!exists && repository.addDefaultTile("clockhub", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
+            _pinMessage.tryEmit(pinOutcomeText(result, "clock"))
+        }
+    }
+
     private val _marketsHubOpen = MutableStateFlow(false)
     val marketsHubOpen: StateFlow<Boolean> = _marketsHubOpen.asStateFlow()
 
@@ -2179,6 +2199,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeMoneyHub()
         closeMarketsHub()
         closeSportsHub()
+        closeClockHub()
         closePanchang()
         closePermissions()
         closeNewsRegion()

@@ -6,7 +6,14 @@
          app manifest behind the tileshell.taskReminders switch. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Clock hub: the buzz at the end of a timer step. A normal permission,
+         granted at install, no Play declaration. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <application>
+        <receiver
+            android:name="com.tileshell.core.data.clock.ClockSessionReceiver"
+            android:exported="false" />
         <receiver
             android:name="com.tileshell.core.data.reminders.TaskReminderReceiver"
             android:exported="false" />
