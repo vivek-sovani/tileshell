@@ -353,15 +353,10 @@ private fun WatchlistPage(
     }
 }
 
-/** "On tile": filled when the tile shows this one. */
+/** "On tile": the shared mark, filled when the tile shows this one. */
 @Composable
 private fun TileMark(on: Boolean, accent: Color, tokens: ColorTokens, onClick: () -> Unit) {
-    Text(
-        if (on) "▣" else "▢",
-        color = if (on) accent else tokens.fgDim,
-        fontSize = 20.sp,
-        modifier = Modifier.clickable(onClick = onClick).padding(start = 12.dp, top = 6.dp, bottom = 6.dp, end = 2.dp),
-    )
+    OnTileMark(on, tokens, accent, "show on the tile", onToggle = onClick)
 }
 
 private fun marketSubtitle(symbol: String, quote: StockQuote?): String {

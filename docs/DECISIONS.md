@@ -11542,3 +11542,12 @@ doesn't rank the plain commodity high). A currency pair's price has no currency 
 not rupees: `priceCurrency`). Quick adds: gold, silver, crude oil, natural gas, copper, USD/INR,
 EUR/INR, GBP/INR, EUR/USD, USD/JPY, bitcoin, ethereum.
 
+## One "on tile" mark for the hubs (2026-10-07)
+
+User-requested: the People hub's favourites now use the same mark as the markets watchlist, so
+"on tile" looks the same wherever a hub lets you choose what a tile shows. `OnTileMark`: \u25a3 in the
+accent when on, \u25a2 dim when off, a 48dp touch target, spoken as a checkbox. It replaces the old
+filled-square-with-a-tick chip (`OnTileChip` stays as the name the favourites list and the arrange
+screen call, now drawing the shared mark) and the markets' own glyph. The favourites note reads
+"\u25a3 is on your favourites tile. tap to add or remove." like the markets one.
+

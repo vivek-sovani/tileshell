@@ -783,7 +783,7 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
         } else {
             item {
                 Text(
-                    "ticked people show on your pinned favourites tile; tap the square to add or remove them.",
+                    "▣ is on your favourites tile. tap to add or remove.",
                     color = tokens.fgDim,
                     fontSize = 13.sp,
                 )
@@ -816,29 +816,13 @@ private fun FavouritesPage(context: android.content.Context, tokens: ColorTokens
 }
 
 /**
- * Whether a favourite shows on the pinned favourites tile: a small square like a
- * mini tile, accent with a tick when on and an outline when off (user-chosen over
- * a labelled chip, which looked bulky down a long list). The note above the list
- * says what it does; the touch target stays 48dp.
+ * Whether a favourite shows on the pinned favourites tile: the same ▣ / ▢ mark
+ * the markets hub uses ([OnTileMark]), so "on tile" looks the same everywhere.
+ * The note above the list says what it does.
  */
 @Composable
 internal fun OnTileChip(onTile: Boolean, tokens: ColorTokens, accent: Color, onToggle: () -> Unit) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .size(48.dp)
-            .toggleable(value = onTile, role = Role.Checkbox, onValueChange = { onToggle() })
-            .semantics { contentDescription = "show on the favourites tile" },
-    ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(20.dp)
-                .then(if (onTile) Modifier.background(accent) else Modifier.border(1.5.dp, tokens.fgDim)),
-        ) {
-            if (onTile) Icon(TileIcons["check"], contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
-        }
-    }
+    OnTileMark(onTile, tokens, accent, "show on the favourites tile", onToggle = onToggle)
 }
 
 /** An app's own name, lowercase ("whatsapp"), or its package when unknown. */
