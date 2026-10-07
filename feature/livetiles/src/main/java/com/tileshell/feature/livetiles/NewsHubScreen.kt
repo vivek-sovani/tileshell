@@ -3,6 +3,12 @@ package com.tileshell.feature.livetiles
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.view.View
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.CubicBezierEasing
@@ -32,6 +38,23 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -115,6 +138,10 @@ fun NewsHubScreen(
     var prefsTick by remember { mutableIntStateOf(0) }
     var statusTick by remember { mutableIntStateOf(0) }
     var liveRegion by remember { mutableStateOf<String?>(null) }
+    var settingsOpen by remember { mutableStateOf(false) }
+    var playing by remember { mutableStateOf<LiveChannel?>(null) }
+    var fullscreenView by remember { mutableStateOf<View?>(null) }
+    var fullscreenHide by remember { mutableStateOf<(() -> Unit)?>(null) }
 
     LaunchedEffect(visible) {
         if (visible) {
@@ -122,7 +149,14 @@ fun NewsHubScreen(
             FeedRefreshWorker.refreshNow(context)
         }
     }
-    BackHandler(enabled = visible) { if (picking) picking = false else onDismiss() }
+    BackHandler(enabled = visible) {
+        when {
+            fullscreenView != null -> fullscreenHide?.invoke()
+            settingsOpen -> settingsOpen = false
+            picking -> picking = false
+            else -> onDismiss()
+        }
+    }
 
     val regions = remember(feed.regions) { feed.regions.ifEmpty { setOf(INTERNATIONAL_REGION_CODE) }.toList().sorted() }
     val regionNow = liveRegion?.takeIf { it in regions } ?: regions.first()
@@ -131,6 +165,8 @@ fun NewsHubScreen(
     val channels = remember(feed.regions, chosen, customChannels) { effectiveLiveChannels(feed.regions, chosen, customChannels) }
 
     val onLivePage = pagerState.currentPage == LIVE_PAGE
+    // A video never keeps playing once the live tv page is left or the hub closed.
+    LaunchedEffect(onLivePage, visible, picking, settingsOpen) { if (!onLivePage || !visible || picking || settingsOpen) playing = null }
     val statusCache = remember { mutableMapOf<String, LiveStatus?>() }
     val statuses by produceState(emptyMap<String, LiveStatus?>(), visible, onLivePage, channels, statusTick) {
         if (!visible || !onLivePage) return@produceState
@@ -153,6 +189,7 @@ fun NewsHubScreen(
     val articles = remember(feed.articles) { feed.articles.sortedByDescending { it.publishedAtMillis } }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
+      Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -160,9 +197,13 @@ fun NewsHubScreen(
                 .background(tokens.bg)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
                 .statusBarsPadding()
-                .navigationBarsPadding(),
+                .navigationBarsPadding()
+                // The keyboard lifts the hub so the field being typed in stays above it.
+                .imePadding(),
         ) {
-            if (picking) {
+            if (settingsOpen) {
+                NewsSettingsScreen(feed = feed, tokens = tokens, accent = accent, modifier = Modifier.weight(1f))
+            } else if (picking) {
                 ChannelPicker(
                     followed = regions,
                     current = channels,
@@ -192,17 +233,24 @@ fun NewsHubScreen(
                             tokens = tokens,
                             accent = accent,
                             onChoose = { picking = true },
+                            playing = playing,
+                            onPlay = { playing = it },
+                            onFullscreen = { v, hide -> fullscreenView = v; fullscreenHide = hide },
                             context = context,
                         )
                     }
                 }
             }
-            HubPinNote(pinMessages, tokens, accent)
-            HubAppBar(
+            // With the keyboard up the bar would only eat the room the field needs.
+            val keyboardUp = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+            val typing = keyboardUp && (picking || settingsOpen)
+            if (!typing) HubPinNote(pinMessages, tokens, accent)
+            if (!typing) HubAppBar(
                 tokens = tokens,
                 actions = buildList {
-                    add(HubAppBarAction("back", "back") { if (picking) picking = false else onDismiss() })
-                    if (onLivePage || picking) {
+                    add(HubAppBarAction("back", "back") { if (settingsOpen) settingsOpen = false else if (picking) picking = false else onDismiss() })
+                    if (!settingsOpen) add(HubAppBarAction("settings", "news settings", "settings") { picking = false; settingsOpen = true })
+                    if ((onLivePage || picking) && !settingsOpen) {
                         add(HubAppBarAction("plus", "choose channels", "channels") { picking = true })
                     }
                     add(
@@ -216,7 +264,22 @@ fun NewsHubScreen(
                 },
             )
         }
+        fullscreenView?.let { v ->
+            AndroidView(factory = { v }, modifier = Modifier.fillMaxSize().background(Color.Black))
+        }
+      }
     }
+}
+
+/** Scrolls the focused field into the room left above the keyboard (which arrives after the field is focused). */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun Modifier.keepAboveKeyboard(): Modifier {
+    val requester = remember { BringIntoViewRequester() }
+    var focused by remember { mutableStateOf(false) }
+    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+    LaunchedEffect(focused, imeBottom) { if (focused && imeBottom > 0) requester.bringIntoView() }
+    return this.bringIntoViewRequester(requester).onFocusChanged { focused = it.isFocused }
 }
 
 // --- opening --------------------------------------------------------------------
@@ -394,13 +457,22 @@ private fun LiveTvPage(
     tokens: ColorTokens,
     accent: Color,
     onChoose: () -> Unit,
+    playing: LiveChannel?,
+    onPlay: (LiveChannel?) -> Unit,
+    onFullscreen: (View?, (() -> Unit)?) -> Unit,
     context: Context,
 ) {
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
+        val playingId = playing?.let { statuses[it.handle]?.videoId }
+        if (playing != null && playingId != null) {
+            item(key = "player") {
+                LivePlayer(playing, playingId, tokens, accent, onClose = { onPlay(null) }, onFullscreen = onFullscreen, context = context)
+            }
+        }
         item(key = "regions") { RegionChips(regions, region, tokens, accent, onRegion) }
         item(key = "note") {
             Text(
-                "the countries you follow in news. tap a channel to watch it in youtube.",
+                "the countries you follow in news. tap a live channel to watch it here.",
                 color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp, bottom = 6.dp),
             )
         }
@@ -415,13 +487,16 @@ private fun LiveTvPage(
         items(channels, key = { it.region + "/" + it.handle }) { c ->
             val status = statuses[c.handle]
             val known = statuses.containsKey(c.handle)
-            LiveRow(c, status, known, tokens, accent) { openLink(context, liveUrl(c.handle)) }
+            LiveRow(c, status, known, tokens, accent, playing = playing?.handle == c.handle) {
+                // Plays here when the stream id is known; otherwise opens the channel in YouTube.
+                if (status?.live == true && status.videoId != null) onPlay(c) else openLink(context, liveUrl(c.handle))
+            }
         }
     }
 }
 
 @Composable
-private fun LiveRow(c: LiveChannel, status: LiveStatus?, known: Boolean, tokens: ColorTokens, accent: Color, onClick: () -> Unit) {
+private fun LiveRow(c: LiveChannel, status: LiveStatus?, known: Boolean, tokens: ColorTokens, accent: Color, playing: Boolean, onClick: () -> Unit) {
     val image = rememberRemoteImage(status?.videoId?.let { liveThumbnailUrl(it) })
     val live = status?.live == true
     val off = known && status != null && !status.live
@@ -440,9 +515,10 @@ private fun LiveRow(c: LiveChannel, status: LiveStatus?, known: Boolean, tokens:
             Column(modifier = Modifier.weight(1f)) {
                 Text(c.name, color = if (off) tokens.fgDim else tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val state = when {
-                    live -> "live now"
+                    playing -> "playing"
+                    live -> "live now · tap to watch"
                     off -> "off air"
-                    known -> "tap to open"
+                    known -> "tap to open in youtube"
                     else -> "checking…"
                 }
                 Text("${c.language} · $state", color = if (live) LiveRed else tokens.fgDim, fontSize = 12.sp)
@@ -522,7 +598,7 @@ private fun ChannelPicker(
                             singleLine = true,
                             textStyle = TextStyle(color = tokens.fg, fontSize = 17.sp),
                             cursorBrush = SolidColor(accent),
-                            modifier = Modifier.fillMaxWidth().background(tokens.sheet).padding(12.dp),
+                            modifier = Modifier.fillMaxWidth().keepAboveKeyboard().background(tokens.sheet).padding(12.dp),
                         )
                         Row(horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = Modifier.padding(vertical = 10.dp)) {
                             Text(
@@ -546,31 +622,286 @@ private fun ChannelPicker(
     }
 }
 
+// --- playing in place --------------------------------------------------------------
+
+/**
+ * A live stream played inside the hub through YouTube's own embedded player in a WebView
+ * (the channels probed all allow embedding). The page is loaded with this app as its
+ * referrer, as YouTube asks of embedding apps; only YouTube's embed address may load.
+ * Paused with the app and released when closed. "youtube" hands the same stream to the
+ * YouTube app for full-screen viewing, and the player's own full-screen button works too.
+ */
+@Composable
+private fun LivePlayer(
+    channel: LiveChannel,
+    videoId: String,
+    tokens: ColorTokens,
+    accent: Color,
+    onClose: () -> Unit,
+    onFullscreen: (View?, (() -> Unit)?) -> Unit,
+    context: Context,
+) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var web by remember { mutableStateOf<WebView?>(null) }
+    DisposableEffect(lifecycleOwner, web) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_PAUSE -> web?.onPause()
+                Lifecycle.Event.ON_RESUME -> web?.onResume()
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+        Box(modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black)) {
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    WebView(ctx).apply {
+                        setBackgroundColor(android.graphics.Color.BLACK)
+                        settings.javaScriptEnabled = true
+                        settings.domStorageEnabled = true
+                        settings.mediaPlaybackRequiresUserGesture = false
+                        settings.cacheMode = WebSettings.LOAD_DEFAULT
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                val host = request?.url?.host.orEmpty()
+                                // Stay on YouTube's embed; anything else (a channel link in the player) is not followed here.
+                                return !(host.endsWith("youtube.com") || host.endsWith("youtube-nocookie.com") || host.endsWith("googlevideo.com"))
+                            }
+                        }
+                        webChromeClient = object : WebChromeClient() {
+                            override fun onShowCustomView(view: View?, callback: CustomViewCallback?) {
+                                onFullscreen(view) { callback?.onCustomViewHidden(); onFullscreen(null, null) }
+                            }
+
+                            override fun onHideCustomView() {
+                                onFullscreen(null, null)
+                            }
+                        }
+                        loadUrl(
+                            "https://www.youtube.com/embed/$videoId?autoplay=1&playsinline=1&rel=0&modestbranding=1",
+                            mapOf("Referer" to "https://${ctx.packageName}"),
+                        )
+                        web = this
+                    }
+                },
+                onRelease = { it.stopLoading(); it.destroy(); web = null },
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+            Text(channel.name, color = tokens.fg, fontSize = 15.sp, fontWeight = FontWeight.Light, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("youtube ›", color = accent, fontSize = 14.sp, modifier = Modifier.clickable { openLink(context, liveUrl(channel.handle)) }.padding(horizontal = 10.dp, vertical = 6.dp))
+            Text("close", color = tokens.fgDim, fontSize = 14.sp, modifier = Modifier.clickable(onClick = onClose).padding(horizontal = 10.dp, vertical = 6.dp))
+        }
+    }
+}
+
+// --- choosing the news ----------------------------------------------------------
+
+private val TOPIC_LABELS = linkedMapOf(
+    "nation" to "national news",
+    "entertainment" to "entertainment",
+    "cricket" to "cricket",
+    "sports" to "sports",
+    "tech" to "technology",
+    "business" to "business",
+    "food" to "food",
+)
+
+/**
+ * The news settings, as in the glance page's feed settings: the countries followed (any
+ * number), the topics on or off with each topic's feeds, and the feeds added by hand
+ * (with a place to add one). Changes apply at once and ask the feed worker to refresh;
+ * live tv follows the same countries.
+ */
+@Composable
+private fun NewsSettingsScreen(feed: FeedData, tokens: ColorTokens, accent: Color, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val store = remember { FeedStore.create(context) }
+    fun change(block: suspend () -> Unit) {
+        scope.launch(Dispatchers.IO) {
+            block()
+            FeedRefreshWorker.refreshNow(context)
+        }
+    }
+    val regionCodes = remember { listOf(INDIA_COUNTRY_CODE, INTERNATIONAL_REGION_CODE) + SELECTABLE_COUNTRIES.map { it.code } }
+    var url by remember { mutableStateOf("") }
+    val custom = feed.sources.filter { it.category !in TOPIC_LABELS }
+
+    Column(modifier = modifier.fillMaxWidth()) {
+        Text("NEWS", color = tokens.fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, modifier = Modifier.padding(start = 18.dp, top = 18.dp))
+        Text("news settings", color = tokens.fg, fontSize = 34.sp, fontWeight = FontWeight.Light, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
+        LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
+            item(key = "regions-h") { Text("news regions (select any number)", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) }
+            item(key = "regions") {
+                androidx.compose.foundation.layout.FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    regionCodes.forEach { code ->
+                        val on = code in feed.regions
+                        Text(
+                            (if (on) "▣ " else "▢ ") + regionDisplayName(code).lowercase(),
+                            color = if (on) accent else tokens.fgDim,
+                            fontSize = 15.sp,
+                            modifier = Modifier.clickable { change { store.toggleRegion(code, !on) } },
+                        )
+                    }
+                }
+            }
+            item(key = "topics-h") { Text("topics and their feeds", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 22.dp, bottom = 6.dp)) }
+            TOPIC_LABELS.forEach { (category, label) ->
+                val inCategory = feed.sources.filter { it.category == category }
+                if (inCategory.isEmpty()) return@forEach
+                val anyOn = inCategory.any { it.enabled }
+                item(key = "topic-$category") {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            (if (anyOn) "▣ " else "▢ ") + label,
+                            color = if (anyOn) tokens.fg else tokens.fgDim,
+                            fontSize = 17.sp, fontWeight = FontWeight.Light,
+                            modifier = Modifier.fillMaxWidth().clickable { change { store.setCategoryEnabled(category, !anyOn) } }.padding(vertical = 8.dp),
+                        )
+                        if (anyOn) {
+                            androidx.compose.foundation.layout.FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth().padding(start = 18.dp, bottom = 6.dp),
+                            ) {
+                                inCategory.forEach { f ->
+                                    Text(
+                                        (if (f.enabled) "▣ " else "▢ ") + f.name,
+                                        color = if (f.enabled) accent else tokens.fgDim,
+                                        fontSize = 13.sp,
+                                        modifier = Modifier.clickable { change { store.setEnabled(f.url, !f.enabled) } },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (custom.isNotEmpty()) {
+                item(key = "custom-h") { Text("your own feeds", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 22.dp, bottom = 6.dp)) }
+                items(custom, key = { "custom-" + it.url }) { f ->
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                        Text(
+                            (if (f.enabled) "▣ " else "▢ ") + f.name,
+                            color = if (f.enabled) tokens.fg else tokens.fgDim,
+                            fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f).clickable { change { store.setEnabled(f.url, !f.enabled) } },
+                        )
+                        Text("remove", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.clickable { change { store.removeSource(f.url) } }.padding(start = 12.dp, top = 6.dp, bottom = 6.dp))
+                    }
+                }
+            }
+            item(key = "add") {
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 12.dp)) {
+                    Text("add a feed by its address", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(bottom = 6.dp))
+                    BasicTextField(
+                        value = url,
+                        onValueChange = { url = it },
+                        modifier = Modifier.fillMaxWidth().keepAboveKeyboard(),
+                        singleLine = true,
+                        textStyle = TextStyle(color = tokens.fg, fontSize = 16.sp),
+                        cursorBrush = SolidColor(accent),
+                        decorationBox = { inner ->
+                            Box(modifier = Modifier.fillMaxWidth().background(tokens.sheet).padding(12.dp)) {
+                                if (url.isEmpty()) Text("https://…/rss", color = tokens.fgDim, fontSize = 16.sp)
+                                inner()
+                            }
+                        },
+                    )
+                    Text(
+                        "add", color = accent, fontSize = 15.sp,
+                        modifier = Modifier.clickable {
+                            val u = url.trim()
+                            if (u.startsWith("http", ignoreCase = true)) {
+                                change { store.addSource(u, "") }
+                                url = ""
+                            } else {
+                                Toast.makeText(context, "a feed address starts with http", Toast.LENGTH_SHORT).show()
+                            }
+                        }.padding(vertical = 12.dp),
+                    )
+                }
+            }
+        }
+    }
+}
+
 // --- the tile -------------------------------------------------------------------
 
-/** The news hub's tile: the newest headlines from the feed, and the hub on tap. Reads the stored news only. */
+/** How long a headline stays on the news tile before the next rolls in. */
+const val NEWS_TILE_ROLL_MS = 4_500L
+
+/** How many of the newest stories roll on the news tile. */
+const val NEWS_TILE_STORIES = 8
+
+/**
+ * The news hub's tile: the newest stories rolling one after another, each with its photo
+ * when it has one (headline over the bottom of the picture), else the headline on the
+ * tile's own colour. Rolls only while the live tiles are active (like every other live
+ * tile) and reads the stored news only; tapping opens the hub.
+ */
 @Composable
-fun NewsHubTileFace(size: TileSize, modifier: Modifier = Modifier) {
+fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val feed by remember { FeedStore.create(context).data }.collectAsState(initial = FeedData())
     val color = LocalTileFaceColor.current
-    val top = remember(feed.articles) { feed.articles.sortedByDescending { it.publishedAtMillis }.take(4) }
-    val lines = when (size) {
-        TileSize.SMALL -> 0
-        TileSize.MEDIUM, TileSize.WIDE_SMALL, TileSize.TALL, TileSize.COLUMN, TileSize.BANNER -> 2
-        TileSize.WIDE, TileSize.WIDE_MEDIUM -> 3
-        else -> 4
+    val stories = remember(feed.articles) { feed.articles.sortedByDescending { it.publishedAtMillis }.take(NEWS_TILE_STORIES) }
+    var index by remember { mutableIntStateOf(0) }
+    LaunchedEffect(active, stories.size) {
+        if (!active || stories.size < 2) return@LaunchedEffect
+        while (true) {
+            kotlinx.coroutines.delay(NEWS_TILE_ROLL_MS)
+            index = (index + 1) % stories.size
+        }
     }
-    Box(modifier = modifier.fillMaxSize().padding(8.dp)) {
-        if (lines == 0 || top.isEmpty()) {
+    if (size == TileSize.SMALL || stories.isEmpty()) {
+        Box(modifier = modifier.fillMaxSize()) {
             Icon(TileIcons["newshub"], contentDescription = null, tint = color, modifier = Modifier.align(Alignment.Center).size(if (size == TileSize.SMALL) 28.dp else 44.dp))
-            if (size != TileSize.SMALL) Text("news", color = color, fontSize = 12.sp, modifier = Modifier.align(Alignment.BottomStart))
-        } else {
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp), modifier = Modifier.fillMaxSize()) {
-                Text("news", color = color.copy(alpha = 0.8f), fontSize = 12.sp)
-                top.take(lines).forEach { a ->
-                    Text(a.title, color = color, fontSize = 13.sp, lineHeight = 15.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                }
+            if (size != TileSize.SMALL) Text("news", color = color, fontSize = 12.sp, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
+        }
+        return
+    }
+    val story = stories[index.coerceIn(0, stories.lastIndex)]
+    val lines = when (size) {
+        TileSize.LARGE, TileSize.XLARGE, TileSize.TALL_MEDIUM, TileSize.COLUMN -> 4
+        TileSize.WIDE, TileSize.WIDE_MEDIUM -> 3
+        else -> 2
+    }
+    androidx.compose.animation.Crossfade(targetState = story, animationSpec = tween(500), modifier = modifier.fillMaxSize(), label = "newsTileRoll") { a ->
+        val photo = rememberRemoteImage(a.imageUrl)
+        Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
+            if (photo != null) {
+                androidx.compose.foundation.Image(bitmap = photo, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                Box(
+                    modifier = Modifier.fillMaxSize().background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(0.35f to Color.Transparent, 1f to Color(0xCC000000)),
+                    ),
+                )
+            }
+            Column(
+                verticalArrangement = Arrangement.Bottom,
+                modifier = Modifier.fillMaxSize().padding(8.dp),
+            ) {
+                Text(
+                    a.source,
+                    color = (if (photo != null) Color.White else color).copy(alpha = 0.8f),
+                    fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    a.title,
+                    color = if (photo != null) Color.White else color,
+                    fontSize = if (lines >= 3) 15.sp else 13.sp, lineHeight = if (lines >= 3) 18.sp else 15.sp,
+                    fontWeight = FontWeight.Light, maxLines = lines, overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

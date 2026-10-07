@@ -11597,6 +11597,24 @@ may show "off air"). Until a choice is made each followed region shows its start
 toggle freezes that set as the explicit choice (`news_live_chosen`, `news_live_custom` in
 `tileshell.prefs`, so backups carry them). A handle in two regions (DW News) shows in both.
 
+**Follow-ups (same day, user-requested).** (1) *News settings in the hub*: a "settings" app-bar button opens
+the same choices as the glance page's news settings: countries followed (any number, all 21), topics on or
+off with each topic's feeds, own feeds (remove, toggle) and add a feed by address (`NewsSettingsScreen`,
+straight on `FeedStore`, each change asks the worker to refresh). Live tv follows the same countries.
+(2) *Playing live channels in place*: all 24 channels probed allowed embedding (`playableInEmbed`), so a live
+row now plays in the hub through YouTube's own embedded player in a WebView (`LivePlayer`, 16:9 above the
+list, "youtube ›" hands it to the YouTube app, "close" ends it); a row whose stream id isn't known still
+opens YouTube. The page loads with `Referer: https://<package>` as YouTube asks of embedding apps, may only
+navigate within youtube.com / googlevideo.com, pauses with the app, is destroyed when closed, and stops
+when the page is left or the hub closes; the player's full-screen button shows its view over the hub
+(`onShowCustomView`). This supersedes "link out, no player" above for live rows: no new library, but a
+WebView with JavaScript for the embed only; a channel that forbids embedding would show YouTube's own
+message in the player. (3) *News tile*: rolls the eight newest stories every 4.5 s while the live tiles are
+active (`NewsHubTileFace`), each with its photo and a bottom scrim when it has one, else the headline on
+the tile colour; static icon at the smallest size. (4) The keyboard no longer covers the add-channel and
+add-feed boxes: `imePadding` on the hub, the app bar hidden while typing in a sub screen and
+`keepAboveKeyboard` on the fields (the same fix as the timer-set editor).
+
 Moved `rememberRemoteImage` (article thumbnails with a disk cache) from `:feature:start` to
 `:feature:livetiles` so the hub can use it. Unit-tested (`NewsHubTest`). The tile shows the newest
 headlines from the stored feed; no live face loop.

@@ -243,7 +243,7 @@ fun AboutSheet(
                     "clock hub — an analog dial with your next alarm as an arc (alarms are made and rung in your clock app, which the hub opens), world clocks with each city's day and night strip, timers with a progress ring, a stopwatch with laps, and timer sets",
                     "timer sets are saved rows of timers for a practice or workout — parts of steps, a step can take whatever is left of its part — with a short buzz at each step end; while one runs the screen stays on, nearly dark, so every step is exact (turn that off in the clock settings). allow alarms and reminders for tileshell for the buzz to be exact with the screen off",
                     "news hub — top stories (a lead with its picture, then headlines), my topics, saved stories and live tv; stories open in your browser, ☆ keeps one on the saved page (on this phone only) and opened stories turn grey",
-                    "live tv lists news channels broadcasting on youtube for the countries you follow in the news settings (many countries have a starter set; + adds any channel by its youtube name); a channel opens in youtube, and its on-air state is read from youtube when the page is shown or you press refresh",
+                    "live tv lists news channels broadcasting on youtube for the countries you follow in the news settings (many countries have a starter set; + adds any channel by its youtube name); a live channel plays right there in the hub (or opens in youtube), and its on-air state is read from youtube when the page is shown or you press refresh",
                 ),
             )
 

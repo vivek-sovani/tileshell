@@ -7267,7 +7267,7 @@ private fun AppTileContent(
             return
         }
         LiveFace.NEWSHUB -> {
-            com.tileshell.feature.livetiles.NewsHubTileFace(size = tile.size, modifier = Modifier.fillMaxSize())
+            com.tileshell.feature.livetiles.NewsHubTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize())
             return
         }
         LiveFace.CLOCKHUB -> {

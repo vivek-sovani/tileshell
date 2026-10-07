@@ -46,7 +46,9 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
   picks channels or adds one by its YouTube name (`news_live_chosen` / `news_live_custom`, in backups),
   and the on-air flag and thumbnail are read from YouTube's page only when the page shows or on refresh.
   The hub reads the stored news and asks the feed worker to refresh on open and on the button; nothing
-  polls. `rememberRemoteImage` moved to `:feature:livetiles`. Unit-tested (`NewsHubTest`); privacy policy
+  polls. Follow-ups: the hub's "settings" button holds the glance feed's choices (countries, topics, feeds, add a
+  feed); live channels play in place (YouTube embed in a WebView, all 24 probed channels allow it); the tile rolls
+  the eight newest stories with photos; keyboard no longer covers the add boxes. `rememberRemoteImage` moved to `:feature:livetiles`. Unit-tested (`NewsHubTest`); privacy policy
   (md + hosted), About and DECISIONS updated. Release build compiles; not yet seen on a device.
 - **`main` — clock hub (folded into 5.1.0, not uploaded).** User-requested, designed twice. Alarms
   (a dial with the system's next alarm as an arc; the Clock app owns and rings alarms), world clocks with
