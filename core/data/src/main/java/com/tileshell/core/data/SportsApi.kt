@@ -41,7 +41,13 @@ data class SportsMatchEvent(
     val leagueId: String? = null,
     /** Which match this is, when the feed says ("3rd ODI · West Indies tour of India"): cricket only. */
     val matchLabel: String? = null,
-)
+    /** The full team names ("Manchester City", not "Man City") for the hub's cards; blank when the feed gave only the short one. */
+    val homeFullName: String = "",
+    val awayFullName: String = "",
+) {
+    val homeShown: String get() = homeFullName.ifBlank { homeName }
+    val awayShown: String get() = awayFullName.ifBlank { awayName }
+}
 
 /**
  * Extra detail worth showing on a sports tile's back face beyond the plain
@@ -347,6 +353,8 @@ private fun parseEvent(ev: JSONObject): SportsMatchEvent? {
         awayAbbr = awayTeam.optString("abbreviation"),
         awayName = awayTeam.optString("shortDisplayName", awayTeam.optString("displayName")),
         awayScore = scoreOf(away),
+        homeFullName = homeTeam.optString("displayName"),
+        awayFullName = awayTeam.optString("displayName"),
     )
 }
 

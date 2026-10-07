@@ -174,8 +174,13 @@ fun SportsHubScreen(
     val live by produceState(LiveState(), visible, liveLeagues, liveTick) {
         if (visible) value = loadToday(liveLeagues)
     }
+    // Results already read stay put when the page, scope or window is switched back to; only
+    // the refresh button (resultsTick) or a changed choice of favourites reads again.
+    val resultsCache = remember { mutableMapOf<List<Any>, ResultsState>() }
     val results by produceState(ResultsState(), visible, onResultsPage, scope, range, fav.sports, fav.teams, resultsTick) {
         if (!visible || !onResultsPage) return@produceState
+        val cacheKey = listOf(scope, range, fav.sports, fav.teams, resultsTick)
+        resultsCache[cacheKey]?.let { value = it; return@produceState }
         val nothingToRead = if (scope == HubScope.MY_TEAMS) fav.teams.isEmpty() else fav.sports.isEmpty()
         val now = System.currentTimeMillis()
         if (nothingToRead) {
@@ -187,6 +192,7 @@ fun SportsHubScreen(
             value = ResultsState(partial, now, loading = true, started = true)
         }
         value = value.copy(loading = false)
+        resultsCache[cacheKey] = value
     }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
@@ -389,8 +395,8 @@ private fun MatchCard(
             )
             if (letter != null) ResultLetter(letter, tokens)
         }
-        ScoreLine(e.homeName, e.homeScore, e.state, tokens, 17.sp)
-        ScoreLine(e.awayName, e.awayScore, e.state, tokens, 17.sp)
+        ScoreLine(e.homeShown, e.homeScore, e.state, tokens, 17.sp)
+        ScoreLine(e.awayShown, e.awayScore, e.state, tokens, 17.sp)
         Text(status, color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
         Box(modifier = Modifier.fillMaxWidth().padding(top = 9.dp).height(0.5.dp).background(tokens.sheetLine))
     }
@@ -463,8 +469,8 @@ private fun MatchDetailScreen(match: HubMatch, tick: Int, nowMillis: Long, token
             item(key = "score") {
                 Column(modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
                     Text(match.leagueName + (e.matchLabel?.let { " · $it" } ?: ""), color = accent, fontSize = 13.sp)
-                    ScoreLine(e.homeName, e.homeScore, e.state, tokens, 24.sp)
-                    ScoreLine(e.awayName, e.awayScore, e.state, tokens, 24.sp)
+                    ScoreLine(e.homeShown, e.homeScore, e.state, tokens, 24.sp)
+                    ScoreLine(e.awayShown, e.awayScore, e.state, tokens, 24.sp)
                     Text(
                         if (e.state == "pre") matchStatus(match, nowMillis) else loaded?.statusLine?.takeIf { it.isNotEmpty() } ?: matchStatus(match, nowMillis),
                         color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp),
