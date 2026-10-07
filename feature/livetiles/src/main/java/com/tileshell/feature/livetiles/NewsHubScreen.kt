@@ -170,11 +170,9 @@ fun NewsHubScreen(
     val channels = remember(feed.regions, chosen, customChannels) { effectiveLiveChannels(feed.regions, chosen, customChannels) }
 
     val onLivePage = pagerState.currentPage == LIVE_PAGE
-    // A video never keeps playing once the live tv page is left or the hub closed.
-    // (Not while it is full screen: turning the phone moves the panorama and must not end the video.)
-    LaunchedEffect(onLivePage, visible, picking, settingsOpen, fullscreenHide) {
-        if (fullscreenHide == null && (!onLivePage || !visible || picking || settingsOpen)) playing = null
-    }
+    // The player sits above all the pages, so it keeps playing while you read; it ends when closed, when the hub
+    // closes, or when a sub screen opens. (Turning the phone shifts the panorama's page, which must not end it.)
+    LaunchedEffect(visible, picking, settingsOpen) { if (!visible || picking || settingsOpen) playing = null }
     val statusCache = remember { mutableMapOf<String, LiveStatus?>() }
     val statuses by produceState(emptyMap<String, LiveStatus?>(), visible, onLivePage, channels, statusTick) {
         if (!visible || !onLivePage) return@produceState
