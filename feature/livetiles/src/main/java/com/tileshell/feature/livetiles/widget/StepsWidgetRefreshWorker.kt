@@ -138,6 +138,7 @@ class StepsWidgetRefreshWorker(
             if (resolution.newBaseline != baseline) {
                 StepsPrefs.saveBaseline(context, resolution.newBaseline)
             }
+            com.tileshell.feature.livetiles.health.HealthStore.record(context, LocalDate.now().toEpochDay(), resolution.stepsToday)
             return resolution.stepsToday
         }
 
@@ -191,6 +192,9 @@ class StepsWidgetRefreshWorker(
             // else on the widget explains why it reads "--").
             if (state == StepsWidgetState.NEEDS_PERMISSION) {
                 views.setOnClickPendingIntent(R.id.widget_root, reconfigurePendingIntent(context, appWidgetId))
+            } else {
+                // Otherwise the body opens the health hub.
+                views.setOnClickPendingIntent(R.id.widget_root, hubPendingIntent(context, appWidgetId, "health", android.content.Intent(android.content.Intent.ACTION_MAIN)))
             }
             views.setTextColor(R.id.widget_count, onAccent)
             views.setTextViewText(R.id.widget_count, steps?.toString() ?: "--")

@@ -11,6 +11,7 @@ enum class HubKind(val key: String) {
     MONEY("money"),
     PRODUCTIVITY("productivity"),
     SHOPPING("shopping"),
+    HEALTH("health"),
 }
 
 /**

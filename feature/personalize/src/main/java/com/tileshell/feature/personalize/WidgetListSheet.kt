@@ -72,6 +72,7 @@ private val WIDGET_CATALOG = listOf(
     WidgetCatalogEntry("sportshub", "sports hub", "live scores, fixtures and results for the sports and teams you follow", "sportshub", "orange", hub = true),
     WidgetCatalogEntry("newshub", "news hub", "the newest headlines, with topics, saved stories and live news channels", "newshub", "red", hub = true),
     WidgetCatalogEntry("shophub", "shopping hub", "orders on their way, with your shopping, food and courier apps", "shophub", "magenta", hub = true),
+    WidgetCatalogEntry("healthhub", "health hub", "your steps toward a daily goal, with a week view and your health and fitness apps", "healthhub", "lime", hub = true),
     WidgetCatalogEntry("panchang", "panchang hub", "today's tithi and the Hindu calendar, with festivals and moon times", "calsys", "cobalt", hub = true),
 
     WidgetCatalogEntry("mail", "mail", "your newest email, from your mail app", "mail", "purple"),
@@ -79,7 +80,6 @@ private val WIDGET_CATALOG = listOf(
     WidgetCatalogEntry("photos", "photos", "a slideshow of photos you pick", "photos", "cyan"),
     WidgetCatalogEntry("stickynote", "sticky note", "one note, pinned to its own tile", "stickynote", "amber"),
     WidgetCatalogEntry("countdown", "countdown", "days until a date you set — pin as many as you like", "countdown", "magenta"),
-    WidgetCatalogEntry("steps", "steps", "today's step count, from your phone's own sensor", "steps", "lime"),
     WidgetCatalogEntry("moonphase", "moon phase", "tonight's phase and illumination; opens the panchang hub", "moonphase", "slate"),
     WidgetCatalogEntry("flashlight", "flashlight", "tap the tile to turn it on or off", "flashlight", "steel"),
 )

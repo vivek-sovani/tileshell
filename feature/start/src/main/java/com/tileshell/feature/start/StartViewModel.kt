@@ -388,6 +388,26 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val _healthHubOpen = MutableStateFlow(false)
+    val healthHubOpen: StateFlow<Boolean> = _healthHubOpen.asStateFlow()
+
+    fun openHealthHub() {
+        _healthHubOpen.value = true
+    }
+
+    fun closeHealthHub() {
+        _healthHubOpen.value = false
+    }
+
+    /** Pin the health hub's tile. */
+    fun pinHealthHub() {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "healthhub" }
+            val result = if (!exists && repository.addDefaultTile("healthhub", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
+            _pinMessage.tryEmit(pinOutcomeText(result, "health"))
+        }
+    }
+
     private val _newsHubOpen = MutableStateFlow(false)
     val newsHubOpen: StateFlow<Boolean> = _newsHubOpen.asStateFlow()
 
@@ -2258,6 +2278,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeClockHub()
         closeNewsHub()
         closeShoppingHub()
+        closeHealthHub()
         closePanchang()
         closePermissions()
         closeNewsRegion()

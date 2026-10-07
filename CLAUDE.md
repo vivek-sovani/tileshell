@@ -37,6 +37,15 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — health hub (folded into 5.1.0, not uploaded).** User-requested after a design. Steps from the
+  phone's step counter, kept as a daily history on the phone (`HealthStore`, sampled every 30 min by
+  `HealthSampleWorker`, and whenever the tile, hub or steps widget reads): today (ring toward a goal,
+  default 8,000; distance, calories, active minutes as estimates; streak), week (this / last), apps
+  (health and fitness apps with on-tile marks; `HubKind.HEALTH`). Tile `healthhub` (ring front, app icons
+  back) replaces the steps widget in "add live tiles"; old steps tiles and the steps widget open the hub.
+  Unit-tested (`HealthLogicTest`); checked on the emulator (today, week, apps pages). Not checked: real
+  steps over several days, the tile's back with apps (the emulator has no health apps), the sampler on a
+  phone with the screen off. See DECISIONS.
 - **`main` — shopping hub: arriving, past and apps (folded into 5.1.0, not uploaded).** User-requested, designed first
   (trips dropped by the user). Order updates are read from new notifications only (shopping / food / courier apps,
   and SMS / mail that name a known store; no SMS permission), parsed by pure `parseOrderMessage`, merged one card per

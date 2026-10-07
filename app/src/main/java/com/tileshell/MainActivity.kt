@@ -223,6 +223,7 @@ class MainActivity : ComponentActivity() {
             "weather" -> startViewModel.openWeatherHub(null)
             "markets" -> startViewModel.openMarketsHub()
             "sports" -> startViewModel.openSportsHub()
+            "health" -> startViewModel.openHealthHub()
             // A running timer's notification or alarm icon.
             "clock" -> startViewModel.openClockHub()
         }
@@ -297,6 +298,7 @@ class MainActivity : ComponentActivity() {
             "markets" -> startViewModel.openMarketsHub()
             "news" -> startViewModel.openNewsHub()
             "shopping" -> startViewModel.openShoppingHub()
+            "health" -> startViewModel.openHealthHub()
             "widgets" -> startViewModel.openAddWidgets()
             "sports" -> startViewModel.openSportsHub()
             "clock" -> startViewModel.openClockHub()

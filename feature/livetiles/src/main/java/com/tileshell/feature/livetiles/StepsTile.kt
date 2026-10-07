@@ -130,7 +130,7 @@ private const val STEPS_BATCH_LATENCY_US = 60_000_000
  * the actual bug rather than leaving it merely harmless-here.
  */
 @Composable
-private fun rememberStepsToday(active: Boolean): Int? {
+internal fun rememberStepsToday(active: Boolean): Int? {
     val context = LocalContext.current
     val sensorManager = remember(context) {
         context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager
@@ -149,6 +149,8 @@ private fun rememberStepsToday(active: Boolean): Int? {
                     StepsPrefs.saveBaseline(context, resolution.newBaseline)
                 }
                 steps = resolution.stepsToday
+                // The health hub's history: today's count, kept by day.
+                com.tileshell.feature.livetiles.health.HealthStore.record(context, LocalDate.now().toEpochDay(), resolution.stepsToday)
             }
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
@@ -191,7 +193,7 @@ private enum class PermissionStage { NONE, RATIONALE, BLOCKED }
  * leaving the tile silently static.
  */
 @Composable
-private fun StepsPermissionGate(granted: Boolean) {
+internal fun StepsPermissionGate(granted: Boolean) {
     if (granted) return
     val context = LocalContext.current
     var stage by remember {

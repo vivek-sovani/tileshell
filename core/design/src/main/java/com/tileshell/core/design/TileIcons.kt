@@ -686,6 +686,11 @@ object TileIcons {
             p("M12 3v3"),
         ))
 
+        // A heart: the health hub.
+        put("healthhub", vector("healthhub",
+            p("M12 20s-7-4.6-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.4-7 10-7 10z"),
+        ))
+
         // A shopping bag with a handle: the shopping hub.
         put("shophub", vector("shophub",
             p("M5 8h14l-1 12H6z"),

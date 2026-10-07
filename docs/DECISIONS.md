@@ -11674,3 +11674,12 @@ the clock tile. **Widgets that open their hub** where that is correct: the clock
 moon phase widget the panchang hub, a configured team tile the sports hub, a configured stock or commodity tile the markets
 hub (the hubs' rows and match detail still open Yahoo and ESPN). Left as they were because the tap is their purpose:
 mail and messages (open the app), tasks / notes / sticky note / countdown (open their own editors), flashlight, photos.
+
+
+## Health hub (steps; replaces the steps widget)
+
+User-requested, designed first (goal 8,000; no water log; keep estimates; no sleep; the health tile replaces the steps widget).
+- Data: the phone's own step counter only (no Health Connect, no account). `HealthSampleWorker` (30-minute periodic one-shot sensor read) and the tile / hub / steps widget all record the day's total into `files/steps_history.txt` (`HealthStore`, 120 days; pure `recordDay` keeps the larger value for a day, so a reboot's counter reset never lowers it). History starts at first use and is not in backups; goal, height and tile marks are (`health_goal`, `health_height_cm`, `health_tile_apps`, `hub_apps_health`).
+- Hub pages: today (ring toward goal, distance, calories and active minutes labelled "estimate", streak), week (this / last week bars, best day, days at goal), apps (`HubKind.HEALTH`, sub-entries, on-tile marks). Settings: goal choices, height, clear history.
+- Tile `healthhub`: front a ring and the count; back the health apps as icons (marked ones, else all), paging when there are more than fit. Existing `steps` tiles keep their face but now open the hub on tap; the steps widget body opens the hub too (`hubPendingIntent(..., "health")`). "add live tiles" lists "health hub" and no longer lists "steps".
+- Distance/calories/active minutes are rough (stride from height, flat kcal per step), hence the labels.

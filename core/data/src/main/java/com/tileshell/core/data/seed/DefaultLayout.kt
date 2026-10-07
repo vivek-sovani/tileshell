@@ -192,7 +192,7 @@ object DefaultLayout {
         DefaultTile("t-stickynote", TileSize.MEDIUM, "amber", app = "stickynote", liveOnly = true),
         DefaultTile("t-flashlight", TileSize.MEDIUM, "steel", app = "flashlight", liveOnly = true),
         DefaultTile("t-countdown", TileSize.MEDIUM, "magenta", app = "countdown", liveOnly = true),
-        DefaultTile("t-steps", TileSize.MEDIUM, "lime", app = "steps", liveOnly = true),
+        DefaultTile("t-healthhub", TileSize.MEDIUM, "lime", app = "healthhub", liveOnly = true),
         DefaultTile("t-sports", TileSize.MEDIUM, "red", app = "sports", liveOnly = true),
         DefaultTile("t-stock", TileSize.MEDIUM, "teal", app = "stock", liveOnly = true),
         DefaultTile("t-commodity", TileSize.MEDIUM, "mauve", app = "commodity", liveOnly = true),
