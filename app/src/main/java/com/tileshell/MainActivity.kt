@@ -292,6 +292,7 @@ class MainActivity : ComponentActivity() {
             "money" -> startViewModel.openMoneyHub()
             "markets" -> startViewModel.openMarketsHub()
             "news" -> startViewModel.openNewsHub()
+            "shopping" -> startViewModel.openShoppingHub()
             "sports" -> startViewModel.openSportsHub()
             "clock" -> startViewModel.openClockHub()
             "panchang" -> startViewModel.openPanchang()

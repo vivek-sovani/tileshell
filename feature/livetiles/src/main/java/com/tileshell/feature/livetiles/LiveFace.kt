@@ -61,6 +61,7 @@ enum class LiveFace(val flips: Boolean) {
     SPORTSHUB(flips = false),
     CLOCKHUB(flips = false),
     NEWSHUB(flips = false),
+    SHOPHUB(flips = false),
     ;
 
     companion object {
@@ -99,6 +100,7 @@ enum class LiveFace(val flips: Boolean) {
                 "sportshub" -> SPORTSHUB
                 "clockhub" -> CLOCKHUB
                 "newshub" -> NEWSHUB
+                "shophub" -> SHOPHUB
                 else -> null
             }
         }

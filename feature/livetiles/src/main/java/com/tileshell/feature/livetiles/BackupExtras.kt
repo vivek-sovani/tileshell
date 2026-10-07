@@ -26,7 +26,7 @@ object BackupExtras {
         "panchang_highlights", "panchang_festivals", "panchang_custom_tithis", "panchang_grahan",
         "productivity_quick_items",
         "hub_apps_people", "hub_apps_money", "hub_apps_productivity",
-        "markets_watchlist", "clock_timer_sets", "clock_world_cities", "clock_buzz", "clock_sound", "clock_dim", "markets_tile_symbols", "markets_tile_indices", "sports_fav_sports", "sports_fav_teams", "news_live_chosen", "news_live_custom",
+        "markets_watchlist", "clock_timer_sets", "clock_world_cities", "clock_buzz", "clock_sound", "clock_dim", "markets_tile_symbols", "markets_tile_indices", "sports_fav_sports", "sports_fav_teams", "news_live_chosen", "news_live_custom", "hub_apps_shopping", "shopping_read", "shopping_lock_otp",
     )
 
     suspend fun export(context: Context): Map<String, String> {
@@ -75,6 +75,7 @@ object BackupExtras {
             edit.commit()
             // These two keep a copy in memory; refresh it so the hubs show the restored choice now.
             MoneyPrefs.reload(app)
+            com.tileshell.feature.livetiles.shopping.ShoppingPrefs.reload(app)
             HubAppChoices.reload(app)
             PanchangPrefs.reload(app)
             MarketsWatchlist.reload(app)

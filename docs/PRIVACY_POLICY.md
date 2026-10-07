@@ -69,6 +69,13 @@ Stock and commodity tiles and widgets fetch prices from Yahoo Finance; sports ti
 widgets fetch scores from ESPN. Each request contains only the symbol or league/team you
 picked — no personal data.
 
+### Shopping orders
+The shopping hub reads order updates ("out for delivery", "delivered", delivery OTPs) from the notifications of your
+shopping, food and courier apps, and from SMS and email notifications that name a store, as they arrive; it needs no
+SMS permission and cannot read old messages. Orders are kept on the phone only (for up to 90 days), are not uploaded
+and are not in exported backups. Delivery OTPs stay hidden until you unlock with your fingerprint, face or screen lock
+(when set). You can turn reading off or clear the history in the hub's settings.
+
 ### Live news channels
 The news hub's live tv page plays a news channel's live stream inside TileShell through YouTube's own embedded player, or opens it in YouTube (or your browser). When
 the page is shown, TileShell fetches each listed channel's public YouTube page to see whether it is

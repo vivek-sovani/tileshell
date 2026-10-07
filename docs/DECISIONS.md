@@ -11617,3 +11617,29 @@ add-feed boxes: `imePadding` on the hub, the app bar hidden while typing in a su
 Moved `rememberRemoteImage` (article thumbnails with a disk cache) from `:feature:start` to
 `:feature:livetiles` so the hub can use it. Unit-tested (`NewsHubTest`). The tile shows the newest
 headlines from the stored feed; no live face loop.
+
+
+## Shopping hub: orders arriving, past, and the shopping apps (2026-10-07)
+
+User-requested, designed first (mockups for arriving, trips, past and the tile). The user dropped trips and named the
+hub "shopping". Pages: **arriving** (one card per open order: item, store, status, arrival time, a four-step progress
+line placed → shipped → out for delivery → delivered, and a delivery OTP that stays hidden until the fingerprint,
+face or screen lock is used), **past** (delivered, cancelled and returned orders, 90 days; open ones are kept 30)
+and **apps** (the shared `HubAppsPage`: shopping, food and groceries, couriers; edit to add from any installed
+app, move between sections or take off, kept in `hub_apps_shopping` via `HubAppChoices`, `HubKind.SHOPPING`).
+
+**Data: notifications only, no SMS permission.** `ShoppingCapture` (called from the notification listener beside
+`MoneyCapture`) reads new notifications of shopping / food / courier apps (the store is the app) and of the SMS app
+and mail apps when the text names a store the hub knows (`KNOWN_STORES`). Nothing before install, nothing uploaded;
+orders live in `files/shopping_log.txt` and are not in backups (the app choices and the two switches are). A
+pure parser (`parseOrderMessage`) reads status, order number (Amazon, Flipkart and labelled AWB / order ids), item,
+arrival time and delivery OTP (never a login or payment OTP); promos and chats are ignored. `mergeOrder` folds
+updates into one order (by store + order number, else the store's latest open order), only forward (delivered never
+reverts, delivered → returned allowed). An SMS sender header ("AMZNIN") is never used as an item name.
+Unit-tested (`ShoppingParserTest`); checked on the emulator with sent SMS for Amazon, Swiggy and Myntra.
+Settings: read order messages, lock delivery OTPs (reuses `MoneyLock`), clear history. Food and quick delivery
+count under arriving with minute-level times.
+
+**Tile** (`shophub`, `ShoppingTileFace`): front shows what is arriving (item and "store · time"), else the bag
+glyph; the back shows ALL the shopping apps as tappable icons (tap opens the app, a tap elsewhere opens the hub),
+and with more apps than fit, each turn to the back shows the next page.

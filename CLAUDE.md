@@ -37,6 +37,14 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — shopping hub: arriving, past and apps (folded into 5.1.0, not uploaded).** User-requested, designed first
+  (trips dropped by the user). Order updates are read from new notifications only (shopping / food / courier apps,
+  and SMS / mail that name a known store; no SMS permission), parsed by pure `parseOrderMessage`, merged one card per
+  order (`mergeOrder`, only forward), kept in `files/shopping_log.txt` (not in backups). Arriving: progress line,
+  arrival time, delivery OTP behind the fingerprint / screen lock. Past: 90 days. Apps: shared `HubAppsPage` (add /
+  move / take off). Tile `shophub`: front shows what is arriving, back shows ALL shopping apps as tappable icons
+  (pages when many). Unit-tested (`ShoppingParserTest`); checked on the emulator with sent SMS. Privacy policy (md +
+  hosted), About and DECISIONS updated. Not seen with real order notifications.
 - **`main` — news hub: top stories, topics, saved and live tv by country (folded into 5.1.0, not uploaded).**
   User-requested, designed first. A panorama over the stored feed (`NewsHubScreen`, tile `newshub`): a
   lead story with its picture then headlines, topics (the feed's categories), saved stories (☆, kept on the

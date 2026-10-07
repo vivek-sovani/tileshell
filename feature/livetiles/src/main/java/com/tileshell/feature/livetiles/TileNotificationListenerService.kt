@@ -94,6 +94,7 @@ class TileNotificationListenerService : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         refreshSignals.tryEmit(Unit)
         sbn?.let { com.tileshell.feature.livetiles.money.MoneyCapture.onPosted(this, it) }
+        sbn?.let { com.tileshell.feature.livetiles.shopping.ShoppingCapture.onPosted(this, it) }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {

@@ -76,6 +76,7 @@ private val WIDGET_CATALOG = listOf(
     WidgetCatalogEntry("sportshub", "sports hub", "live scores, fixtures and the teams you follow, plus the sports hub", "sportshub", "orange"),
     WidgetCatalogEntry("clockhub", "timers and clock", "your next alarm, timers, a stopwatch, world clocks and timer sets for a practice or workout, plus the clock hub", "clockhub", "steel"),
     WidgetCatalogEntry("newshub", "news", "the newest headlines, plus the news hub — top stories, topics, saved stories and live news channels", "newshub", "red"),
+    WidgetCatalogEntry("shophub", "shopping", "orders on their way and your shopping, food and courier apps, plus the shopping hub", "shophub", "magenta"),
     WidgetCatalogEntry("alarm", "alarm", "next alarm time and active days", "alarm", "purple"),
     WidgetCatalogEntry("moonphase", "moon phase", "tonight's phase and illumination", "moonphase", "slate"),
     WidgetCatalogEntry("tasks", "tasks", "a checklist you keep, right on start", "tasks", "blue"),

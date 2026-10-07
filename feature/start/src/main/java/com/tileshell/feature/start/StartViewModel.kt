@@ -357,6 +357,26 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val _shoppingHubOpen = MutableStateFlow(false)
+    val shoppingHubOpen: StateFlow<Boolean> = _shoppingHubOpen.asStateFlow()
+
+    fun openShoppingHub() {
+        _shoppingHubOpen.value = true
+    }
+
+    fun closeShoppingHub() {
+        _shoppingHubOpen.value = false
+    }
+
+    /** Pin the shopping hub's tile. */
+    fun pinShoppingHub() {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "shophub" }
+            val result = if (!exists && repository.addDefaultTile("shophub", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
+            _pinMessage.tryEmit(pinOutcomeText(result, "shopping"))
+        }
+    }
+
     private val _newsHubOpen = MutableStateFlow(false)
     val newsHubOpen: StateFlow<Boolean> = _newsHubOpen.asStateFlow()
 
@@ -2226,6 +2246,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         closeSportsHub()
         closeClockHub()
         closeNewsHub()
+        closeShoppingHub()
         closePanchang()
         closePermissions()
         closeNewsRegion()

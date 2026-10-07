@@ -686,6 +686,12 @@ object TileIcons {
             p("M12 3v3"),
         ))
 
+        // A shopping bag with a handle: the shopping hub.
+        put("shophub", vector("shophub",
+            p("M5 8h14l-1 12H6z"),
+            p("M9 8V6a3 3 0 0 1 6 0v2"),
+        ))
+
         // A folded newspaper: the news hub.
         put("newshub", vector("newshub",
             p("M4 5h13v13a1 1 0 0 0 1 1H6a2 2 0 0 1-2-2z"),
