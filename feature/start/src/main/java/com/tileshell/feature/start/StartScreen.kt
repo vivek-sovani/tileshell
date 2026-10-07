@@ -9027,6 +9027,7 @@ private fun HubScreensLayer(
         refreshRate = hubSettings.stockRefreshRate,
         onDismiss = viewModel::closeMarketsHub,
         onPinTile = viewModel::pinMarketsTile,
+        pinMessages = viewModel.pinMessage,
         rightHalf = false,
     )
 
@@ -9037,6 +9038,7 @@ private fun HubScreensLayer(
         onDismiss = viewModel::closeSportsHub,
         onPinHub = viewModel::pinSportsHub,
         onPinTeamTile = viewModel::pinSportsTeamTile,
+        pinMessages = viewModel.pinMessage,
         rightHalf = false,
     )
 
@@ -9046,6 +9048,7 @@ private fun HubScreensLayer(
         accentId = accentId,
         onDismiss = viewModel::closeClockHub,
         onPinHub = viewModel::pinClockHub,
+        pinMessages = viewModel.pinMessage,
         rightHalf = false,
     )
 

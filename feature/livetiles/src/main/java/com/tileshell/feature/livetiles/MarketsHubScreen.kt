@@ -122,6 +122,7 @@ fun MarketsHubScreen(
     refreshRate: LiveRefreshRate,
     onDismiss: () -> Unit,
     onPinTile: (String) -> Unit,
+    pinMessages: kotlinx.coroutines.flow.Flow<String> = kotlinx.coroutines.flow.emptyFlow(),
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -199,6 +200,7 @@ fun MarketsHubScreen(
                     else -> MoversPage(visible && pagerState.currentPage == 2, active, refreshTick, refreshRate, tokens, accent)
                 }
             }
+            HubPinNote(pinMessages, tokens, accent)
             HubAppBar(
                 tokens = tokens,
                 actions = buildList {

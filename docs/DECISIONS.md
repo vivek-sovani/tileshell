@@ -11551,3 +11551,16 @@ filled-square-with-a-tick chip (`OnTileChip` stays as the name the favourites li
 screen call, now drawing the shared mark) and the markets' own glyph. The favourites note reads
 "\u25a3 is on your favourites tile. tap to add or remove." like the markets one.
 
+## Clock timers are not alarm-clock alarms; stale timer notifications are cleared (2026-10-07)
+
+User-reported on the phone: "no alarm is set" but the alarm tile said next alarm 5:38 pm. Two causes
+in the clock hub. (1) A step's end was set with `setAlarmClock`, which registers as the phone's
+single "next alarm", so a 5 minute timer appeared there (and in the status bar). Now `setExactAndAllowWhileIdle`
+(exact with the "Alarms & reminders" access, `setAndAllowWhileIdle` without): the same delivery,
+never an alarm. The cost is deep-sleep throttling of "allow while idle" alarms, which doesn't
+apply while a set runs (the screen is kept on) and the hub's own tick covers the screen-on case.
+(2) After an app update or a force-stop (which clear alarms) a running session whose step had
+ended was dropped when next read, but its ongoing countdown notification stayed (two were found
+on the phone). `dropStaleNotifications` now cancels every ongoing timer notification with no live
+session, when sessions are first read and whenever the hub opens.
+

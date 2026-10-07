@@ -122,6 +122,7 @@ fun ClockHubScreen(
     accentId: String,
     onDismiss: () -> Unit,
     onPinHub: () -> Unit,
+    pinMessages: kotlinx.coroutines.flow.Flow<String> = kotlinx.coroutines.flow.emptyFlow(),
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -166,6 +167,7 @@ fun ClockHubScreen(
     val now by rememberNow(visible, 1000L)
     // A step ending while the hub is open is moved on right here, exactly on time.
     LaunchedEffect(now / 1000) { ClockSessions.tick(context) }
+    LaunchedEffect(visible) { if (visible) ClockSessions.dropStaleNotifications(context) }
     // A set running in front keeps the screen on and, unless turned off or just tapped, nearly dark.
     val runningSession = runningId?.let { id -> sessions.firstOrNull { it.id == id } }
     val dimmed = visible && runningSession != null && dimPref && now >= brightUntil
@@ -223,6 +225,7 @@ fun ClockHubScreen(
                     }
                 }
             }
+            HubPinNote(pinMessages, tokens, accent)
             HubAppBar(
                 tokens = tokens,
                 actions = buildList {

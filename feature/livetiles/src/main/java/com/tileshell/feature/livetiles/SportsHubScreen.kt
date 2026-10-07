@@ -129,6 +129,7 @@ fun SportsHubScreen(
     onDismiss: () -> Unit,
     onPinHub: () -> Unit,
     onPinTeamTile: (SportsTile.Selection) -> Unit,
+    pinMessages: kotlinx.coroutines.flow.Flow<String> = kotlinx.coroutines.flow.emptyFlow(),
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -233,6 +234,7 @@ fun SportsHubScreen(
                     }
                 }
             }
+            HubPinNote(pinMessages, tokens, accent)
             HubAppBar(
                 tokens = tokens,
                 actions = listOf(

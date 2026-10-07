@@ -21,21 +21,24 @@ import kotlinx.coroutines.flow.asStateFlow
  * The running timers and timer sets. No service and no new permission:
  *
  * - each step's end is one alarm. With the user's "Alarms & reminders" access
- *   (the same one task reminders ask for) it is an exact **alarm-clock** alarm
- *   ([AlarmManager.setAlarmClock]): precise and awake from sleep, with no
- *   foreground service. On current Android even `setAlarmClock` throws without
- *   that access (seen on Android 16), so without it the alarm is inexact
- *   ([AlarmManager.setAndAllowWhileIdle]): the buzz can come late with the screen
- *   off in deep sleep. While the hub is open (or a tile ticking) [tick] moves a
- *   step on exactly on time either way. Only the *next* step's alarm exists at a
- *   time; when it fires, [onAlarm] buzzes, moves on and sets the following one.
+ *   (the same one task reminders ask for) it is an exact one
+ *   ([AlarmManager.setExactAndAllowWhileIdle]); without it, an inexact one
+ *   ([AlarmManager.setAndAllowWhileIdle]) that can come late with the screen off
+ *   in deep sleep. It is deliberately **not** an alarm-clock alarm
+ *   (`setAlarmClock`): that registers as the phone's "next alarm", so a 5 minute
+ *   timer showed up as "next alarm 5:38 pm" on the alarm tile and in the status
+ *   bar (user-reported). While the hub is open (or a tile ticking) [tick] moves a
+ *   step on exactly on time either way, and a running set keeps the screen on, so
+ *   deep-sleep throttling doesn't apply to it. Only the *next* step's alarm exists
+ *   at a time; when it fires, [onAlarm] buzzes, moves on and sets the following one.
  * - the countdown on the notification is the system's own chronometer, so
  *   nothing runs to update it.
  * - the buzz is a vibration marked as an alarm's ([ClockBuzz]).
  *
  * Running sessions are kept in the prefs file so a late alarm or a killed
- * process loses nothing; a reboot clears the alarms, and any session whose
- * steps ended meanwhile simply finishes the next time it is read.
+ * process loses nothing. An app update or force-stop clears the alarms, and any
+ * session whose steps ended meanwhile finishes the next time it is read — and its
+ * notification is cleared with it ([dropStaleNotifications]).
  */
 object ClockSessions {
     const val ACTION_FIRE = "com.tileshell.action.CLOCK_FIRE"
@@ -68,6 +71,8 @@ object ClockSessions {
             val settled = loaded.mapNotNull { it.advance(now).session }
             state.value = settled
             if (settled != loaded) write(context, settled)
+            // A session that ended while the app was gone leaves its ongoing notification behind.
+            dropStaleNotifications(context.applicationContext, settled)
         }
         @Suppress("UNCHECKED_CAST")
         return state.asStateFlow() as StateFlow<List<Session>>
@@ -165,9 +170,26 @@ object ClockSessions {
         val am = app.getSystemService(AlarmManager::class.java) ?: return
         val fire = actionIntent(app, session.id, ACTION_FIRE)
         val exact = exactAlarmsAllowed(app) && runCatching {
-            am.setAlarmClock(AlarmManager.AlarmClockInfo(session.stepEndsAt, openPendingIntent(app)), fire)
+            am.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, session.stepEndsAt, fire)
         }.onFailure { android.util.Log.w("ClockSessions", "exact step alarm refused, using an inexact one", it) }.isSuccess
         if (!exact) runCatching { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, session.stepEndsAt, fire) }
+    }
+
+    /**
+     * Clears any timer notification that no running session stands behind: one
+     * left by a session that ended while the app was updated or killed. Safe to
+     * call often. Called when sessions are first read and whenever the hub opens.
+     */
+    fun dropStaleNotifications(context: Context, live: List<Session> = flow(context).value) {
+        val app = context.applicationContext
+        val nm = app.getSystemService(NotificationManager::class.java) ?: return
+        val liveIds = live.map { notificationId(it.id) }.toSet()
+        runCatching {
+            nm.activeNotifications
+                .filter { it.notification.channelId == CHANNEL_QUIET || it.notification.channelId == CHANNEL_SOUND }
+                .filter { it.notification.flags and Notification.FLAG_ONGOING_EVENT != 0 && it.id !in liveIds }
+                .forEach { nm.cancel(it.id) }
+        }
     }
 
     /**
