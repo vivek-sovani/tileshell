@@ -65,11 +65,10 @@ A–Z jump grid and instant search, recent and new apps with badges. Long-press 
 Auto-save, a visual layout history, and export to a file for your next phone.
 
 ★ ACCESSIBILITY SERVICE (optional)
-TileShell offers an optional Accessibility Service, off until you turn it on in Android Settings after an in-app explanation. It is not an assistive-technology app; it is used only to perform four system actions you ask for, as a launcher feature:
+TileShell offers an optional Accessibility Service, off until you turn it on in Android Settings after an in-app explanation. It is not an assistive-technology app; it is used only to perform three system actions you ask for, as a launcher feature:
 • Lock the screen — the Quick Panel "lock screen" tile
 • Open recent apps — the edge-strip button
-• Open the notification shade — swipe down along the left screen edge
-• Open quick settings — swipe down along the right screen edge
+• Open the notification shade — swipe down along the screen edge
 It uses Android's global-action API only. It does not read your screen, other apps, passwords or anything you type, collects and shares no data, and changes no settings. Everything else in TileShell works without it, and you can switch it off any time in Settings › Accessibility.
 
 ★ PRIVACY FIRST
@@ -78,7 +77,7 @@ No accounts. No analytics. No ads. Your data stays on your phone. Online feature
 Requires Android 8.0 or higher.
 ```
 
-*(3870 chars, under Play's 4 000 limit.)*
+*(3803 chars, under Play's 4 000 limit.)*
 
 ### Category
 Personalization
@@ -238,7 +237,7 @@ cert SHA-256 1a904ad5…), keyboard left out. Permissions new since 4.5.0:
 9. **Usage access / device admin / battery exemption** — usage access and battery exemption
    are user-granted special access, explained in the policy; the device-admin receiver (screen
    lock on Android 8–9) and battery exemption shipped in 4.5.0 unchanged.
-10. **Store listing** — description 3870 / 4000 chars, release notes under 500 (below), no
+10. **Store listing** — description 3803 / 4000 chars, release notes under 500 (below), no
     keyboard mentions; app icon and screenshots use original glyphs, no Microsoft assets.
     Consider adding hub screenshots (not required).
 11. **Upload** — `release-out/tileshell-5.0.0-release.aab` (signed; Play App Signing re-signs).
