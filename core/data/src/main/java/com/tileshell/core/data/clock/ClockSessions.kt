@@ -9,8 +9,6 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.AudioAttributes
-import android.net.Uri
 import android.os.Build
 import com.tileshell.core.data.R
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,7 +31,8 @@ import kotlinx.coroutines.flow.asStateFlow
  *   at a time; when it fires, [onAlarm] buzzes, moves on and sets the following one.
  * - the countdown on the notification is the system's own chronometer, so
  *   nothing runs to update it.
- * - the buzz is a vibration marked as an alarm's ([ClockBuzz]).
+ * - the buzz is a vibration marked as an alarm's ([ClockBuzz]); with "sound as well" the chime
+ *   is played directly on the alarm stream ([ClockChime]), not by a notification channel.
  *
  * Running sessions are kept in the prefs file so a late alarm or a killed
  * process loses nothing. An app update or force-stop clears the alarms, and any
@@ -122,6 +121,7 @@ object ClockSessions {
             advance.session == null -> finish(app, session, buzz = true)
             else -> {
                 ClockBuzz.buzz(app, ClockStore.buzzStrength(app), finish = false)
+                ClockChime.play(app, finish = false)
                 change(app, id) { advance.session }
             }
         }
@@ -139,7 +139,10 @@ object ClockSessions {
 
     private fun finish(app: Context, session: Session, buzz: Boolean) {
         remove(app, session)
-        if (buzz) ClockBuzz.buzz(app, ClockStore.buzzStrength(app), finish = true)
+        if (buzz) {
+            ClockBuzz.buzz(app, ClockStore.buzzStrength(app), finish = true)
+            ClockChime.play(app, finish = true)
+        }
         notifyDone(app, session)
     }
 
@@ -236,18 +239,17 @@ object ClockSessions {
     private fun notifyRunning(app: Context, s: Session) {
         val nm = app.getSystemService(NotificationManager::class.java) ?: return
         if (!notificationsAllowed(app)) return
-        val sound = ClockStore.soundToo(app)
         ensureChannels(app, nm)
         val next = s.next
         val nextText = next?.let { " · next: ${it.label.substringAfterLast(" · ")}, ${formatDuration(it.ms / 1000)}" }.orEmpty()
-        val builder = Notification.Builder(app, if (sound) CHANNEL_SOUND else CHANNEL_QUIET)
+        val builder = Notification.Builder(app, CHANNEL_QUIET)
             .setSmallIcon(R.drawable.ic_notification_clock)
             .setContentTitle(s.title)
             .setContentText(if (s.paused) "${s.current.label} · paused" else s.current.label + nextText)
             .setCategory(Notification.CATEGORY_PROGRESS)
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOngoing(true)
-            .setOnlyAlertOnce(!sound)
+            .setOnlyAlertOnce(true)
             .setContentIntent(openPendingIntent(app))
         if (s.paused) {
             builder.setShowWhen(false)
@@ -266,7 +268,7 @@ object ClockSessions {
         val nm = app.getSystemService(NotificationManager::class.java) ?: return
         if (!notificationsAllowed(app)) return
         ensureChannels(app, nm)
-        val notification = Notification.Builder(app, if (ClockStore.soundToo(app)) CHANNEL_SOUND else CHANNEL_QUIET)
+        val notification = Notification.Builder(app, CHANNEL_QUIET)
             .setSmallIcon(R.drawable.ic_notification_clock)
             .setContentTitle(s.title)
             .setContentText("done · ${formatDuration(s.totalMs() / 1000)}")
@@ -287,13 +289,7 @@ object ClockSessions {
                 enableVibration(false)
             },
         )
-        val chime = Uri.parse("android.resource://${app.packageName}/${R.raw.task_reminder}")
-        nm.createNotificationChannel(
-            NotificationChannel(CHANNEL_SOUND, "timers and sets, with sound", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "the same, with a chime at each step"
-                setSound(chime, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_NOTIFICATION).build())
-                enableVibration(false)
-            },
-        )
+        // The chime is played by [ClockChime]; the old channel that carried it is dropped.
+        runCatching { nm.deleteNotificationChannel(CHANNEL_SOUND) }
     }
 }
