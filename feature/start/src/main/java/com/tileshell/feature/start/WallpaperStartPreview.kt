@@ -179,7 +179,7 @@ fun WallpaperStartPreview(
                         },
                         fullWidth = widthPx,
                         fullHeight = heightPx,
-                        jigglePhase = 0f,
+                        jigglePhase = { 0f },
                         flipped = false,
                         liveActive = false,
                         notifications = notifications,

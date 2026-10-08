@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.produceState
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -154,7 +155,13 @@ fun WeatherTileFace(
     LaunchedEffect(Unit) { WeatherRefreshWorker.ensureScheduled(context) }
     val locationGranted = rememberPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
     LaunchedEffect(locationGranted, resolved) {
-        if (resolved is WeatherTile.Location.Current && locationGranted) WeatherRefreshWorker.refreshNow(context)
+        // Only when the cached forecast is stale: this runs on every composition of the tile.
+        if (resolved is WeatherTile.Location.Current && locationGranted &&
+            shouldRefreshWeatherOnWake(
+                System.currentTimeMillis(),
+                WeatherCache.create(context).data.first().snapshotFor(resolved)?.fetchedAtMillis ?: 0L,
+            )
+        ) WeatherRefreshWorker.refreshNow(context)
     }
 
     val cache = remember(context) { WeatherCache.create(context) }
@@ -189,7 +196,13 @@ fun WeatherSmallFace(
     LaunchedEffect(Unit) { WeatherRefreshWorker.ensureScheduled(context) }
     val locationGranted = rememberPermissionGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
     LaunchedEffect(locationGranted, resolved) {
-        if (resolved is WeatherTile.Location.Current && locationGranted) WeatherRefreshWorker.refreshNow(context)
+        // Only when the cached forecast is stale: this runs on every composition of the tile.
+        if (resolved is WeatherTile.Location.Current && locationGranted &&
+            shouldRefreshWeatherOnWake(
+                System.currentTimeMillis(),
+                WeatherCache.create(context).data.first().snapshotFor(resolved)?.fetchedAtMillis ?: 0L,
+            )
+        ) WeatherRefreshWorker.refreshNow(context)
     }
 
     val cache = remember(context) { WeatherCache.create(context) }

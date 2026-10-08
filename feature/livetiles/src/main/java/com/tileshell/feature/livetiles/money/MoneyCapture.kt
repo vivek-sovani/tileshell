@@ -19,6 +19,8 @@ object MoneyCapture {
 
     fun onPosted(context: Context, sbn: StatusBarNotification) {
         if (sbn.packageName == context.packageName) return
+        // Ongoing and progress notifications (music, navigation, downloads) are never a transaction.
+        if (!sbn.isClearable) return
         if (!MoneyPrefs.current(context).readBankMessages) return
         // Only the SMS app and payment/banking apps: a chat saying "I paid Rs 500"
         // is not a transaction.
@@ -49,14 +51,19 @@ object MoneyCapture {
         "com.miui.mms", "com.oneplus.mms", "com.truecaller",
     )
 
+    // Labels by package, so a notification from an app seen before costs no PackageManager call.
+    private val labels = java.util.concurrent.ConcurrentHashMap<String, String>()
+
     private fun isMoneySource(context: Context, packageName: String): Boolean {
         if (packageName in SMS_APPS) return true
         val defaultSms = runCatching { android.provider.Telephony.Sms.getDefaultSmsPackage(context) }.getOrNull()
         if (packageName == defaultSms) return true
-        val label = runCatching {
-            val pm = context.packageManager
-            pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
-        }.getOrDefault("")
+        val label = labels.getOrPut(packageName) {
+            runCatching {
+                val pm = context.packageManager
+                pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+            }.getOrDefault("")
+        }
         return moneyAppKind(packageName, label) != null
     }
 }

@@ -124,10 +124,13 @@ fun PeopleTileFace(
                 if (lastNanos == 0L) {
                     lastNanos = nanos
                 } else {
-                    val dt = ((nanos - lastNanos) / 1_000_000_000f).coerceIn(0f, 0.05f)
+                    val dt = ((nanos - lastNanos) / 1_000_000_000f).coerceIn(0f, 0.12f)
                     lastNanos = nanos
                     stepBubbleSimulation(bubbles, widthPx, heightPx, dt)
                 }
+                // About 20 steps a second: the bubbles drift slowly, and every step costs a layout pass; stepping at
+                // the display's 60-120 Hz kept the screen pipeline busy the whole time Start was open.
+                kotlinx.coroutines.delay(48)
             }
         }
 

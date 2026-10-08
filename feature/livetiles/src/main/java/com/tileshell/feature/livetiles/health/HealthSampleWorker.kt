@@ -8,7 +8,14 @@ import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import androidx.core.content.ContextCompat
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
+import com.tileshell.core.data.TileModel
+import com.tileshell.core.data.LayoutRepository
+import com.tileshell.feature.livetiles.widget.StepsAppWidgetProvider
+import kotlinx.coroutines.flow.first
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
@@ -30,6 +37,11 @@ class HealthSampleWorker(context: Context, params: WorkerParameters) : Coroutine
 
     override suspend fun doWork(): Result {
         val context = applicationContext
+        // The tile and widget it serves are gone: stop for good rather than waking the phone for nothing.
+        if (!hasHealthSurface(context)) {
+            cancel(context)
+            return Result.success()
+        }
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED
         if (!granted) return Result.success()
         val counter = withTimeoutOrNull(5_000L) { readCounterOnce(context) } ?: return Result.success()
@@ -63,13 +75,36 @@ class HealthSampleWorker(context: Context, params: WorkerParameters) : Coroutine
     companion object {
         private const val UNIQUE = "health_sample"
 
-        /** Keeps the half-hourly reading going (idempotent); called when a health tile or the hub is on screen. */
+        /** Keeps the hourly reading going (idempotent); called when a health tile or the hub is on screen. */
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<HealthSampleWorker>(30, TimeUnit.MINUTES).build(),
+                // UPDATE so an install that had the old half-hourly job moves to the hourly one.
+                ExistingPeriodicWorkPolicy.UPDATE,
+                PeriodicWorkRequestBuilder<HealthSampleWorker>(60, TimeUnit.MINUTES)
+                    .setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build())
+                    .build(),
             )
+        }
+
+        fun cancel(context: Context) {
+            WorkManager.getInstance(context.applicationContext).cancelUniqueWork(UNIQUE)
+        }
+
+        /** Whether anything still reads steps: a health or steps tile on Start (in a folder too), or a steps widget. */
+        private suspend fun hasHealthSurface(context: Context): Boolean {
+            val onStart = runCatching {
+                LayoutRepository.create(context).tiles.first().any { tile ->
+                    when (tile) {
+                        is TileModel.App -> tile.iconKey == "healthhub" || tile.iconKey == "steps"
+                        is TileModel.Folder -> tile.children.any { it.iconKey == "healthhub" || it.iconKey == "steps" }
+                    }
+                }
+            }.getOrDefault(true)
+            if (onStart) return true
+            return runCatching {
+                AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, StepsAppWidgetProvider::class.java)).isNotEmpty()
+            }.getOrDefault(true)
         }
     }
 }

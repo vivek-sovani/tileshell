@@ -149,6 +149,12 @@ class BingWallpaperWorker(
         }
         val prefs = applicationContext.getSharedPreferences("tileshell.prefs", Context.MODE_PRIVATE)
         val same = prefs.getString(PREF_LAST_URL, null) == imageUrl && file.exists()
+        prefs.edit().putLong(PREF_LAST_CHECK, System.currentTimeMillis()).apply()
+        // Today's picture is already on the phone and in use: no download, no settings write, no wallpaper reload.
+        if (same && !forced) {
+            android.util.Log.i(TAG, "daily: same image as before, nothing to do")
+            return@withContext Result.success(workDataOf(KEY_OUTCOME to OUTCOME_SAME))
+        }
         if (!runCatching { bingDownload(imageUrl, file) }.getOrDefault(false)) {
             android.util.Log.i(TAG, "daily: download failed")
             return@withContext if (forced) Result.failure(workDataOf(KEY_OUTCOME to OUTCOME_FAILED)) else Result.retry()
@@ -170,6 +176,8 @@ class BingWallpaperWorker(
         const val OUTCOME_OFF = "off"
         const val OUTCOME_FAILED = "failed"
         private const val PREF_LAST_URL = "bing_last_image_url"
+        private const val PREF_LAST_CHECK = "bing_last_check"
+        private const val RECHECK_MS = 6 * 60 * 60 * 1000L
         private const val TAG = "TileShellBing"
 
         private const val UNIQUE_PERIODIC = "tileshell_bing_wallpaper"
@@ -200,6 +208,10 @@ class BingWallpaperWorker(
                     .setConstraints(networkConstraint)
                     .build(),
             )
+            // Called on every launch while Bing is on: only look again if the last check is old, or there never
+            // was one (just switched on). The daily job covers the rest.
+            val prefs = context.applicationContext.getSharedPreferences("tileshell.prefs", Context.MODE_PRIVATE)
+            if (System.currentTimeMillis() - prefs.getLong(PREF_LAST_CHECK, 0L) < RECHECK_MS) return
             wm.enqueueUniqueWork(
                 UNIQUE_NOW,
                 ExistingWorkPolicy.KEEP,
@@ -261,6 +273,8 @@ class BingWallpaperWorker(
             val wm = androidx.work.WorkManager.getInstance(context.applicationContext)
             wm.cancelUniqueWork(UNIQUE_PERIODIC)
             wm.cancelUniqueWork(UNIQUE_NOW)
+            // So switching Bing on again looks at once instead of waiting out the recheck window.
+            context.applicationContext.getSharedPreferences("tileshell.prefs", Context.MODE_PRIVATE).edit().remove(PREF_LAST_CHECK).apply()
         }
     }
 }

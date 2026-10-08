@@ -25,6 +25,8 @@ object ShoppingCapture {
 
     fun onPosted(context: Context, sbn: StatusBarNotification) {
         if (sbn.packageName == context.packageName) return
+        // Ongoing and progress notifications (music, navigation, downloads) are never an order update.
+        if (!sbn.isClearable) return
         if (!ShoppingPrefs.current(context).readOrderMessages) return
         val n = sbn.notification ?: return
         // A group summary repeats its children.
@@ -65,8 +67,14 @@ object ShoppingCapture {
         ShoppingStore.update(context, update)
     }
 
-    private fun appLabel(context: Context, packageName: String): String = runCatching {
-        val pm = context.packageManager
-        pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
-    }.getOrDefault(packageName)
+    // Labels by package: this runs for every notification of every app, on the listener's thread, and a
+    // PackageManager lookup per post adds up. A label changes only on an app update, which restarts the process anyway.
+    private val labels = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    private fun appLabel(context: Context, packageName: String): String = labels.getOrPut(packageName) {
+        runCatching {
+            val pm = context.packageManager
+            pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
+        }.getOrDefault(packageName)
+    }
 }

@@ -118,6 +118,7 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
     override fun onFinishInputView(finishingInput: Boolean) {
         super.onFinishInputView(finishingInput)
         controller.onHidden()
+        KeyboardDictionary.flushLearned()
     }
 
     override fun onUpdateSelection(
@@ -137,6 +138,7 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
     override fun onEvaluateFullscreenMode(): Boolean = false
 
     override fun onDestroy() {
+        KeyboardDictionary.flushLearned()
         runCatching { clipboard?.removePrimaryClipChangedListener(clipListener) }
         scope.cancel()
         lifecycleRegistry.currentState = Lifecycle.State.DESTROYED

@@ -49,6 +49,12 @@ import kotlinx.coroutines.withContext
 fun iconPx(size: androidx.compose.ui.unit.Dp): Int =
     with(androidx.compose.ui.platform.LocalDensity.current) { size.roundToPx() }
 
+// Decoded icons by "entry@size": a hub's tile back is rebuilt on every flip, and each rebuild used to decode every icon
+// through PackageManager again (and render up to three bitmaps per icon). Only successful decodes are kept, so the
+// retry after a boot-time resolution failure still works.
+private val plainIconCache = android.util.LruCache<String, ImageBitmap>(64)
+private val maskableIconCache = android.util.LruCache<String, MaskableAppIcon>(32)
+
 @Composable
 fun rememberAppIconBitmap(packageName: String, sizePx: Int = 96): ImageBitmap? {
     val context = LocalContext.current
@@ -60,17 +66,17 @@ fun rememberAppIconBitmap(packageName: String, sizePx: Int = 96): ImageBitmap? {
     // corner badge that lost the boot-time icon-resolution race instead of
     // being stuck on no icon at all until the process restarts.
     val retryEpoch by AppIconCache.retryEpoch.collectAsState()
-    val image by produceState<ImageBitmap?>(initialValue = null, packageName, sizePx, retryEpoch) {
+    val image by produceState<ImageBitmap?>(initialValue = plainIconCache.get("$packageName@$sizePx"), packageName, sizePx, retryEpoch) {
         value = if (packageName.isBlank()) {
             null
         } else {
-            withContext(Dispatchers.IO) {
+            plainIconCache.get("$packageName@$sizePx") ?: withContext(Dispatchers.IO) {
                 runCatching {
                     entryIconDrawable(context, packageName)
                         .toBitmap(width = sizePx, height = sizePx)
                         .asImageBitmap()
                 }.getOrNull()
-            }
+            }?.also { plainIconCache.put("$packageName@$sizePx", it) }
         }
     }
     return image
@@ -108,11 +114,11 @@ private data class MaskableAppIcon(
 private fun rememberMaskableAppIcon(packageName: String, sizePx: Int = 96): MaskableAppIcon? {
     val context = LocalContext.current
     val retryEpoch by AppIconCache.retryEpoch.collectAsState()
-    return produceState<MaskableAppIcon?>(null, packageName, sizePx, retryEpoch) {
+    return produceState<MaskableAppIcon?>(maskableIconCache.get("$packageName@$sizePx"), packageName, sizePx, retryEpoch) {
         value = if (packageName.isBlank()) {
             null
         } else {
-            withContext(Dispatchers.IO) {
+            maskableIconCache.get("$packageName@$sizePx") ?: withContext(Dispatchers.IO) {
                 runCatching {
                     val drawable = entryIconDrawable(context, packageName)
                     val isAdaptive = drawable is AdaptiveIconDrawable
@@ -120,7 +126,7 @@ private fun rememberMaskableAppIcon(packageName: String, sizePx: Int = 96): Mask
                     val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable, sizePx) else osBitmap
                     MaskableAppIcon(osBitmap, rawBitmap, isAdaptive, monochromeIconBitmap(drawable, sizePx, rawBitmap))
                 }.getOrNull()
-            }
+            }?.also { maskableIconCache.put("$packageName@$sizePx", it) }
         }
     }.value
 }

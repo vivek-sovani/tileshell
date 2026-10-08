@@ -73,13 +73,13 @@ private val FOOD_PACKAGES = setOf(
 )
 private val COURIER_PACKAGES = setOf("com.delhivery.app", "com.bluedart.bluedartapp")
 
-private fun hasWord(lower: String, word: String) = Regex("""(^|[^a-z])${Regex.escape(word)}([^a-z]|$)""").containsMatchIn(lower)
+private fun hasWord(lower: String, word: String) = com.tileshell.feature.livetiles.cachedRegex("""(^|[^a-z])${Regex.escape(word)}([^a-z]|$)""").containsMatchIn(lower)
 
 /** The store a text (an SMS, an email, an app label) names, or null. The earliest named one wins. Pure. */
 internal fun storeIn(text: String): KnownStore? {
     val lower = text.lowercase()
     return KNOWN_STORES
-        .mapNotNull { s -> s.words.mapNotNull { w -> Regex("""(^|[^a-z])${Regex.escape(w)}""").find(lower)?.range?.first }.minOrNull()?.let { s to it } }
+        .mapNotNull { s -> s.words.mapNotNull { w -> com.tileshell.feature.livetiles.cachedRegex("""(^|[^a-z])${Regex.escape(w)}""").find(lower)?.range?.first }.minOrNull()?.let { s to it } }
         .minByOrNull { it.second }?.first
 }
 

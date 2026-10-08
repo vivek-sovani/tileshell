@@ -103,6 +103,8 @@ private const val LOCATION_FIX_TIMEOUT_MS = 8_000L
  * widget's own refresh worker reuses this exact function rather than
  * duplicating it.
  */
+@Volatile private var recentFix: Pair<Long, Pair<Double, Double>>? = null
+
 internal suspend fun lastCoarseLocationOrDefault(context: Context): Pair<Double, Double> {
     val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
         PackageManager.PERMISSION_GRANTED
@@ -118,8 +120,15 @@ internal suspend fun lastCoarseLocationOrDefault(context: Context): Pair<Double,
     }.getOrNull()
     if (cached != null) return cached.latitude to cached.longitude
 
+    // A fix asked for in the last six hours is reused: with no cached fix on the phone, every composition of the tile,
+    // every sheet open and every widget push otherwise waited up to 8 s on a fresh network request again.
+    recentFix?.let { (at, pos) -> if (System.currentTimeMillis() - at < 6 * 60 * 60_000L) return pos }
     val fresh = withTimeoutOrNull(LOCATION_FIX_TIMEOUT_MS) { requestSingleNetworkFix(lm) }
-    if (fresh != null) return fresh.latitude to fresh.longitude
+    if (fresh != null) {
+        val pos = fresh.latitude to fresh.longitude
+        recentFix = System.currentTimeMillis() to pos
+        return pos
+    }
 
     return DEFAULT_LATITUDE to DEFAULT_LONGITUDE
 }
@@ -206,7 +215,8 @@ fun CalendarSystemTileFace(
     val romanDate = formatRomanDate(nowMillis)
 
     if (systemId == HINDU_PANCHANG_ID) {
-        val panchang = HinduPanchang.panchangFor(nowMillis)
+        // The tithi, month and years move on a scale of hours: recomputed every five minutes, not on every recomposition.
+        val panchang = remember(nowMillis / 300_000L) { HinduPanchang.panchangFor(nowMillis) }
         // Resolved once per tile instance (location doesn't meaningfully
         // change minute to minute) — cheap if a fix is already cached by the
         // OS, else a bounded on-device location request (see
@@ -219,14 +229,17 @@ fun CalendarSystemTileFace(
         val location by produceState(initialValue = DEFAULT_LATITUDE to DEFAULT_LONGITUDE, context) {
             value = lastCoarseLocationOrDefault(context)
         }
-        val sunTimes = remember(nowMillis, location) {
-            SunTimes.nextSunriseSunset(nowMillis, location.first, location.second)
-        }
+        // The next sunrise and sunset only change when one of them passes: keep the last result until then.
+        val sunHolder = remember(location) { arrayOfNulls<SunTimesInfo>(1) }
+        val sunTimes = sunHolder[0]?.takeIf { nowMillis < minOf(it.sunriseMillis, it.sunsetMillis) }
+            ?: SunTimes.nextSunriseSunset(nowMillis, location.first, location.second).also { sunHolder[0] = it }
         // Same "next" semantics as sunTimes — each rolls forward the minute it
         // passes. A ~300-sample altitude scan, still cheap once a minute.
-        val moonTimes = remember(nowMillis, location) {
-            MoonTimes.nextMoonriseMoonset(nowMillis, location.first, location.second)
-        }
+        // Same for the moon (a 48 h scan): recomputed when its next rise or set passes, or every six hours at the latest.
+        val moonHolder = remember(location) { arrayOfNulls<Pair<Long, MoonTimesInfo>>(1) }
+        val moonTimes = moonHolder[0]?.takeIf { (at, info) ->
+            nowMillis - at < 6 * 60 * 60_000L && nowMillis < (listOfNotNull(info.moonriseMillis, info.moonsetMillis).minOrNull() ?: Long.MAX_VALUE)
+        }?.second ?: MoonTimes.nextMoonriseMoonset(nowMillis, location.first, location.second).also { moonHolder[0] = nowMillis to it }
         // Highlighted tithis and festivals: recomputed once a day, when the
         // settings change, or when the location resolves (Sankashti uses moonrise).
         val obsSettings by PanchangPrefs.settings(context).collectAsState()

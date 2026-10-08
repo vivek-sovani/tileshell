@@ -70,17 +70,20 @@ internal fun messagedFromSnapshot(snapshot: NotificationSnapshot): List<Messaged
  * A notification title as a person's name, or null when it isn't one: blank,
  * a count summary ("3 new messages"), or the user themselves ("you").
  */
+private val COUNT_SUMMARY = Regex("""^\d+\s+(new\s+)?(messages?|chats?)\b.*""")
+private val WHITESPACE_RUN = Regex("\\s+")
+
 internal fun cleanSenderName(raw: String): String? {
     val name = raw.trim()
     if (name.isEmpty() || name.length > 60) return null
     val lower = name.lowercase()
     if (lower == "you" || lower == "me") return null
-    if (Regex("""^\d+\s+(new\s+)?(messages?|chats?)\b.*""").matches(lower)) return null
+    if (COUNT_SUMMARY.matches(lower)) return null
     return name
 }
 
 /** Same person regardless of case or spacing. */
-internal fun messagedKey(name: String): String = name.trim().lowercase().replace(Regex("\\s+"), " ")
+internal fun messagedKey(name: String): String = name.trim().lowercase().replace(WHITESPACE_RUN, " ")
 
 /**
  * Newest entry per person, newest first, dropping ones older than

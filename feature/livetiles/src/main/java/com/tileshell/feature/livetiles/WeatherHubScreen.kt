@@ -31,6 +31,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -101,7 +102,13 @@ fun WeatherHubScreen(
     // right when it's looked at — the tiles' own staleness gate is tuned for
     // ambient background refresh, not "the user is looking at this right now".
     LaunchedEffect(visible, resolved) {
-        if (visible) WeatherRefreshWorker.refreshNow(context)
+        // A forecast under ten minutes old is as good as a new one; opening the hub twice in a row refetched twice.
+        if (visible && shouldRefreshWeatherOnWake(
+                System.currentTimeMillis(),
+                cache.data.first().snapshotFor(resolved)?.fetchedAtMillis ?: 0L,
+                staleAfterMillis = 10 * 60 * 1000L,
+            )
+        ) WeatherRefreshWorker.refreshNow(context)
     }
 
     BackHandler(enabled = visible) { onDismiss() }

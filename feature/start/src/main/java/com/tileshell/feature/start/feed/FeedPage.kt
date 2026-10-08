@@ -240,7 +240,8 @@ fun FeedPage(
         if (!active) return@LaunchedEffect
         while (true) {
             refreshMediaSessions(context)
-            delay(2_500L)
+            // Nothing playing or paused anywhere: look again every 30 s instead of 2.5 s (the Start poll backs off the same way).
+            delay(if (MediaCenter.nowPlaying.value.isEmpty()) 30_000L else 2_500L)
         }
     }
 

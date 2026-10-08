@@ -35,8 +35,10 @@ class LayoutAutoBackupWorker(
         val historyRepo = LayoutHistoryRepository(applicationContext)
 
         val (tiles, folders, children, sections) = layoutRepo.tilesForBackup()
-        val json = BackupManager.buildBackupJson(tiles, folders, children, settings, sections = sections)
         val hash = BackupManager.layoutHash(tiles, folders, children, settings, sections)
+        // Unchanged since the last snapshot: stop before building the whole backup JSON just to throw it away.
+        if (historyRepo.snapshots.first().firstOrNull()?.contentHash == hash) return Result.success()
+        val json = BackupManager.buildBackupJson(tiles, folders, children, settings, sections = sections)
         val now = System.currentTimeMillis()
 
         // PixelCopy needs a live, on-screen window, which this headless worker never has —
@@ -68,7 +70,7 @@ class LayoutAutoBackupWorker(
                 ExistingPeriodicWorkPolicy.UPDATE,
                 PeriodicWorkRequestBuilder<LayoutAutoBackupWorker>(
                     intervalHours.toLong(), TimeUnit.HOURS
-                ).setConstraints(Constraints.NONE).build()
+                ).setConstraints(Constraints.Builder().setRequiresBatteryNotLow(true).build()).build()
             )
         }
 

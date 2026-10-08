@@ -44,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.design.LocalTileFaceColor
@@ -160,13 +161,30 @@ internal fun rememberBatteryFace(): BatteryFace {
                 }
             }
         }
-        runCatching { context.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) }
+        // Listen only while the launcher is on screen (started): the log records every change anyway, and a receiver
+        // that runs in the background does work nobody sees.
+        var registered = false
+        fun register() {
+            if (registered) return
+            registered = runCatching { context.registerReceiver(receiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) }.isSuccess
+        }
+        fun unregister() {
+            if (!registered) return
+            runCatching { context.unregisterReceiver(receiver) }
+            registered = false
+        }
+        if (lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) register()
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) face = currentBatteryFace(context)
+            when (event) {
+                Lifecycle.Event.ON_START -> register()
+                Lifecycle.Event.ON_RESUME -> face = currentBatteryFace(context)
+                Lifecycle.Event.ON_STOP -> unregister()
+                else -> Unit
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
-            runCatching { context.unregisterReceiver(receiver) }
+            unregister()
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
@@ -414,10 +432,15 @@ internal fun rememberBatteryStats(face: BatteryFace): BatteryStats {
     LaunchedEffect(Unit) { BatteryLog.ensureStarted(context) }
     val samples by BatteryLog.samples.collectAsState()
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            kotlinx.coroutines.delay(60_000)
+    val owner = LocalLifecycleOwner.current
+    // The minute tick only runs while the launcher is on screen.
+    LaunchedEffect(owner) {
+        owner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             now = System.currentTimeMillis()
+            while (true) {
+                kotlinx.coroutines.delay(60_000)
+                now = System.currentTimeMillis()
+            }
         }
     }
     return remember(samples, face, now) {

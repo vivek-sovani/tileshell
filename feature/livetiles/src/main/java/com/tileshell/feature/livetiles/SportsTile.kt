@@ -190,7 +190,18 @@ fun SportsTileFace(
                 }
                 snapshotFor(corrected, teamId) to matchDetail
             }
-            delayUntilNextRefresh(refreshRate.resolveMs(SPORTS_REFRESH_MS))
+            // Poll fast only while a match is on (or about to start): a tile with nothing live used to fetch the
+            // schedule and every match's detail every 90 s, all day.
+            val baseline = refreshRate.resolveMs(SPORTS_REFRESH_MS)
+            val now = System.currentTimeMillis()
+            val soon = relevant.any { it.state != "in" && it.state != "post" && it.epochMillis - now in 0..(30 * 60_000L) }
+            delayUntilNextRefresh(
+                when {
+                    relevant.any { it.state == "in" } -> baseline
+                    soon -> maxOf(baseline, 5 * 60_000L)
+                    else -> maxOf(baseline, 15 * 60_000L)
+                },
+            )
         }
     }
     // The next match each time the tile turns back to its front.

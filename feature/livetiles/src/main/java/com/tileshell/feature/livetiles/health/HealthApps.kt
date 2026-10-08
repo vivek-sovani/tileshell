@@ -33,7 +33,7 @@ private val HEALTH_WORDS = listOf(
 )
 private val WELLBEING_WORDS = listOf("wellbeing", "meditation", "mindful", "calm", "headspace", "sleep", "digital wellbeing")
 
-private fun hasWord(lower: String, word: String) = Regex("""(^|[^a-z])${Regex.escape(word)}([^a-z]|$)""").containsMatchIn(lower)
+private fun hasWord(lower: String, word: String) = com.tileshell.feature.livetiles.cachedRegex("""(^|[^a-z])${Regex.escape(word)}([^a-z]|$)""").containsMatchIn(lower)
 
 /** The built-in kind of an installed app, ignoring the user's choices: a known package or a word in its label. Pure. */
 internal fun builtInHealthKind(packageName: String, label: String): HealthAppKind? {

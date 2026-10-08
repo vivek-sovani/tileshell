@@ -93,7 +93,7 @@ private fun GalleryTile(key: String, activity: String, pkg: String, size: TileSi
         accent = TileAccents.forId("blue"), glass = false, transparency = 0.55f, glassLine = Color.Transparent,
         tiledWallpaper = false, wallpaper = Wallpapers.Mono, wallpaperPhoto = null,
         wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f, wallpaperZoom = 1f, wallpaperOrigin = { Offset.Zero },
-        fullWidth = 0f, fullHeight = 0f, jigglePhase = 0f,
+        fullWidth = 0f, fullHeight = 0f, jigglePhase = { 0f },
         flipped = back, liveActive = true, notifications = snapshot, badgeCount = snapshot.badges[pkg] ?: 0,
         darkTheme = true, canMoveBack = false, canMoveForward = false,
         onTap = {}, onLongPress = {}, onResize = {}, onUnpin = {}, onSelect = {}, onExitEdit = {}, onMove = {},

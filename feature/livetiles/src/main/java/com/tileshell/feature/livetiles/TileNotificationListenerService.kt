@@ -92,13 +92,15 @@ class TileNotificationListenerService : NotificationListenerService() {
     }
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        refreshSignals.tryEmit(Unit)
+        // Ongoing notifications (music, navigation, a download's progress) are dropped from the snapshot anyway, and
+        // some re-post every second: skip the whole recompute for them.
+        if (sbn == null || sbn.isClearable) refreshSignals.tryEmit(Unit)
         sbn?.let { com.tileshell.feature.livetiles.money.MoneyCapture.onPosted(this, it) }
         sbn?.let { com.tileshell.feature.livetiles.shopping.ShoppingCapture.onPosted(this, it) }
     }
 
     override fun onNotificationRemoved(sbn: StatusBarNotification?) {
-        refreshSignals.tryEmit(Unit)
+        if (sbn == null || sbn.isClearable) refreshSignals.tryEmit(Unit)
     }
 
     // Decoded images per notification, kept across refreshes (see [imagesFor]).

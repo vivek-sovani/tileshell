@@ -77,7 +77,14 @@ class LearnedWords(private val file: File?) {
         }
     }
 
-    private fun save() {
+    private val saver = DebouncedSave { writeNow() }
+
+    private fun save() = saver.request()
+
+    /** Writes any pending change now (the keyboard is closing). */
+    fun flush() = saver.flush()
+
+    private fun writeNow() {
         val f = file ?: return
         runCatching {
             val tmp = File(f.parentFile, f.name + ".tmp")
@@ -192,7 +199,14 @@ class LearnedPairs(private val file: File?) {
 
     private fun key(previous: String, next: String) = previous.lowercase() + "\t" + next.lowercase()
 
-    private fun save() {
+    private val saver = DebouncedSave { writeNow() }
+
+    private fun save() = saver.request()
+
+    /** Writes any pending change now (the keyboard is closing). */
+    fun flush() = saver.flush()
+
+    private fun writeNow() {
         val f = file ?: return
         runCatching {
             val tmp = File(f.parentFile, f.name + ".tmp")
@@ -211,5 +225,34 @@ class LearnedPairs(private val file: File?) {
         const val MAX_COUNT = 50
         const val MAX_PAIRS = 2_000
         const val MAX_LENGTH = 32
+    }
+}
+
+
+/**
+ * Runs [action] once, [delayMs] after the last call to [request]: a burst of calls (a word typed every second) becomes
+ * one write after the typing pauses, instead of rewriting a whole file per word on the keyboard's main thread.
+ * [flush] runs a pending one at once (keyboard closing).
+ */
+internal class DebouncedSave(private val delayMs: Long = 5_000L, private val action: () -> Unit) {
+    // No main looper (a plain JVM unit test): save at once, as before.
+    private val handler by lazy { runCatching { android.os.Handler(android.os.Looper.getMainLooper()) }.getOrNull() }
+    private var pending = false
+    private val run = Runnable {
+        pending = false
+        action()
+    }
+
+    fun request() {
+        val h = handler ?: return action()
+        h.removeCallbacks(run)
+        pending = true
+        h.postDelayed(run, delayMs)
+    }
+
+    fun flush() {
+        if (!pending) return
+        handler?.removeCallbacks(run)
+        run.run()
     }
 }

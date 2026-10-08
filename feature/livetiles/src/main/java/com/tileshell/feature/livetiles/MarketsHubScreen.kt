@@ -257,16 +257,32 @@ private fun rememberQuotes(
 ): State<Map<String, StockQuote>> =
     produceState(emptyMap(), symbols, enabled, active, tick, refreshRate) {
         if (!enabled || symbols.isEmpty()) return@produceState
+        var lastFull = 0L
+        var failures = 0
         while (true) {
-            val fetched = fetchQuotes(symbols)
+            val now = System.currentTimeMillis()
+            val full = now - lastFull >= CLOSED_REFRESH_MS
+            val fetched = fetchQuotes(symbols, held = value.takeUnless { full })
+            if (full) lastFull = now
             if (fetched.isNotEmpty()) value = value + fetched
+            failures = if (fetched.isEmpty() && symbols.any { isMarketInSession(it) }) failures + 1 else 0
             if (!active) break
-            delayUntilNextRefresh(marketsRefreshDelayMs(symbols, refreshRate.resolveMs(MARKETS_REFRESH_MS)))
+            // An offline phone retried every minute; back off up to ten minutes until a fetch works again.
+            val backoff = if (failures > 0) (1L shl failures.coerceAtMost(4)) else 1L
+            delayUntilNextRefresh(marketsRefreshDelayMs(symbols, refreshRate.resolveMs(MARKETS_REFRESH_MS)) * backoff)
         }
     }
 
-internal suspend fun fetchQuotes(symbols: List<String>): Map<String, StockQuote> = coroutineScope {
-    symbols.distinct().map { s -> async { quoteGate.withPermit { s to fetchStockQuote(s) } } }
+/** A symbol whose market is shut keeps its last quote this long before it is fetched again. */
+internal const val CLOSED_REFRESH_MS = 30 * 60_000L
+
+/**
+ * Quotes for [symbols]. With [held] (what is already on screen), a symbol whose market is closed and which already has
+ * a quote is skipped: a watchlist with one always-open symbol (crypto, a currency pair) used to refetch every closed
+ * stock on every cycle.
+ */
+internal suspend fun fetchQuotes(symbols: List<String>, held: Map<String, StockQuote>? = null): Map<String, StockQuote> = coroutineScope {
+    symbols.distinct().filter { held == null || held[it] == null || isMarketInSession(it) }.map { s -> async { quoteGate.withPermit { s to fetchStockQuote(s) } } }
         .awaitAll()
         .mapNotNull { (s, q) -> q?.let { s to it } }
         .toMap()

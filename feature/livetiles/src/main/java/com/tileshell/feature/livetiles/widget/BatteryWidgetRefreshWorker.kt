@@ -86,6 +86,11 @@ class BatteryWidgetRefreshWorker(
         }
 
         fun refreshNow(context: Context) {
+            // No battery widget placed: nothing to repaint, so no job (the battery tile calls this on every % change).
+            val placed = runCatching {
+                AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, BatteryAppWidgetProvider::class.java)).isNotEmpty()
+            }.getOrDefault(true)
+            if (!placed) return
             WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
                 UNIQUE_NOW,
                 ExistingWorkPolicy.REPLACE,

@@ -123,7 +123,7 @@ internal fun IconCellView(
     selected: Boolean,
     dragging: Boolean,
     index: Int,
-    jigglePhase: Float,
+    jigglePhase: () -> Float,
     darkTheme: Boolean,
     columns: Int,
     badgeCount: Int,
@@ -369,7 +369,7 @@ internal fun IconFolderCell(
     selected: Boolean,
     dragging: Boolean,
     index: Int,
-    jigglePhase: Float,
+    jigglePhase: () -> Float,
     darkTheme: Boolean,
     columns: Int,
     badgeCount: Int,
@@ -468,7 +468,7 @@ private fun IconCellChrome(
     selected: Boolean,
     dragging: Boolean,
     index: Int,
-    jigglePhase: Float,
+    jigglePhase: () -> Float,
     badgeCount: Int,
     darkTheme: Boolean,
     onTap: () -> Unit,
@@ -495,8 +495,6 @@ private fun IconCellChrome(
         targetValue = if (dragging) 1.08f else if (selected) 1.04f else 1f,
         label = "iconCellScale",
     )
-    val rotation = if (editMode && !dragging) (if (index % 2 == 0) jigglePhase else -jigglePhase) else 0f
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -504,7 +502,7 @@ private fun IconCellChrome(
                 this.alpha = alpha
                 scaleX = scale
                 scaleY = scale
-                rotationZ = rotation
+                rotationZ = if (editMode && !dragging) (if (index % 2 == 0) jigglePhase() else -jigglePhase()) else 0f
             }
             .then(
                 if (editMode) Modifier else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),

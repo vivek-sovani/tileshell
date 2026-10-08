@@ -25,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tileshell.core.data.isMarketInSession
 import com.tileshell.core.data.MARKET_INDICES
 import com.tileshell.core.data.MarketsTile
 import com.tileshell.core.data.StockQuote
@@ -75,10 +76,17 @@ fun MarketsTileFace(
     val showsQuotes = size != TileSize.SMALL
     LaunchedEffect(symbols, active, showsQuotes, refreshRate) {
         if (!active || !showsQuotes || symbols.isEmpty()) return@LaunchedEffect
+        var lastFull = 0L
+        var failures = 0
         while (true) {
-            val fetched = fetchQuotes(symbols)
+            val now = System.currentTimeMillis()
+            val full = now - lastFull >= CLOSED_REFRESH_MS
+            val fetched = fetchQuotes(symbols, held = quotes.takeUnless { full })
+            if (full) lastFull = now
             if (fetched.isNotEmpty()) quotes = quotes + fetched
-            delayUntilNextRefresh(marketsRefreshDelayMs(symbols, refreshRate.resolveMs(MARKETS_TILE_REFRESH_MS)))
+            failures = if (fetched.isEmpty() && symbols.any { isMarketInSession(it) }) failures + 1 else 0
+            val backoff = if (failures > 0) (1L shl failures.coerceAtMost(4)) else 1L
+            delayUntilNextRefresh(marketsRefreshDelayMs(symbols, refreshRate.resolveMs(MARKETS_TILE_REFRESH_MS)) * backoff)
         }
     }
     val title = if (isIndices) "markets" else kind

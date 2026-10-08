@@ -181,7 +181,7 @@ fun normaliseCurrentMa(raw: Int, charging: Boolean): Int? {
  * every 1% level change, screen on/off and plug/unplug (a receiver on the
  * application context, alive while TileShell's process is — it's the home
  * screen and holds the notification listener), plus [BatteryLogWorker] every
- * 15 minutes as a fallback. No network, no wake locks; one short line per event.
+ * hour as a fallback. No network, no wake locks; one short line per event.
  */
 object BatteryLog {
     private const val FILE = "battery_log.txt"
@@ -192,6 +192,12 @@ object BatteryLog {
 
     @Volatile private var started = false
     private val lock = Any()
+
+    // Old samples that have left the in-memory window but are still in the file. The file is rewritten only once
+    // this many have piled up (a load filters by age anyway), instead of the whole log on nearly every event once
+    // the log is full.
+    private var staleInFile = 0
+    private const val REWRITE_AFTER_STALE = 400
 
     // Loading, the broadcast receiver and every file write run on this thread,
     // never the main thread (the battery broadcast is frequent while charging).
@@ -236,18 +242,39 @@ object BatteryLog {
     fun record(context: Context, batteryIntent: Intent? = null, onlyIfChanged: Boolean = false) {
         val app = context.applicationContext
         val sticky = batteryIntent ?: runCatching { app.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED)) }.getOrNull()
+        // The battery broadcast also fires on voltage and temperature ticks. Decide from the intent alone (no binder
+        // calls) whether the level or the charging state moved, before reading the rest of the sample.
+        if (onlyIfChanged && sticky != null) {
+            val last = synchronized(lock) { _samples.value.lastOrNull() }
+            if (last != null) {
+                val level = sticky.getIntExtra(BatteryManager.EXTRA_LEVEL, -1)
+                val scale = sticky.getIntExtra(BatteryManager.EXTRA_SCALE, 100).coerceAtLeast(1)
+                val status = sticky.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+                val plugged = sticky.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0
+                val charging = plugged || status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+                val percent = if (level >= 0) level * 100 / scale else -1
+                if (percent == last.level && charging == last.charging) return
+            }
+        }
         val sample = readSample(app, sticky) ?: return
         synchronized(lock) {
             val current = _samples.value
             val last = current.lastOrNull()
             if (onlyIfChanged && last != null && last.level == sample.level && last.charging == sample.charging) return
-            val pruned = current.filter { it.time >= sample.time - BATTERY_HISTORY_KEEP_MS }
-            val next = pruned + sample
+            val cutoff = sample.time - BATTERY_HISTORY_KEEP_MS
+            // Samples are oldest first, so the stale ones are a prefix: drop it without copying the whole list twice.
+            val firstKept = current.indexOfFirst { it.time >= cutoff }.let { if (it < 0) current.size else it }
+            val next = ArrayList<BatterySample>(current.size - firstKept + 1).apply {
+                for (i in firstKept until current.size) add(current[i])
+                add(sample)
+            }
             _samples.value = next
+            staleInFile += firstKept
             runCatching {
                 val file = File(app.filesDir, FILE)
-                if (pruned.size != current.size) {
+                if (staleInFile >= REWRITE_AFTER_STALE) {
                     file.writeText(next.joinToString("\n", postfix = "\n") { encodeBatterySample(it) })
+                    staleInFile = 0
                 } else {
                     file.appendText(encodeBatterySample(sample) + "\n")
                 }
@@ -276,8 +303,8 @@ object BatteryLog {
     }.getOrNull().orEmpty()
 }
 
-/** The 15-minute fallback recording, for when no screen or battery event
- * happens for a while. Local only; no constraints. */
+/** The hourly fallback recording, for when no screen or battery event
+ * happens for a while (the receiver in [BatteryLog] catches every level change, so this is only a safety net). Local only. */
 class BatteryLogWorker(context: Context, params: WorkerParameters) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         BatteryLog.ensureStarted(applicationContext)
@@ -291,8 +318,9 @@ class BatteryLogWorker(context: Context, params: WorkerParameters) : CoroutineWo
         fun ensureScheduled(context: Context) {
             WorkManager.getInstance(context.applicationContext).enqueueUniquePeriodicWork(
                 UNIQUE,
-                ExistingPeriodicWorkPolicy.KEEP,
-                PeriodicWorkRequestBuilder<BatteryLogWorker>(15, TimeUnit.MINUTES).build(),
+                // UPDATE so an install that had the old 15-minute job moves to the hourly one.
+                ExistingPeriodicWorkPolicy.UPDATE,
+                PeriodicWorkRequestBuilder<BatteryLogWorker>(60, TimeUnit.MINUTES).build(),
             )
         }
     }

@@ -55,6 +55,12 @@ object KeyboardDictionary {
         }
     }
 
+    /** Writes any learned words and pairs not yet on disk (the keyboard is closing). Saves are otherwise delayed until typing pauses. */
+    fun flushLearned() {
+        synchronized(learned) { learned.values.toList() }.forEach { it.flush() }
+        synchronized(pairs) { pairs.values.toList() }.forEach { it.flush() }
+    }
+
     /** The user's own word pairs in [language]. */
     fun learnedPairs(context: Context, language: KeyboardLanguage): LearnedPairs = synchronized(pairs) {
         pairs.getOrPut(language) { LearnedPairs(file(context, "keyboard_pairs", language)) }

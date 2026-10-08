@@ -118,11 +118,22 @@ object LocalMusicPlayer {
     private var fadeLengthMs = 0L
     private var tickerContext: Context? = null
     private val handler = Handler(Looper.getMainLooper())
+    // Runs only while something is playing (or fading): a paused player has no track end to watch for, and the ticker
+    // used to wake the main thread every couple of seconds for as long as a paused player was loaded.
+    private var tickerActive = false
     private val ticker = object : Runnable {
         override fun run() {
             tick()
-            if (player != null || fadingPlayer != null) handler.postDelayed(this, nextTickDelay())
+            if ((player != null && _state.value.playing) || fadingPlayer != null) {
+                handler.postDelayed(this, nextTickDelay())
+            } else {
+                tickerActive = false
+            }
         }
+    }
+
+    private fun ensureTicker() {
+        if (!tickerActive) tickerContext?.let { startTicker(it) }
     }
     private val _state = MutableStateFlow(LocalPlayback())
     val state: StateFlow<LocalPlayback> = _state.asStateFlow()
@@ -343,6 +354,7 @@ object LocalMusicPlayer {
 
     private fun startTicker(context: Context) {
         tickerContext = context.applicationContext
+        tickerActive = true
         handler.removeCallbacks(ticker)
         handler.postDelayed(ticker, TICK_MS)
     }
@@ -449,6 +461,7 @@ object LocalMusicPlayer {
                 if (routeStale && reopenCurrent()) return
                 mp.start()
                 _state.value = _state.value.copy(playing = true)
+                ensureTicker()
             }
         }
     }
@@ -512,6 +525,7 @@ object LocalMusicPlayer {
             if (!mp.isPlaying) {
                 mp.start()
                 _state.value = _state.value.copy(playing = true)
+                ensureTicker()
             }
         }
     }

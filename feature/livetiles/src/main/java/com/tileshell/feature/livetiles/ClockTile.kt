@@ -226,16 +226,45 @@ fun clockFace(
     )
 }
 
-private fun currentClockFace(context: Context): ClockFace {
+// The alarm-dependent parts of the face, kept while the system's next alarm is unchanged: the per-minute tick used to
+// redo a PackageManager lookup, a calendar-alerts query and an alarm lookup on the main thread to learn nothing new.
+// The tile also re-reads on the next-alarm broadcast and on resume, so a changed alarm still shows at once.
+private data class AlarmParts(
+    val trigger: Long,
+    val readAt: Long,
+    val alarmText: String,
+    val reminderTitle: String,
+    val alarmDate: String,
+    val alarmWeekday: String,
+    val sourceLabel: String,
+    val sourceIsClock: Boolean,
+)
+
+@Volatile private var alarmPartsCache: AlarmParts? = null
+private const val ALARM_PARTS_MAX_AGE_MS = 10 * 60_000L
+
+private fun currentClockFace(context: Context, forceAlarmRead: Boolean = false): ClockFace {
     val c = Calendar.getInstance()
     val am = context.getSystemService(Context.ALARM_SERVICE) as? AlarmManager
     val info = am?.nextAlarmClock
-    val alarmCal = info?.let { Calendar.getInstance().apply { timeInMillis = it.triggerTime } }
-    val alarmDate = alarmCal?.let {
-        formatFullDate(it.get(Calendar.DAY_OF_MONTH), it.get(Calendar.MONTH), it.get(Calendar.YEAR))
-    }.orEmpty()
-    val alarmWeekday = alarmCal?.let { WEEKDAYS[it.get(Calendar.DAY_OF_WEEK) - 1] }.orEmpty()
-    val source = info?.let { alarmSourceFor(context, it) }
+    val now = System.currentTimeMillis()
+    val cached = alarmPartsCache
+    val parts = if (!forceAlarmRead && cached != null && cached.trigger == (info?.triggerTime ?: -1L) && now - cached.readAt < ALARM_PARTS_MAX_AGE_MS) {
+        cached
+    } else {
+        val alarmCal = info?.let { Calendar.getInstance().apply { timeInMillis = it.triggerTime } }
+        val source = info?.let { alarmSourceFor(context, it) }
+        AlarmParts(
+            trigger = info?.triggerTime ?: -1L,
+            readAt = now,
+            alarmText = nextAlarmString(context),
+            reminderTitle = info?.let { reminderTitleFor(context, it.triggerTime) }.orEmpty(),
+            alarmDate = alarmCal?.let { formatFullDate(it.get(Calendar.DAY_OF_MONTH), it.get(Calendar.MONTH), it.get(Calendar.YEAR)) }.orEmpty(),
+            alarmWeekday = alarmCal?.let { WEEKDAYS[it.get(Calendar.DAY_OF_WEEK) - 1] }.orEmpty(),
+            sourceLabel = source?.appLabel.orEmpty(),
+            sourceIsClock = source?.isClockApp == true,
+        ).also { alarmPartsCache = it }
+    }
     return clockFace(
         hour24 = c.get(Calendar.HOUR_OF_DAY),
         minute = c.get(Calendar.MINUTE),
@@ -243,12 +272,12 @@ private fun currentClockFace(context: Context): ClockFace {
         dayOfMonth = c.get(Calendar.DAY_OF_MONTH),
         month0 = c.get(Calendar.MONTH),
         year = c.get(Calendar.YEAR),
-        alarm = nextAlarmString(context),
-        reminderTitle = info?.let { reminderTitleFor(context, it.triggerTime) }.orEmpty(),
-        alarmDate = alarmDate,
-        alarmWeekday = alarmWeekday,
-        alarmSource = source?.appLabel.orEmpty(),
-        alarmSourceIsClock = source?.isClockApp == true,
+        alarm = parts.alarmText,
+        reminderTitle = parts.reminderTitle,
+        alarmDate = parts.alarmDate,
+        alarmWeekday = parts.alarmWeekday,
+        alarmSource = parts.sourceLabel,
+        alarmSourceIsClock = parts.sourceIsClock,
     )
 }
 

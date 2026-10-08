@@ -97,6 +97,7 @@ import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 import kotlinx.coroutines.delay
+import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.launch
 import java.time.ZoneId
 
@@ -104,14 +105,22 @@ private val CLOCK_PIVOTS = listOf("alarms", "world", "timer", "stopwatch", "sets
 
 /** A tick of the wall clock every [intervalMs] while [enabled]: how the on-screen countdowns move. */
 @Composable
-private fun rememberNow(enabled: Boolean, intervalMs: Long): State<Long> =
-    produceState(System.currentTimeMillis(), enabled, intervalMs) {
+private fun rememberNow(enabled: Boolean, intervalMs: Long): State<Long> {
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    return produceState(System.currentTimeMillis(), enabled, intervalMs, owner) {
         value = System.currentTimeMillis()
-        while (enabled) {
-            delay(intervalMs - (System.currentTimeMillis() % intervalMs))
-            value = System.currentTimeMillis()
+        // Only while the launcher is on screen: a hub left open behind another app ticked every second for nothing.
+        if (enabled) {
+            owner.lifecycle.repeatOnLifecycle(androidx.lifecycle.Lifecycle.State.STARTED) {
+                value = System.currentTimeMillis()
+                while (true) {
+                    delay(intervalMs - (System.currentTimeMillis() % intervalMs))
+                    value = System.currentTimeMillis()
+                }
+            }
         }
     }
+}
 
 /**
  * The clock hub: alarms (the system's next alarm, with a hand-off to the Clock
@@ -180,7 +189,8 @@ fun ClockHubScreen(
     val runningSession = runningId?.let { id -> sessions.firstOrNull { it.id == id } }
     val dimmed = visible && runningSession != null && dimPref && now >= brightUntil
     val tokens = if (dimmed) colorTokens(true) else baseTokens
-    KeepScreenOn(keepOn = visible && runningSession != null, dim = dimmed)
+    // A paused set no longer holds the screen on: nothing is counting down.
+    KeepScreenOn(keepOn = visible && runningSession != null && !runningSession.paused, dim = dimmed)
     val fastNow by rememberNow(visible && stopwatchRunning, 50L)
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {

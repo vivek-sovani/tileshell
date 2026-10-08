@@ -4888,7 +4888,7 @@ internal fun TileView(
     wallpaperOrigin: () -> Offset,
     fullWidth: Float,
     fullHeight: Float,
-    jigglePhase: Float,
+    jigglePhase: () -> Float,
     flipped: Boolean,
     liveActive: Boolean,
     notifications: NotificationSnapshot,
@@ -4977,8 +4977,6 @@ internal fun TileView(
         targetValue = if (dragging) 1f else 0f,
         label = "tileElevation",
     )
-    val rotation = if (editMode && !dragging) (if (index % 2 == 0) jigglePhase else -jigglePhase) else 0f
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -4986,7 +4984,7 @@ internal fun TileView(
                 this.alpha = alpha
                 scaleX = scale
                 scaleY = scale
-                rotationZ = rotation
+                rotationZ = if (editMode && !dragging) (if (index % 2 == 0) jigglePhase() else -jigglePhase()) else 0f
                 shadowElevation = elevation * 18.dp.toPx()
             }
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
@@ -5968,8 +5966,8 @@ private fun EditBarButton(
  * setting / battery saver), so the grid sits still for motion-sensitive users.
  */
 @Composable
-private fun rememberJigglePhase(editMode: Boolean): Float {
-    if (!editMode) return 0f
+private fun rememberJigglePhase(editMode: Boolean): () -> Float {
+    if (!editMode) return NO_JIGGLE
     val context = LocalContext.current
     val animationsOff = remember(editMode) {
         Settings.Global.getFloat(
@@ -5978,16 +5976,20 @@ private fun rememberJigglePhase(editMode: Boolean): Float {
             1f,
         ) == 0f
     }
-    if (animationsOff) return 0f
+    if (animationsOff) return NO_JIGGLE
     val transition = rememberInfiniteTransition(label = "jiggle")
-    val phase by transition.animateFloat(
+    val phase = transition.animateFloat(
         initialValue = -0.5f,
         targetValue = 0.5f,
         animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
         label = "jigglePhase",
     )
-    return phase
+    // Handed over as a lambda and read only inside each tile's graphicsLayer, so the animation stays in the draw
+    // phase: reading the value here recomposed the whole grid on every frame while editing.
+    return remember(phase) { { phase.value } }
 }
+
+private val NO_JIGGLE: () -> Float = { 0f }
 
 /**
  * Exits edit mode when [active] and the user taps empty space (a tap that

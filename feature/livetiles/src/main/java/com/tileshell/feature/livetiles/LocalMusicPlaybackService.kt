@@ -121,7 +121,19 @@ class LocalMusicPlaybackService : Service() {
                     return@collect
                 }
 
-                val art = loadArt(item)
+                // The art belongs to the item: fetch it once per item, not on every play, pause, seek or favourite
+                // change (a podcast's artwork was downloaded again each time).
+                val art = if (item.id == artItemId) artBitmap else loadArt(item).also {
+                    artItemId = item.id
+                    artBitmap = it
+                }
+                // A player left paused for a long time is let go, so the foreground service and its notification
+                // do not stay up for hours.
+                idleJob?.cancel()
+                idleJob = if (playback.playing) null else scope.launch {
+                    kotlinx.coroutines.delay(PAUSED_IDLE_RELEASE_MS)
+                    LocalMusicPlayer.release()
+                }
 
                 mediaSession.setMetadata(
                     MediaMetadataCompat.Builder()
@@ -304,7 +316,12 @@ class LocalMusicPlaybackService : Service() {
         manager.createNotificationChannel(channel)
     }
 
+    private var artItemId: String? = null
+    private var artBitmap: Bitmap? = null
+    private var idleJob: kotlinx.coroutines.Job? = null
+
     private companion object {
+        const val PAUSED_IDLE_RELEASE_MS = 30 * 60_000L
         const val CHANNEL_ID = "music_hub_playback"
         const val NOTIFICATION_ID = 4201
         const val ACTION_PLAY_PAUSE = "com.tileshell.music.PLAY_PAUSE"
@@ -320,6 +337,23 @@ class LocalMusicPlaybackService : Service() {
 private suspend fun loadRemoteBitmap(url: String?): Bitmap? {
     if (url.isNullOrBlank()) return null
     return withContext(Dispatchers.IO) {
-        runCatching { URL(url).openStream().use(BitmapFactory::decodeStream) }.getOrNull()
+        runCatching {
+            // Timeouts (a stalled socket held up every later notification update) and a bounded decode (notification
+            // art needs ~512 px, not a 3000 px podcast cover).
+            val conn = (URL(url).openConnection() as java.net.HttpURLConnection).apply {
+                connectTimeout = 8_000
+                readTimeout = 8_000
+            }
+            try {
+                val bytes = conn.inputStream.use { it.readBytes() }
+                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                var sample = 1
+                while (bounds.outWidth / (sample * 2) >= 512 && bounds.outHeight / (sample * 2) >= 512) sample *= 2
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+            } finally {
+                conn.disconnect()
+            }
+        }.getOrNull()
     }
 }

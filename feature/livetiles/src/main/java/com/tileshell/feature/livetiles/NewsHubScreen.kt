@@ -170,7 +170,10 @@ fun NewsHubScreen(
     LaunchedEffect(visible) {
         if (visible) {
             NewsMarks.load(context)
-            FeedRefreshWorker.refreshNow(context)
+            // Same staleness rule as the glance page: opening the hub twice in a few minutes fetched every feed twice.
+            if (com.tileshell.core.data.shouldRefreshFeedOnOpen(System.currentTimeMillis(), com.tileshell.core.data.FeedUsagePrefs.lastRefreshedAtMillis(context))) {
+                FeedRefreshWorker.refreshNow(context)
+            }
         }
     }
     BackHandler(enabled = visible) {
@@ -201,11 +204,22 @@ fun NewsHubScreen(
     LaunchedEffect(orientation) {
         if (firstLayout) firstLayout = false else pagerState.scrollToPage(anchorPage)
     }
+    // Leaving the launcher (Home, another app, screen off) ends the video too: an embedded player does not reliably
+    // stop when paused, and keeps decoding and streaming unseen.
+    val playerOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(playerOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_STOP) playing = null
+        }
+        playerOwner.lifecycle.addObserver(observer)
+        onDispose { playerOwner.lifecycle.removeObserver(observer) }
+    }
     // A video ends when closed, when the hub closes, when a sub screen opens, or when the person leaves the live tv page.
     LaunchedEffect(visible, picking, settingsOpen, anchorPage, fullscreenHide) {
         if (fullscreenHide == null && (!visible || picking || settingsOpen || anchorPage != LIVE_PAGE)) playing = null
     }
-    val statusCache = remember { mutableMapOf<String, LiveStatus?>() }
+    // Process-wide, so closing and reopening the hub does not refetch every channel's YouTube page.
+    val statusCache = LiveStatusCacheImpl
     val statuses by produceState(emptyMap<String, LiveStatus?>(), visible, onLivePage, channels, statusTick) {
         if (!visible || !onLivePage) return@produceState
         val wanted = channels.map { it.handle }.distinct()
@@ -216,7 +230,7 @@ fun NewsHubScreen(
             missing.map { h ->
                 async {
                     val s = statusGate.withPermit { fetchLiveStatus(h) }
-                    statusCache[h] = s
+                    statusCache.put(h, s)
                     value = statusCache.filterKeys { it in wanted }
                 }
             }.awaitAll()
@@ -1020,4 +1034,18 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
             }
         }
     }
+}
+
+
+/** On-air status per channel handle, kept for ten minutes across hub visits. */
+private object LiveStatusCacheImpl {
+    private val map = java.util.concurrent.ConcurrentHashMap<String, Pair<Long, LiveStatus?>>()
+    private const val TTL_MS = 10 * 60_000L
+
+    val keys: Set<String> get() = map.entries.filter { System.currentTimeMillis() - it.value.first < TTL_MS }.map { it.key }.toSet()
+    operator fun contains(h: String) = map[h]?.let { System.currentTimeMillis() - it.first < TTL_MS } == true
+    fun put(h: String, s: LiveStatus?) { map[h] = System.currentTimeMillis() to s }
+    fun clear() = map.clear()
+    fun filterKeys(keep: (String) -> Boolean): Map<String, LiveStatus?> =
+        map.filter { keep(it.key) && System.currentTimeMillis() - it.value.first < TTL_MS }.mapValues { it.value.second }
 }

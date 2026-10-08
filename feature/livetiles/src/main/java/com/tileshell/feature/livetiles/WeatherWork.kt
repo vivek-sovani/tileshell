@@ -74,6 +74,12 @@ class WeatherRefreshWorker(
     )
 
     override suspend fun doWork(): Result {
+        // Nothing shows the weather any more (tile unpinned, widget removed, glance page off): stop the fetch for good.
+        // A later weather tile re-arms it from its own ensureScheduled.
+        if (!hasWeatherSurface(applicationContext)) {
+            cancel(applicationContext)
+            return Result.success()
+        }
         // A periodic tick while the screen is off refreshes a forecast nobody can
         // see; the next tick after the screen comes back on picks it up, and every
         // one-off path (placement, a location change, the manual refresh) carries
@@ -179,14 +185,20 @@ class WeatherRefreshWorker(
          */
         fun ensureScheduled(context: Context) {
             val wm = androidx.work.WorkManager.getInstance(context.applicationContext)
+            // Only the very first call (nothing scheduled yet) kicks an immediate fetch; every later composition of a
+            // weather tile used to force a network round-trip too. A stale or empty cache is refetched on resume
+            // (WeatherWakeRefresh) and by the periodic job.
+            val firstTime = !isScheduled(context, UNIQUE_PERIODIC)
             enqueuePeriodic(context)
-            wm.enqueueUniqueWork(
-                UNIQUE_NOW,
-                ExistingWorkPolicy.KEEP,
-                OneTimeWorkRequestBuilder<WeatherRefreshWorker>()
-                    .setInputData(workDataOf(KEY_FORCE to true))
-                    .build(),
-            )
+            if (firstTime) {
+                wm.enqueueUniqueWork(
+                    UNIQUE_NOW,
+                    ExistingWorkPolicy.KEEP,
+                    OneTimeWorkRequestBuilder<WeatherRefreshWorker>()
+                        .setInputData(workDataOf(KEY_FORCE to true))
+                        .build(),
+                )
+            }
         }
 
         /** The periodic fetch at the personalize "live data refresh" weather rate. */
@@ -272,6 +284,29 @@ suspend fun requestedFixedPlaces(context: Context): Map<String, WeatherTile.Loca
     }.getOrDefault(emptyList())
 
     return WeatherTile.fixedPlaces(fromTiles + fromWidgets)
+}
+
+/**
+ * Whether anything still shows the forecast: a weather tile on Start (in a folder too), a placed weather widget, or the
+ * glance page's weather card (while the glance page is on). With none, the background fetch has no reader.
+ */
+suspend fun hasWeatherSurface(context: Context): Boolean {
+    val onStart = runCatching {
+        LayoutRepository.create(context).tiles.first().any { tile ->
+            when (tile) {
+                is TileModel.App -> tile.packageName.isBlank() && tile.iconKey == WeatherTile.ICON_KEY
+                is TileModel.Folder -> tile.children.any { it.packageName.isBlank() && it.iconKey == WeatherTile.ICON_KEY }
+            }
+        }
+    }.getOrDefault(true)
+    if (onStart) return true
+    val widget = runCatching {
+        AppWidgetManager.getInstance(context).getAppWidgetIds(ComponentName(context, WeatherAppWidgetProvider::class.java)).isNotEmpty()
+    }.getOrDefault(true)
+    if (widget) return true
+    return runCatching {
+        com.tileshell.core.data.settings.SettingsRepository.create(context).settings.first().feedEnabled
+    }.getOrDefault(true)
 }
 
 /** True when [uniqueName] has periodic work that is enqueued or running. */

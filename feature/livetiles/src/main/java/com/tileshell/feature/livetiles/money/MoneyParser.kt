@@ -387,7 +387,7 @@ internal fun builtInMoneyAppKind(packageName: String, label: String): MoneyAppKi
     if (packageName in CARD_PACKAGES) return MoneyAppKind.CARD
     if (packageName in PAYMENT_PACKAGES) return MoneyAppKind.PAYMENT
     val l = label.lowercase()
-    fun hasWord(w: String) = Regex("""(^|[^a-z])${Regex.escape(w)}([^a-z]|$)""").containsMatchIn(l)
+    fun hasWord(w: String) = com.tileshell.feature.livetiles.cachedRegex("""(^|[^a-z])${Regex.escape(w)}([^a-z]|$)""").containsMatchIn(l)
     // A card app: a card brand, or "card(s)" together with a bank name
     // ("HDFC Bank MyCards"); a bare "card" (a card-scanner app) doesn't count.
     if (CARD_BRAND_WORDS.any(::hasWord)) return MoneyAppKind.CARD

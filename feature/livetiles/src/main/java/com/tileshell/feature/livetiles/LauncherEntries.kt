@@ -16,7 +16,18 @@ internal data class LauncherEntry(val id: String, val packageName: String, val l
 internal fun packageOfEntry(id: String): String = id.substringBefore('/')
 
 /** Every launcher entry of every installed app (without TileShell), the main entry of each app first. */
-internal fun launcherEntries(context: Context): List<LauncherEntry> = runCatching {
+internal fun launcherEntries(context: Context): List<LauncherEntry> {
+    // Several hub pages and tiles ask for this on first composition; the answer (hundreds of binder calls) changes only
+    // when an app is installed or removed, so it is kept for two minutes.
+    val now = System.currentTimeMillis()
+    entriesCache?.let { (at, list) -> if (now - at < ENTRIES_TTL_MS) return list }
+    return queryLauncherEntries(context).also { if (it.isNotEmpty()) entriesCache = now to it }
+}
+
+@Volatile private var entriesCache: Pair<Long, List<LauncherEntry>>? = null
+private const val ENTRIES_TTL_MS = 2 * 60_000L
+
+private fun queryLauncherEntries(context: Context): List<LauncherEntry> = runCatching {
     val pm = context.packageManager
     val infos = pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
     val out = ArrayList<LauncherEntry>()
