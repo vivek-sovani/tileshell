@@ -150,6 +150,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
@@ -5920,16 +5921,13 @@ private fun EditBar(
             .background(LocalColorTokens.current.sheet)
             .navigationBarsPadding()
             .height(60.dp),
-        horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        EditBarButton("plus", "add", enabled = true, onClick = onAdd)
-        Spacer(Modifier.size(34.dp))
-        EditBarButton("widgets", "add live tiles", enabled = true, onClick = onAddWidgets)
-        Spacer(Modifier.size(34.dp))
-        EditBarButton("settings", "home settings", enabled = true, onClick = onPersonalize)
-        Spacer(Modifier.size(34.dp))
-        EditBarButton("check", "done", enabled = true, onClick = onDone)
+        // Four equal cells: fixed gaps between content-sized buttons pushed "done" off a narrow screen.
+        EditBarButton("plus", "add", enabled = true, onClick = onAdd, modifier = Modifier.weight(1f))
+        EditBarButton("widgets", "add live tiles", enabled = true, onClick = onAddWidgets, modifier = Modifier.weight(1f))
+        EditBarButton("settings", "home settings", enabled = true, onClick = onPersonalize, modifier = Modifier.weight(1f))
+        EditBarButton("check", "done", enabled = true, onClick = onDone, modifier = Modifier.weight(1f))
     }
 }
 
@@ -5939,9 +5937,10 @@ private fun EditBarButton(
     label: String,
     enabled: Boolean,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = Modifier
+        modifier = modifier
             .let { if (enabled) it.clickable(onClick = onClick) else it }
             // 48dp min touch target (a11y) for the add/personalize/done controls.
             .defaultMinSize(minWidth = 48.dp, minHeight = 48.dp)
@@ -5956,7 +5955,7 @@ private fun EditBarButton(
             modifier = Modifier.size(20.dp),
         )
         Spacer(Modifier.height(3.dp))
-        Text(text = label, color = LocalColorTokens.current.fg, fontSize = 13.sp)
+        Text(text = label, color = LocalColorTokens.current.fg, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
