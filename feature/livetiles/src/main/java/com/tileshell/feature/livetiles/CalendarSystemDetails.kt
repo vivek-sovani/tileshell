@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
@@ -117,6 +118,17 @@ internal fun SystemDayFront(label: String, details: SystemDetails, nowMillis: Lo
     val wide = size.cols >= 4 && !big
     val align = if (narrow) Alignment.CenterHorizontally else Alignment.Start
     val pad = if (narrow || short) 4.dp else 11.dp
+    if (short && !narrow) {
+        // One row tall and wide enough: the day, the month and the year note on one line.
+        Row(Modifier.fillMaxSize().padding(horizontal = 11.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("${d.day}", color = FaceText, fontSize = 28.sp, fontWeight = FontWeight.Light, maxLines = 1)
+            Column(Modifier.weight(1f)) {
+                Text(monthYearLine(d), color = FaceText, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(listOfNotNull(d.yearNote, weekdayWord(nowMillis)).joinToString(" · "), color = FaceText.copy(alpha = 0.8f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        return
+    }
     if (short || (narrow && size.rows < 2)) {
         Column(Modifier.fillMaxSize().padding(pad), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
             Text("${d.day}", color = FaceText, fontSize = if (short) 22.sp else 30.sp, fontWeight = FontWeight.Light, maxLines = 1)
@@ -125,24 +137,27 @@ internal fun SystemDayFront(label: String, details: SystemDetails, nowMillis: Lo
         return
     }
     if (big) {
-        Column(Modifier.fillMaxSize().padding(pad)) {
-            Text(label, color = FaceText.copy(alpha = 0.7f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("${d.day}", color = FaceText, fontWeight = FontWeight.Light, maxLines = 1, fontSize = 52.sp)
-                Spacer(Modifier.padding(start = 10.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(monthYearLine(d), color = FaceText, fontWeight = FontWeight.Medium, fontSize = 16.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                    d.yearNote?.let { Text(it, color = FaceText.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 1) }
-                    Text(
-                        "${weekdayWord(nowMillis)} · day ${d.day} of ${d.monthLength}",
-                        color = FaceText.copy(alpha = 0.8f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                    )
+        // The month grid needs every dp of the tile, so this face is laid out at the tile's own size (the tile-wide
+        // enlargement would leave the grid rows too short for their numbers).
+        CancelLiveFaceScale {
+            Column(Modifier.fillMaxSize().padding(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("${d.day}", color = FaceText, fontWeight = FontWeight.Light, maxLines = 1, fontSize = 34.sp)
+                    Spacer(Modifier.padding(start = 8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(label, color = FaceText.copy(alpha = 0.7f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(monthYearLine(d), color = FaceText, fontWeight = FontWeight.Medium, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            listOfNotNull(d.yearNote, "${weekdayWord(nowMillis).take(3)} · ${d.day}/${d.monthLength}").joinToString(" · "),
+                            color = FaceText.copy(alpha = 0.8f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
-            }
-            Spacer(Modifier.height(4.dp))
-            MonthGrid(d, Modifier.weight(1f).fillMaxWidth())
-            nextSpecialLine(details.upcoming)?.let {
-                Text(it, color = FaceText, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                Spacer(Modifier.height(4.dp))
+                MonthGrid(d, Modifier.weight(1f).fillMaxWidth())
+                nextSpecialLine(details.upcoming)?.let {
+                    Text(it, color = FaceText, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                }
             }
         }
         return
@@ -171,7 +186,7 @@ internal fun SystemDayFront(label: String, details: SystemDetails, nowMillis: Lo
                     color = FaceText.copy(alpha = 0.8f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (big || wide) {
+            if (big) {
                 nextSpecialLine(details.upcoming)?.let {
                     Spacer(Modifier.height(4.dp))
                     Text(it, color = FaceText, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -210,8 +225,8 @@ internal fun SystemDayBack(systemId: String, details: SystemDetails, romanDate: 
         if (roomy) {
             Spacer(Modifier.height(6.dp))
             Text(
-                "month ${d.monthNumber} of ${d.monthsInYear} · ${if (d.daysLeftInMonth == 0) "last day" else "${d.daysLeftInMonth} days left"}",
-                color = FaceText.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                "month ${d.monthNumber} of ${d.monthsInYear} · ${when (d.daysLeftInMonth) { 0 -> "last day"; 1 -> "1 day left"; else -> "${d.daysLeftInMonth} days left" }}",
+                color = FaceText.copy(alpha = 0.85f), fontSize = if (size.cols <= 2) 11.sp else 12.sp, maxLines = if (size.cols <= 2) 2 else 1, overflow = TextOverflow.Ellipsis,
             )
             details.upcoming.take(if (size.rows >= 3) 2 else 1).forEach {
                 Text("${it.name} ${daysAwayText(it.daysAway)}", color = FaceText, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -223,33 +238,38 @@ internal fun SystemDayBack(systemId: String, details: SystemDetails, romanDate: 
     }
 }
 
-/** A month in a Monday-first grid with weekday initials; today is a filled disc. Rows share the height given. */
+/** A month in a Monday-first grid with weekday initials; today is a filled disc. Sized from the room it is given. */
 @Composable
 private fun MonthGrid(d: SystemDay, modifier: Modifier = Modifier) {
     val cells = d.firstWeekdayOffset + d.monthLength
     val rows = (cells + 6) / 7
-    Column(modifier) {
-        Row(Modifier.fillMaxWidth()) {
-            listOf("m", "t", "w", "t", "f", "s", "s").forEach {
-                Text(it, color = FaceText.copy(alpha = 0.6f), fontSize = 9.sp, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+    androidx.compose.foundation.layout.BoxWithConstraints(modifier) {
+        val headH = 12.dp
+        val rowH = (maxHeight - headH) / rows
+        val font = (rowH.value * 0.62f).coerceIn(7f, 11f).sp
+        Column(Modifier.fillMaxSize()) {
+            Row(Modifier.fillMaxWidth().height(headH)) {
+                listOf("m", "t", "w", "t", "f", "s", "s").forEach {
+                    Text(it, color = FaceText.copy(alpha = 0.6f), fontSize = 8.sp, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
+                }
             }
-        }
-        for (r in 0 until rows) {
-            Row(Modifier.fillMaxWidth().weight(1f)) {
-                for (c in 0 until 7) {
-                    val day = r * 7 + c - d.firstWeekdayOffset + 1
-                    Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                        if (day in 1..d.monthLength) {
-                            val today = day == d.day
-                            Box(
-                                modifier = if (today) Modifier.aspectRatio(1f).fillMaxHeight().clip(CircleShape).background(FaceText) else Modifier,
-                                contentAlignment = Alignment.Center,
-                            ) {
-                                Text(
-                                    "$day", fontSize = 11.sp, maxLines = 1, softWrap = false,
-                                    color = if (today) Color.Black.copy(alpha = 0.85f) else FaceText.copy(alpha = 0.9f),
-                                    fontWeight = if (today) FontWeight.Bold else FontWeight.Normal,
-                                )
+            for (r in 0 until rows) {
+                Row(Modifier.fillMaxWidth().height(rowH)) {
+                    for (c in 0 until 7) {
+                        val day = r * 7 + c - d.firstWeekdayOffset + 1
+                        Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                            if (day in 1..d.monthLength) {
+                                val today = day == d.day
+                                Box(
+                                    modifier = if (today) Modifier.size(rowH.coerceAtMost(22.dp)).clip(CircleShape).background(FaceText) else Modifier,
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        "$day", fontSize = font, maxLines = 1, softWrap = false, lineHeight = font,
+                                        color = if (today) Color.Black.copy(alpha = 0.85f) else FaceText.copy(alpha = 0.9f),
+                                        fontWeight = if (today) FontWeight.Bold else FontWeight.Normal,
+                                    )
+                                }
                             }
                         }
                     }

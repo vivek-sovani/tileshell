@@ -238,10 +238,59 @@ private fun StatusBarNotification.extractImages(context: Context): NotificationI
     val picture = ((extras?.get(Notification.EXTRA_PICTURE) as? Bitmap)
         ?: (extras?.get(EXTRA_PICTURE_ICON) as? android.graphics.drawable.Icon)
             ?.let { icon -> runCatching { icon.loadDrawable(context)?.toBitmap() }.getOrNull() }
-        ?: avatarFull?.takeIf { isPhotoSized(it.width, it.height) })
+        ?: avatarFull?.takeIf { isPhotoSized(it.width, it.height) }
+        // Pinterest and some others draw the picture only inside a custom RemoteViews layout.
+        ?: pictureFromCustomViews(context, n, packageName))
         ?.downscaleIfNeeded(MAX_NOTIFICATION_IMAGE_PX)
     val avatar = avatarFull?.downscaleIfNeeded(MAX_NOTIFICATION_IMAGE_PX)
     return NotificationImages(avatar = avatar, picture = picture)
+}
+
+/**
+ * The photo of a notification that carries it only in a custom layout ([Notification.contentView], or the expanded
+ * one): the layout is inflated off-screen (on the main thread, which views need) and the largest bitmap among its
+ * ImageViews that is photo-sized is taken. Null when the notification has no custom layout, nothing in it is photo-sized,
+ * or the layout cannot be inflated here (it uses the app's own view classes). Only called when no standard picture exists.
+ */
+@Suppress("DEPRECATION")
+private fun pictureFromCustomViews(context: Context, n: Notification, pkg: String): Bitmap? {
+    if (n.extras?.getBoolean("android.contains.customView", false) != true) return null
+    val views = listOfNotNull(
+        runCatching { Notification::class.java.getDeclaredField("bigContentView").apply { isAccessible = true }.get(n) as? android.widget.RemoteViews }.getOrNull(),
+        n.contentView,
+    )
+    if (views.isEmpty()) return null
+    var found: Bitmap? = null
+    val latch = java.util.concurrent.CountDownLatch(1)
+    android.os.Handler(android.os.Looper.getMainLooper()).post {
+        try {
+            val parent = android.widget.FrameLayout(context)
+            for (rv in views) {
+                val root = runCatching { rv.apply(context, parent) }.getOrNull() ?: continue
+                found = largestPhotoIn(root)
+                if (found != null) break
+            }
+        } catch (_: Throwable) {
+        } finally {
+            latch.countDown()
+        }
+    }
+    if (!runCatching { latch.await(1500, java.util.concurrent.TimeUnit.MILLISECONDS) }.getOrDefault(false)) return null
+    return found
+}
+
+private fun largestPhotoIn(root: android.view.View): Bitmap? {
+    var best: Bitmap? = null
+    fun visit(v: android.view.View) {
+        if (v is android.widget.ImageView) {
+            val d = v.drawable
+            val bmp = (d as? android.graphics.drawable.BitmapDrawable)?.bitmap
+            if (bmp != null && maxOf(bmp.width, bmp.height) >= 240 && (best == null || bmp.width * bmp.height > best!!.width * best!!.height)) best = bmp
+        }
+        if (v is android.view.ViewGroup) for (i in 0 until v.childCount) visit(v.getChildAt(i))
+    }
+    visit(root)
+    return best
 }
 
 /** `Notification.EXTRA_PICTURE_ICON` (API 31); a plain string so it also compiles and runs below that. */
