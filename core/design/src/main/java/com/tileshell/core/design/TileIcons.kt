@@ -196,6 +196,16 @@ object TileIcons {
         // Media transport controls (S-followup: music live-tile play/prev/next).
         put("play", vector("play", p("M9 7l8 5-8 5z")))
 
+        put("stop", vector("stop", p("M8 8h8v8H8z")))
+
+        // An hourglass: a pinned timer set.
+        put("timerset", vector("timerset",
+            p(line(7.0, 4.0, 17.0, 4.0)),
+            p(line(7.0, 20.0, 17.0, 20.0)),
+            p("M7 4c0 5 5 5 5 8s-5 3-5 8"),
+            p("M17 4c0 5-5 5-5 8s5 3 5 8"),
+        ))
+
         put("pause", vector("pause",
             p(line(9.5, 7.0, 9.5, 17.0)),
             p(line(14.5, 7.0, 14.5, 17.0)),

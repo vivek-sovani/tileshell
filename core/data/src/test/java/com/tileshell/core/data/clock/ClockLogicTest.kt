@@ -357,3 +357,30 @@ class ClockLogicTest {
         assertEquals("kriya", decodeSessions(encodeSessions(listOf(s))).single().steps.last().part)
     }
 }
+
+class TimerSetTileTest {
+    private fun session(id: String) = Session(id, "x", listOf(SessionStep("a", 1000)), 0, 5_000)
+
+    @org.junit.Test
+    fun `tile activity name round trips the set id`() {
+        org.junit.Assert.assertEquals("1699", TimerSetTile.decode(TimerSetTile.encode("1699")))
+        org.junit.Assert.assertNull(TimerSetTile.decode("com.android.clock/.Main"))
+        org.junit.Assert.assertNull(TimerSetTile.decode("timerset:"))
+        org.junit.Assert.assertNull(TimerSetTile.decode(null))
+    }
+
+    @org.junit.Test
+    fun `a session finds its saved set by id`() {
+        val mine = session(sessionIdForSet(1_700_000_000_000L, "42"))
+        val other = session(sessionIdForSet(1_700_000_000_001L, "43"))
+        val timer = session("timer-1700000000002")
+        val old = session("set-1700000000003")
+        org.junit.Assert.assertEquals("42", mine.setId())
+        org.junit.Assert.assertNull(timer.setId())
+        org.junit.Assert.assertNull(old.setId())
+        org.junit.Assert.assertSame(mine, sessionForSet(listOf(timer, old, other, mine), "42"))
+        org.junit.Assert.assertNull(sessionForSet(listOf(timer, old, other), "42"))
+        org.junit.Assert.assertNull(sessionForSet(listOf(mine), null))
+        org.junit.Assert.assertFalse(mine.isTimer)
+    }
+}

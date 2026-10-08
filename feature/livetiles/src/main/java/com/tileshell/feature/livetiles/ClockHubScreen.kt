@@ -140,6 +140,7 @@ fun ClockHubScreen(
     accentId: String,
     onDismiss: () -> Unit,
     onPinHub: () -> Unit,
+    onPinSet: (String) -> Unit = {},
     pinMessages: kotlinx.coroutines.flow.Flow<String> = kotlinx.coroutines.flow.emptyFlow(),
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
@@ -243,6 +244,7 @@ fun ClockHubScreen(
                             onNew = { editor = TimerSet(System.currentTimeMillis().toString(), "", listOf(TimerPart("", listOf(TimerStep(seconds = 120))))) },
                             onEdit = { editor = it },
                             onOpen = { runningId = it },
+                            onPin = onPinSet,
                         )
                     }
                 }
@@ -571,6 +573,7 @@ private fun SetsPage(
     onNew: () -> Unit,
     onEdit: (TimerSet) -> Unit,
     onOpen: (String) -> Unit,
+    onPin: (String) -> Unit,
 ) {
     val context = LocalContext.current
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
@@ -603,9 +606,10 @@ private fun SetsPage(
                     Text(
                         "start", color = if (steps > 0) accent else tokens.fgDim, fontSize = 16.sp,
                         modifier = Modifier.clickable(enabled = steps > 0) {
-                            ClockSessions.start(context, set.name.ifBlank { "timer set" }, flatten(set).map { SessionStep(it.label, it.ms, it.partName) })?.let { onOpen(it.id) }
+                            ClockSessions.startSet(context, set)?.let { onOpen(it.id) }
                         }.padding(start = 12.dp, top = 8.dp, bottom = 8.dp),
                     )
+                    Text("pin", color = accent, fontSize = 16.sp, modifier = Modifier.clickable { onPin(set.id) }.padding(start = 14.dp, top = 8.dp, bottom = 8.dp))
                 }
                 StructureBar(set, tokens, accent)
                 Box(modifier = Modifier.fillMaxWidth().padding(top = 10.dp).height(0.5.dp).background(tokens.sheetLine))

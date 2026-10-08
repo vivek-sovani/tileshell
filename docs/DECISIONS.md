@@ -11715,3 +11715,24 @@ Not done (lower value or risk): replacing the screen-off skip of the periodic jo
 ### Calendar system tiles checked at every size; Pinterest photos from custom layouts
 - All seven non-Hindu systems rendered in the tile gallery (front and back, 11 sizes). Fixes: the 3x3 / 4x4 month grid was drawn at the enlarged density so its rows were too short for the numbers (garbled) — it is now laid out at the tile's own size with row heights measured from the room; one-row wide tiles show day, month and year note on one line (was "eighth mon"); the 4x2 front no longer clips the observance line (it is on the back); "1 days left" → "1 day left"; medium back wraps its facts instead of cutting them.
 - Pinterest (and any app whose notification draws its picture only in a custom RemoteViews layout, `android.contains.customView`): when no standard picture exists, the layout is inflated off-screen on the main thread and the largest photo-sized ImageView bitmap (≥ 240 px) is used. Confirmed on the phone's real Pinterest notification (240x192 found). Layouts built from the app's own view classes cannot be inflated and still show no picture.
+
+## Timer set tile, step-end chime, alarms page and world clock disc (2026-10-08)
+
+**Pinning a set.** A set's tile is a blank-package live tile (`iconKey timerset`, `activityName
+timerset:<setId>`), one per set, added by "pin" on the sets page. To find a set's run, sessions
+started from a saved set get the id `set-<time>@<setId>` (older runs and timers have no `@`, so
+they never match a tile). The tile starts the set when idle, pauses / resumes it while it runs and
+stops it, all through `ClockSessions`, so alarms, the notification and the buzz behave exactly as
+when started in the hub. 1x1 has no room for two buttons: the whole tile is start / pause (stop is
+in the hub). The buttons are plain clickables gated on `interactive`, like the flashlight tile.
+
+**Chime.** "Sound as well" used a notification channel's sound, which Android drops on an update
+of an ongoing notification and when notifications are off. `ClockChime` plays the bundled chime
+with a `MediaPlayer` on the alarm stream (twice at the end of a set); the notifications are always
+silent and the old sound channel is deleted.
+
+**Alarms page.** The dial shows the time now, so the big alarm time under it read as the dial's
+time. A rule and an accent "NEXT ALARM" caption now separate them.
+
+**World clock.** User chose a 24-hour disc over the strip: the light half (6 am to 6 pm) at the
+top, a hand at the local time, noon straight up.

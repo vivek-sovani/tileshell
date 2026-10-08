@@ -201,6 +201,7 @@ object DefaultLayout {
         DefaultTile("t-markets", TileSize.MEDIUM, "cobalt", app = "markets", liveOnly = true),
         DefaultTile("t-sportshub", TileSize.MEDIUM, "orange", app = "sportshub", liveOnly = true),
         DefaultTile("t-newshub", TileSize.MEDIUM, "red", app = "newshub", liveOnly = true),
+        DefaultTile("t-timerset", TileSize.MEDIUM, "purple", app = "timerset", liveOnly = true),
         DefaultTile("t-shophub", TileSize.MEDIUM, "magenta", app = "shophub", liveOnly = true),
     )
 

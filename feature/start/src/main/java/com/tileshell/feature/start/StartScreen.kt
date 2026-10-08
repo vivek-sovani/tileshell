@@ -1522,7 +1522,7 @@ fun StartScreen(
                                     viewModel.openMarketsHub()
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "sportshub") {
                                     viewModel.openSportsHub()
-                                } else if ((tile.packageName.isBlank() && tile.iconKey == "clockhub") || tile.iconKey == "clock" || tile.iconKey == "alarm") {
+                                } else if ((tile.packageName.isBlank() && (tile.iconKey == "clockhub" || tile.iconKey == "timerset")) || tile.iconKey == "clock" || tile.iconKey == "alarm") {
                                     viewModel.openClockHub()
                                 } else if (tile.iconKey == "moonphase") {
                                     // The moon phase widget opens the panchang hub (tithi, moon times).
@@ -1598,7 +1598,7 @@ fun StartScreen(
                             viewModel.openMarketsHub()
                         } else if (child.packageName.isBlank() && child.iconKey == "sportshub") {
                             viewModel.openSportsHub()
-                        } else if ((child.packageName.isBlank() && child.iconKey == "clockhub") || child.iconKey == "clock" || child.iconKey == "alarm") {
+                        } else if ((child.packageName.isBlank() && (child.iconKey == "clockhub" || child.iconKey == "timerset")) || child.iconKey == "clock" || child.iconKey == "alarm") {
                             viewModel.openClockHub()
                         } else if (child.iconKey == "moonphase") {
                             viewModel.openPanchang()
@@ -7105,6 +7105,10 @@ private fun AppTileContent(
             "healthhub" -> { com.tileshell.feature.livetiles.health.HealthTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize()); return }
             "battery" -> { BatterySmallFace(modifier = Modifier.fillMaxSize()); return }
             "flashlight" -> { FlashlightSmallFace(interactive = interactive, modifier = Modifier.fillMaxSize()); return }
+            "timerset" -> {
+                com.tileshell.feature.livetiles.TimerSetTileFace(size = tile.size, active = liveActive, interactive = interactive, setId = com.tileshell.core.data.clock.TimerSetTile.decode(tile.activityName), modifier = Modifier.fillMaxSize())
+                return
+            }
             "countdown" -> {
                 val (isoDate, _) = CountdownTile.decode(tile.activityName) ?: ("" to "")
                 CountdownSmallFace(targetIsoDate = isoDate, modifier = Modifier.fillMaxSize())
@@ -7272,6 +7276,10 @@ private fun AppTileContent(
         }
         LiveFace.HEALTHHUB -> {
             com.tileshell.feature.livetiles.health.HealthTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize())
+            return
+        }
+        LiveFace.TIMERSET -> {
+            com.tileshell.feature.livetiles.TimerSetTileFace(size = tile.size, active = liveActive, interactive = interactive, setId = com.tileshell.core.data.clock.TimerSetTile.decode(tile.activityName), modifier = Modifier.fillMaxSize())
             return
         }
         LiveFace.SHOPHUB -> {
@@ -9098,6 +9106,7 @@ private fun HubScreensLayer(
         accentId = accentId,
         onDismiss = viewModel::closeClockHub,
         onPinHub = viewModel::pinClockHub,
+        onPinSet = viewModel::pinTimerSet,
         pinMessages = viewModel.pinMessage,
         rightHalf = false,
     )

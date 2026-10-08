@@ -462,6 +462,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Pin a tile for one saved timer set: start, pause and stop from Start. One tile per set. */
+    fun pinTimerSet(setId: String) {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "timerset" && com.tileshell.core.data.clock.TimerSetTile.decode(it.activityName) == setId }
+            val added = !exists && repository.addDefaultTile("timerset", activePageSectionId, com.tileshell.core.data.clock.TimerSetTile.encode(setId))
+            _pinMessage.tryEmit(pinOutcomeText(if (added) PinResult.PINNED else PinResult.ALREADY_ON_START, "timer set"))
+        }
+    }
+
     private val _marketsHubOpen = MutableStateFlow(false)
     val marketsHubOpen: StateFlow<Boolean> = _marketsHubOpen.asStateFlow()
 

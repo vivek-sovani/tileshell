@@ -77,11 +77,16 @@ object ClockSessions {
         return state.asStateFlow() as StateFlow<List<Session>>
     }
 
+    /** Starts the saved [set]; null when it has no length. A tile pinned for it finds the run by its id. */
+    fun startSet(context: Context, set: TimerSet): Session? =
+        start(context, set.name.ifBlank { "timer set" }, flatten(set).map { SessionStep(it.label, it.ms, it.partName) }, setId = set.id)
+
     /** Starts a timer (`isTimer`) or a set; null when it has no length. */
     @Synchronized
-    fun start(context: Context, title: String, steps: List<SessionStep>, isTimer: Boolean = false): Session? {
+    fun start(context: Context, title: String, steps: List<SessionStep>, isTimer: Boolean = false, setId: String? = null): Session? {
         val app = context.applicationContext
-        val id = (if (isTimer) "timer-" else "set-") + System.currentTimeMillis()
+        val now = System.currentTimeMillis()
+        val id = if (isTimer) "timer-$now" else if (setId != null) sessionIdForSet(now, setId) else "set-$now"
         val session = startSession(id, title, steps, System.currentTimeMillis()) ?: return null
         write(app, flow(app).value + session)
         arm(app, session)

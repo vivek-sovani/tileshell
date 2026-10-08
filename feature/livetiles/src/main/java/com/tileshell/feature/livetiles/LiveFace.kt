@@ -62,6 +62,8 @@ enum class LiveFace(val flips: Boolean) {
     NEWSHUB(flips = false),
     SHOPHUB(flips = false),
     HEALTHHUB(flips = false),
+    // Its own start / pause / stop buttons; no back face.
+    TIMERSET(flips = false),
     ;
 
     companion object {
@@ -103,6 +105,7 @@ enum class LiveFace(val flips: Boolean) {
                 "newshub" -> NEWSHUB
                 "shophub" -> SHOPHUB
                 "healthhub" -> HEALTHHUB
+                "timerset" -> TIMERSET
                 else -> null
             }
         }
