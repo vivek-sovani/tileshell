@@ -37,6 +37,11 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — calendar systems back in "add live tiles", enriched; panchang month on the big tile (folded into 5.1.0).** User-reported: the generic
+  calendar-systems tile (Islamic, Hebrew, Chinese, Buddhist, Persian, Coptic, Ethiopic) had been dropped as a panchang duplicate. Listed again beside "moon phase";
+  "panchang hub" stays separate. Each system now shows a structured date (day, month, year + era, weekday, day x of y), month facts, the next observances with a
+  countdown and a month grid on 3x3+; the panchang tile's 3x3+ back is a month calendar with a tithi under every date. Also: the edit bar's four buttons share the width
+  (done was cut off). Unit-tested (`CalendarDetailsTest`, `PanchangMonthTest`); checked on the emulator (Islamic 3x3 front, panchang 3x3 back). Not checked: the other systems' faces, Hebrew leap months, the medium/wide sizes on a phone.
 - **`main` — health hub (folded into 5.1.0, not uploaded).** User-requested after a design. Steps from the
   phone's step counter, kept as a daily history on the phone (`HealthStore`, sampled every 30 min by
   `HealthSampleWorker`, and whenever the tile, hub or steps widget reads): today (ring toward a goal,

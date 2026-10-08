@@ -368,6 +368,20 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** Debug builds only (see MainActivity `debug.calsys`): pin a calendar-systems tile for [systemId] and size it. */
+    fun debugPinCalendarSystem(systemId: String, size: TileSize) {
+        fun find() = tiles.value.filterIsInstance<TileModel.App>().lastOrNull {
+            it.iconKey == "calsys" && com.tileshell.core.data.CalendarSystemTile.decode(it.activityName) == systemId
+        }
+        viewModelScope.launch(writeContext) {
+            if (find() == null) {
+                repository.addDefaultTile("calsys", null, com.tileshell.core.data.CalendarSystemTile.encode(systemId))
+                kotlinx.coroutines.delay(1500)
+            }
+            find()?.let { repository.setTileSize(it.id, size) }
+        }
+    }
+
     private val _shoppingHubOpen = MutableStateFlow(false)
     val shoppingHubOpen: StateFlow<Boolean> = _shoppingHubOpen.asStateFlow()
 

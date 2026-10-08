@@ -38,6 +38,13 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.tileshell.core.data.HINDU_PANCHANG_ID
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import com.tileshell.core.data.PanchangDayCell
+import com.tileshell.core.data.PanchangDayKind
+import com.tileshell.core.data.PanchangMonth
+import com.tileshell.core.data.panchangMonth
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.Dispatchers
 import androidx.compose.foundation.background
@@ -249,21 +256,26 @@ fun CalendarSystemTileFace(
                 // times; the front already shows it, every other flip.
                 val roomy = size.cols >= 4 || size.rows >= 3
                 ObservanceStripped(if (roomy) strip else null, size) {
-                    PanchangBackFace(panchang = panchang, size = size, sunTimes = sunTimes, moonTimes = moonTimes)
+                    PanchangBackFace(panchang = panchang, size = size, sunTimes = sunTimes, moonTimes = moonTimes, nowMillis = nowMillis)
                 }
             },
         )
         return
     }
 
+    val systemName = calendarSystemFor(systemId)?.displayName.orEmpty()
+    val details = rememberSystemDetails(systemId, nowMillis)
     FlipTile(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
         front = {
-            val systemName = calendarSystemFor(systemId)?.displayName.orEmpty()
-            CalendarSystemFace(label = systemName, dateText = formatSelectedSystemDate(systemId, nowMillis), size = size)
+            if (details != null) SystemDayFront(systemName, details, nowMillis, size)
+            else CalendarSystemFace(label = systemName, dateText = formatSelectedSystemDate(systemId, nowMillis), size = size)
         },
-        back = { CalendarSystemFace(label = "roman calendar", dateText = romanDate, size = size) },
+        back = {
+            if (details != null) SystemDayBack(systemId, details, romanDate, size)
+            else CalendarSystemFace(label = "roman calendar", dateText = romanDate, size = size)
+        },
     )
 }
 
@@ -597,7 +609,13 @@ private fun PanchangBackFace(
     size: TileSize,
     sunTimes: SunTimesInfo?,
     moonTimes: MoonTimesInfo?,
+    nowMillis: Long,
 ) {
+    // A big tile has room for the whole month, with a tithi under every date.
+    if (size.cols >= 3 && size.rows >= 3) {
+        PanchangMonthBack(panchang, sunTimes, moonTimes, nowMillis)
+        return
+    }
     val narrow = size.narrowLive
     val short = size.shortLive
     val big = size == TileSize.LARGE || size == TileSize.XLARGE
@@ -799,5 +817,90 @@ internal fun ScaleDownToFit(modifier: Modifier = Modifier, content: @Composable 
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0f)
             }
         }
+    }
+}
+
+/**
+ * The big-tile back: the month as a Monday-first grid, each date with its tithi number in Devanagari beneath it
+ * (ekadashi in amber, the full moon as ○ and the new moon as ●, today a filled disc), the ayana as the heading, and
+ * the sun and moon times in a line at the foot.
+ */
+@Composable
+private fun PanchangMonthBack(panchang: PanchangInfo, sunTimes: SunTimesInfo?, moonTimes: MoonTimesInfo?, nowMillis: Long) {
+    val zone = java.time.ZoneId.systemDefault()
+    val today = java.time.Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()
+    val month by produceState<PanchangMonth?>(initialValue = null, today.year, today.monthValue) {
+        value = withContext(Dispatchers.Default) { panchangMonth(today.year, today.monthValue, zone) }
+    }
+    val title = today.month.getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH).lowercase(Locale.ENGLISH) + " ${today.year}"
+    // Monday..Sunday headings in Devanagari, read off a known week.
+    val heads = remember {
+        (0L..6L).map { PanchangDevanagari.shortVara(HinduPanchang.varaFor(java.time.LocalDate.of(2024, 1, 1).plusDays(it).atTime(12, 0).atZone(zone).toInstant().toEpochMilli())) }
+    }
+    Column(Modifier.fillMaxSize().padding(8.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(title, color = FaceText, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
+            Text(PanchangDevanagari.ayana(panchang.ayana), color = FaceText.copy(alpha = 0.7f), fontSize = 11.sp, maxLines = 1)
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
+            heads.forEach {
+                Text(it, color = FaceText.copy(alpha = 0.6f), fontSize = 9.sp, maxLines = 1, softWrap = false, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+            }
+        }
+        val m = month
+        Column(Modifier.weight(1f).fillMaxWidth()) {
+            if (m != null) {
+                val rows = (m.firstWeekdayOffset + m.cells.size + 6) / 7
+                for (r in 0 until rows) {
+                    Row(Modifier.weight(1f).fillMaxWidth()) {
+                        for (c in 0 until 7) {
+                            val cell = m.cells.getOrNull(r * 7 + c - m.firstWeekdayOffset)
+                            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                                if (cell != null) PanchangGridCell(cell, isToday = cell.day == today.dayOfMonth)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        val times = listOfNotNull(
+            sunTimes?.let { "sunrise" to it.sunriseMillis },
+            sunTimes?.let { "sunset" to it.sunsetMillis },
+            moonTimes?.moonriseMillis?.let { "moonrise" to it },
+            moonTimes?.moonsetMillis?.let { "moonset" to it },
+        )
+        if (times.isNotEmpty()) {
+            Row(Modifier.fillMaxWidth().padding(top = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                times.forEach { (icon, millis) ->
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Icon(TileIcons[icon], icon, tint = FaceText.copy(alpha = 0.75f), modifier = Modifier.size(11.dp))
+                        Text(formatClockTime12Devanagari(millis), color = FaceText.copy(alpha = 0.75f), fontSize = 9.sp, maxLines = 1, softWrap = false)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PanchangGridCell(cell: PanchangDayCell, isToday: Boolean) {
+    val tithi = when (cell.kind) {
+        PanchangDayKind.PURNIMA -> "○"
+        PanchangDayKind.AMAVASYA -> "●"
+        else -> cell.label
+    }
+    val ink = if (isToday) Color.Black.copy(alpha = 0.85f) else FaceText
+    val tithiInk = when {
+        isToday -> ink
+        cell.kind == PanchangDayKind.EKADASHI -> TileAccents.Amber
+        else -> FaceText.copy(alpha = 0.7f)
+    }
+    Column(
+        modifier = Modifier.fillMaxSize().padding(1.dp).let { if (isToday) it.clip(CircleShape).background(FaceText) else it },
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Text("${cell.day}", color = ink, fontSize = 11.sp, fontWeight = if (isToday) FontWeight.Bold else FontWeight.Medium, maxLines = 1, softWrap = false)
+        Text(tithi, color = tithiInk, fontSize = 9.sp, maxLines = 1, softWrap = false)
     }
 }
