@@ -5130,18 +5130,20 @@ internal fun TileView(
                 name = tile.name,
                 onRename = onRenameFolder,
             )
-            tile is TileModel.App -> AppTileContent(
-                tile,
-                flipped = flipped,
-                liveActive = liveActive,
-                interactive = !editMode && !readOnly,
-                homeStyle = homeStyle,
-                iconShape = iconShape,
-                themedIcons = themedIcons,
-                stockRefreshRate = stockRefreshRate,
-                commodityRefreshRate = commodityRefreshRate,
-                sportsRefreshRate = sportsRefreshRate,
-            )
+            tile is TileModel.App -> LiveFaceScale(tile.size, tile.iconKey) {
+                AppTileContent(
+                    tile,
+                    flipped = flipped,
+                    liveActive = liveActive,
+                    interactive = !editMode && !readOnly,
+                    homeStyle = homeStyle,
+                    iconShape = iconShape,
+                    themedIcons = themedIcons,
+                    stockRefreshRate = stockRefreshRate,
+                    commodityRefreshRate = commodityRefreshRate,
+                    sportsRefreshRate = sportsRefreshRate,
+                )
+            }
             tile is TileModel.Folder ->
                 // A widget stack's own carousel face owns a swipe-to-flip gesture
                 // (right-edge zone) — skipped in the read-only preview in favour of
@@ -9105,6 +9107,9 @@ private fun HubScreensLayer(
         onDismiss = viewModel::closeCalendarHub,
         rightHalf = false,
     )
+
+    // Debug builds only (debug.gallery): every size of one live tile, for checking text fit.
+    TileGalleryLayer()
 }
 
 /**
@@ -9360,4 +9365,28 @@ private fun BackupSheetLayer(
         onAutoExportNow = viewModel::runAutoExportNow,
         rightHalf = isLandscape,
     )
+}
+
+
+/**
+ * How much bigger a live face is drawn on a tile larger than the 2x2 its text was sized for, so a 3x3 or 4x4 tile
+ * is filled instead of showing medium-sized text in a corner. Scaling the density scales text, icons and paddings
+ * together, so a face fits exactly as it does at its design size (the tile just reads as a smaller one to the face).
+ * Driven by the shorter side: wide and banner tiles are as tall as a medium one and stay as they were.
+ */
+internal fun liveFaceScale(size: TileSize): Float = (1f + 0.3f * (minOf(size.cols, size.rows) - 2)).coerceAtLeast(1f)
+
+@Composable
+private fun LiveFaceScale(size: TileSize, iconKey: String?, content: @Composable () -> Unit) {
+    // The clock sizes itself continuously from its own height already; scaling it again would overshoot.
+    val k = if (iconKey == "clock") 1f else liveFaceScale(size)
+    if (k == 1f) {
+        content()
+        return
+    }
+    val d = androidx.compose.ui.platform.LocalDensity.current
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density * k, d.fontScale),
+        com.tileshell.feature.livetiles.LocalLiveFaceScale provides k,
+    ) { content() }
 }

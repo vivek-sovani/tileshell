@@ -380,7 +380,7 @@ private fun ClockFront(face: ClockFace, size: TileSize) {
     val short = size.shortLive
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val scale = clockFaceScale(maxHeight)
-        val timeSize = if (short) 24.sp else (if (narrow) 20f else if (big) 64f else 42f).sp * scale
+        val timeSize = if (short) 24.sp else (if (narrow) 17f else if (big) 64f else 42f).sp * scale
         Column(
             modifier = Modifier.fillMaxSize().padding(
                 if (short) 4.dp else (if (narrow) 4f else 11f).dp * scale,
@@ -389,7 +389,8 @@ private fun ClockFront(face: ClockFace, size: TileSize) {
             horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.End,
         ) {
             Text(
-                text = face.hm,
+                // One column wide: "10:00 am" can't fit, so the space goes and the type is a little smaller.
+                text = if (narrow) face.hm.replace(" ", "") else face.hm,
                 color = FaceText,
                 fontSize = timeSize,
                 lineHeight = timeSize * 0.9f,
@@ -544,11 +545,11 @@ private fun ClockBack(face: ClockFace, size: TileSize) {
                 Text(
                     text = face.fullDate,
                     color = FaceText,
-                    fontSize = bigSize,
-                    lineHeight = bigSize,
+                    fontSize = if (narrow) 14.sp * scale else bigSize,
+                    lineHeight = if (narrow) 14.sp * scale else bigSize,
                     fontWeight = FontWeight.Light,
                     letterSpacing = (-1).sp,
-                    maxLines = if (short) 1 else 2,
+                    maxLines = if (short) 1 else if (narrow) 3 else 2,
                     overflow = if (short) TextOverflow.Clip else TextOverflow.Ellipsis,
                     textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                 )

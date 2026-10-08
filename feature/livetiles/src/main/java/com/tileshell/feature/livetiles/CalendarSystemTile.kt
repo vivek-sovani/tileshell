@@ -629,16 +629,16 @@ private fun PanchangBackFace(
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             if (labels) PanchangColumnLabel("सूर्य", big)
             sunTimes?.let {
-                PanchangEventRow("sunrise", it.sunriseMillis, iconSize, fontSize)
-                PanchangEventRow("sunset", it.sunsetMillis, iconSize, fontSize)
+                PanchangEventRow("sunrise", it.sunriseMillis, iconSize, fontSize, compact = narrow)
+                PanchangEventRow("sunset", it.sunsetMillis, iconSize, fontSize, compact = narrow)
             }
         }
     }
     val moon = @Composable {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
             if (labels) PanchangColumnLabel("चंद्र", big)
-            moonTimes?.moonriseMillis?.let { PanchangEventRow("moonrise", it, iconSize, fontSize) }
-            moonTimes?.moonsetMillis?.let { PanchangEventRow("moonset", it, iconSize, fontSize) }
+            moonTimes?.moonriseMillis?.let { PanchangEventRow("moonrise", it, iconSize, fontSize, compact = narrow) }
+            moonTimes?.moonsetMillis?.let { PanchangEventRow("moonset", it, iconSize, fontSize, compact = narrow) }
         }
     }
     Box(
@@ -695,7 +695,7 @@ private fun PanchangColumnLabel(text: String, big: Boolean) {
 
 /** One "glyph · short weekday · time" line on the Panchang back face. */
 @Composable
-private fun PanchangEventRow(iconKey: String, epochMillis: Long, iconSize: androidx.compose.ui.unit.Dp, fontSize: androidx.compose.ui.unit.TextUnit) {
+private fun PanchangEventRow(iconKey: String, epochMillis: Long, iconSize: androidx.compose.ui.unit.Dp, fontSize: androidx.compose.ui.unit.TextUnit, compact: Boolean = false) {
     val vara = PanchangDevanagari.shortVara(HinduPanchang.varaFor(epochMillis))
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Icon(
@@ -705,7 +705,8 @@ private fun PanchangEventRow(iconKey: String, epochMillis: Long, iconSize: andro
             modifier = Modifier.size(iconSize),
         )
         Text(
-            text = "$vara ${formatClockTime12Devanagari(epochMillis)}",
+            // One column wide: no weekday, and "पूर्वाह्न / अपराह्न" shortened, so the time is not cut.
+            text = if (compact) formatClockTime12Devanagari(epochMillis).replace("पूर्वाह्न", "पू").replace("अपराह्न", "अ") else "$vara ${formatClockTime12Devanagari(epochMillis)}",
             color = FaceText.copy(alpha = 0.75f),
             fontSize = fontSize,
             maxLines = 1,
@@ -827,6 +828,16 @@ internal fun ScaleDownToFit(modifier: Modifier = Modifier, content: @Composable 
  */
 @Composable
 private fun PanchangMonthBack(panchang: PanchangInfo, sunTimes: SunTimesInfo?, moonTimes: MoonTimesInfo?, nowMillis: Long) {
+    // The month is laid out in the tile's own size: the tile-wide enlargement would leave the cells too short for a tithi.
+    val outer = androidx.compose.ui.platform.LocalDensity.current
+    val k = LocalLiveFaceScale.current.coerceAtMost(1.3f)
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(outer.density / k, outer.fontScale),
+    ) { PanchangMonthBackBody(panchang, sunTimes, moonTimes, nowMillis) }
+}
+
+@Composable
+private fun PanchangMonthBackBody(panchang: PanchangInfo, sunTimes: SunTimesInfo?, moonTimes: MoonTimesInfo?, nowMillis: Long) {
     val zone = java.time.ZoneId.systemDefault()
     val today = java.time.Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()
     val month by produceState<PanchangMonth?>(initialValue = null, today.year, today.monthValue) {

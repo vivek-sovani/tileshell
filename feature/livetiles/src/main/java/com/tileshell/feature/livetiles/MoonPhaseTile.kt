@@ -202,16 +202,16 @@ fun MoonPhaseTileFace(
 private fun MoonPhaseFront(face: MoonPhaseFace, size: TileSize) {
     val narrow = size.narrowLive
     val short = size.shortLive
-    val big = size == TileSize.LARGE
-    val visualSize = if (short) 26.dp else if (narrow) 32.dp else if (big) 60.dp else 42.dp
+    val big = size.cols >= 3 && size.rows >= 3
+    val visualSize = if (short) 26.dp else if (narrow) 32.dp else if (big) 56.dp else 42.dp
 
     val textColumn = @Composable {
         Column(horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start) {
             Text(
                 text = face.name,
                 color = FaceText,
-                fontSize = if (short) 14.sp else if (narrow) 16.sp else if (big) 26.sp else 18.sp,
-                lineHeight = if (short) 16.sp else if (narrow) 18.sp else if (big) 28.sp else 20.sp,
+                fontSize = if (short) 14.sp else if (narrow) 16.sp else if (big) 22.sp else 18.sp,
+                lineHeight = if (short) 16.sp else if (narrow) 18.sp else if (big) 24.sp else 20.sp,
                 fontWeight = FontWeight.Light,
                 letterSpacing = (-0.5).sp,
                 maxLines = 2,
@@ -236,6 +236,17 @@ private fun MoonPhaseFront(face: MoonPhaseFace, size: TileSize) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             MoonPhaseVisual(fraction = face.fraction, modifier = Modifier.size(visualSize))
+            textColumn()
+        }
+    } else if (big) {
+        // 3x3 and up: the moon big on top, its name and light under it, so no word is ever squeezed beside it.
+        Column(
+            modifier = Modifier.fillMaxSize().padding(11.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.Start,
+        ) {
+            MoonPhaseVisual(fraction = face.fraction, modifier = Modifier.size(visualSize))
+            Spacer(Modifier.height(8.dp))
             textColumn()
         }
     } else {

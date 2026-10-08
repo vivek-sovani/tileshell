@@ -102,27 +102,45 @@ fun MarketsTileFace(
                 }
             }
             else -> {
-                // Name and change on a narrow tile; the price too once there's room for it.
+                // One column wide, or three rows tall: each entry takes two lines (name and change, then the price
+                // when there is room), so neither the name nor a figure is squeezed out. Otherwise one line each,
+                // with the price from 3 columns.
+                val twoLine = size.cols <= 1 || size.rows >= 3
                 val showPrice = size.cols >= 3
                 val maxName = when {
-                    size.cols <= 1 -> 5
+                    size.cols <= 1 -> 6
                     size.cols == 2 -> 10
                     else -> 14
                 }
                 Column(modifier = Modifier.fillMaxSize().padding(10.dp)) {
-                    Text(title, color = color, fontSize = 12.sp)
+                    Text(title, color = color, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Column(
                         verticalArrangement = Arrangement.SpaceEvenly,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
                     ) {
                         shown.forEach { item ->
                             val q = quotes.getValue(item.symbol)
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                                Text(tileLabel(item, maxName), color = color, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                                if (showPrice) {
-                                    Text(formatStockPrice(q.price, if (isIndices) "" else priceCurrency(item.symbol, q.currency)), color = color, fontSize = 13.sp, fontWeight = FontWeight.Light, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
+                            val price = formatStockPrice(q.price, if (isIndices) "" else priceCurrency(item.symbol, q.currency))
+                            if (twoLine) {
+                                Column(Modifier.fillMaxWidth()) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                        Text(tileLabel(item, if (size.cols <= 1) maxName else 18), color = color, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                        if (size.cols >= 2) Text(arrowed(q), color = color, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.padding(start = 6.dp))
+                                    }
+                                    Text(
+                                        if (size.cols <= 1) arrowed(q) else price,
+                                        color = color.copy(alpha = if (size.cols <= 1) 1f else 0.85f), fontSize = if (size.cols <= 1) 11.sp else 12.sp,
+                                        fontWeight = FontWeight.Light, maxLines = 1, softWrap = false,
+                                    )
                                 }
-                                Text(arrowed(q), color = color, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.padding(start = 6.dp))
+                            } else {
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                    Text(tileLabel(item, maxName), color = color, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                    if (showPrice) {
+                                        Text(price, color = color, fontSize = 13.sp, fontWeight = FontWeight.Light, maxLines = 1, modifier = Modifier.padding(start = 6.dp))
+                                    }
+                                    Text(arrowed(q), color = color, fontSize = 12.sp, maxLines = 1, textAlign = TextAlign.End, modifier = Modifier.padding(start = 6.dp))
+                                }
                             }
                         }
                     }
@@ -135,8 +153,8 @@ fun MarketsTileFace(
 private fun rowsFor(size: TileSize): Int = when {
     size.rows <= 1 -> 1
     size.rows == 2 -> 3
-    size.rows == 3 -> 5
-    else -> 7
+    size.rows == 3 -> 3
+    else -> 5
 }
 
 /** `▲ +0.37%` / `▼ -1.20%`, so up and down read without colour on a coloured tile. */

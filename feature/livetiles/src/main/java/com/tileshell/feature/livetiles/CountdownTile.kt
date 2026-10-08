@@ -201,7 +201,7 @@ private fun CountdownBack(face: CountdownFace, size: TileSize) {
         Text(
             text = "countdown",
             color = FaceText,
-            fontSize = if (narrow) 20.sp else 26.sp,
+            fontSize = if (narrow) 15.sp else 26.sp,
             fontWeight = FontWeight.Light,
             letterSpacing = (-1).sp,
         )

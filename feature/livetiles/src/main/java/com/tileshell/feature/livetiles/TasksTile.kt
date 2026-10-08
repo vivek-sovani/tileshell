@@ -169,7 +169,7 @@ private fun TasksFront(
     modifier: Modifier = Modifier,
 ) {
     val narrow = size.narrowLive
-    val big = size == TileSize.LARGE
+    val big = size.cols >= 3 && size.rows >= 3
 
     if (narrow) {
         // Only one column wide (TALL/COLUMN) — still shows the real checklist
@@ -265,8 +265,11 @@ private fun TasksFront(
             }
         }
         Spacer(Modifier.weight(1f))
-        if (next != null) NextLine(next, fontSize = 12)
-        Text(name.lowercase(), color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // A one-row tile has no room for the footer under the summary line.
+        if (size.rows >= 2) {
+            if (next != null) NextLine(next, fontSize = 12)
+            Text(name.lowercase(), color = FaceText.copy(alpha = 0.82f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
     }
 }
 

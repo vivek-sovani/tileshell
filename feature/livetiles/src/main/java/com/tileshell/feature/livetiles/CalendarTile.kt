@@ -4,6 +4,7 @@ import android.Manifest
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -91,7 +92,18 @@ fun CalendarTileFace(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
         // Front: today's date. Back: the next event when one exists, else the date.
-        front = { CalendarDateColumn(today, size) },
+        front = {
+            val events = listOfNotNull(face?.next, face?.following)
+            if (size.cols >= 3 && size.rows == 2 && events.isNotEmpty()) {
+                // WIDE / WIDE_MEDIUM: the date on the left, what is coming up on the right.
+                Row(Modifier.fillMaxSize()) {
+                    Box(Modifier.weight(1f)) { CalendarDateColumn(today, TileSize.MEDIUM) }
+                    Box(Modifier.weight(1.3f)) { CalendarEventsColumn(events) }
+                }
+            } else {
+                CalendarDateColumn(today, size, events)
+            }
+        },
         back = {
             if (next != null) {
                 CalendarFaceColumn(heading = "next", event = next, size = size)
@@ -131,11 +143,11 @@ fun CalendarSmallFace(active: Boolean, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
+private fun CalendarDateColumn(today: CalendarToday, size: TileSize, events: List<CalendarEvent> = emptyList()) {
     // WIDE and MEDIUM share the same 2-row height (only LARGE's 3 rows have the
     // extra vertical room for the enlarged day number) — sizing "big" off WIDE
     // clipped the month/"calendar" lines at the bottom of a WIDE stack member.
-    val big = size == TileSize.LARGE
+    val big = size.cols >= 3 && size.rows >= 3
     // TALL/COLUMN are only 1 column wide (same as SMALL) — the weekday/month
     // lines above clip at that width, so narrow tiles get a centred, width-safe
     // layout instead, spread across whatever row height the tile has.
@@ -180,7 +192,14 @@ private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
         // and WIDE share LARGE's shorter sibling height with no space left for
         // a fourth line without clipping it, so it's dropped there rather than
         // squeezed in; the face is self-evidently a calendar without it.
-        if (big || (narrow && size.rows >= 4)) {
+        if (big && events.isNotEmpty()) {
+            // A 3x3 tile and up has room under the date for what is coming up.
+            Spacer(Modifier.weight(1f))
+            events.forEachIndexed { i, e ->
+                Text(if (i == 0) "next · ${e.timeLine}" else e.timeLine, color = FaceText.copy(alpha = 0.82f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(e.title, color = FaceText, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 4.dp))
+            }
+        } else if (big || (narrow && size.rows >= 4)) {
             if (!narrow) Spacer(Modifier.weight(1f))
             Text(
                 text = "calendar",
@@ -189,6 +208,17 @@ private fun CalendarDateColumn(today: CalendarToday, size: TileSize) {
                 maxLines = 1,
                 textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
             )
+        }
+    }
+}
+
+/** The next events, title over time, for the right half of a wide tile. */
+@Composable
+private fun CalendarEventsColumn(events: List<CalendarEvent>) {
+    Column(Modifier.fillMaxSize().padding(end = 11.dp, top = 11.dp, bottom = 11.dp), verticalArrangement = Arrangement.Center) {
+        events.forEachIndexed { i, e ->
+            Text(if (i == 0) "next · ${e.timeLine}" else e.timeLine, color = FaceText.copy(alpha = 0.82f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(e.title, color = FaceText, fontSize = 14.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 6.dp))
         }
     }
 }

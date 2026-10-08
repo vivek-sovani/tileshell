@@ -100,7 +100,7 @@ private fun ShoppingArrivingFront(orders: List<Order>, size: TileSize) {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             orders.take(fits).forEach { o ->
                 Column {
-                    Text(o.title, color = color, fontSize = if (big) 15.sp else 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(o.title, color = color, fontSize = if (size.cols <= 1) 12.sp else if (big) 15.sp else 13.sp, maxLines = if (size.cols <= 1) 3 else 1, overflow = TextOverflow.Ellipsis)
                     Text(
                         listOfNotNull(o.merchant, o.eta ?: o.status.label).joinToString(" · "),
                         color = color.copy(alpha = 0.8f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -109,7 +109,9 @@ private fun ShoppingArrivingFront(orders: List<Order>, size: TileSize) {
             }
         }
         Text(
-            if (orders.size > fits) "shopping · +${orders.size - fits} more" else "shopping · ${orders.size} arriving",
+            if (size.cols <= 1) {
+                if (orders.size > fits) "+${orders.size - fits} more" else "${orders.size} arriving"
+            } else if (orders.size > fits) "shopping · +${orders.size - fits} more" else "shopping · ${orders.size} arriving",
             color = color, fontSize = 12.sp, maxLines = 1,
         )
     }

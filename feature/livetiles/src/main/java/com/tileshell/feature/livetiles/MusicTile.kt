@@ -541,7 +541,7 @@ private fun MusicHubMenuBack(size: TileSize) {
             Row(
                 modifier = Modifier.fillMaxSize().padding(horizontal = 11.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                horizontalArrangement = if (size.cols >= 4) Arrangement.spacedBy(10.dp) else Arrangement.SpaceEvenly,
             ) {
                 MUSIC_HUB_MENU_ITEMS.forEach { (label, iconKey) ->
                     Row(
@@ -552,16 +552,21 @@ private fun MusicHubMenuBack(size: TileSize) {
                             onClick = { MusicHubNavigation.requestPage(label) },
                         ),
                     ) {
-                        Icon(TileIcons[iconKey], contentDescription = null, tint = FaceText, modifier = Modifier.size(14.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(text = label, color = FaceText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Icon(TileIcons[iconKey], contentDescription = label, tint = FaceText, modifier = Modifier.size(if (size.cols >= 4) 14.dp else 20.dp))
+                        // Names only where four fit in a row; two columns wide has room for the icons alone.
+                        if (size.cols >= 4) {
+                            Spacer(Modifier.width(4.dp))
+                            Text(text = label, color = FaceText, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
                     }
                 }
             }
         } else {
+            val iconsOnly = size.cols <= 1
             Column(
-                modifier = Modifier.fillMaxSize().padding(11.dp),
-                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxSize().padding(if (iconsOnly) 4.dp else 11.dp),
+                verticalArrangement = if (iconsOnly) Arrangement.SpaceEvenly else Arrangement.Center,
+                horizontalAlignment = if (iconsOnly) Alignment.CenterHorizontally else Alignment.Start,
             ) {
                 MUSIC_HUB_MENU_ITEMS.forEachIndexed { index, (label, iconKey) ->
                     Row(
@@ -572,18 +577,20 @@ private fun MusicHubMenuBack(size: TileSize) {
                             onClick = { MusicHubNavigation.requestPage(label) },
                         ),
                     ) {
-                        Icon(TileIcons[iconKey], contentDescription = null, tint = FaceText, modifier = Modifier.size(16.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = label,
-                            color = FaceText,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Icon(TileIcons[iconKey], contentDescription = label, tint = FaceText, modifier = Modifier.size(if (iconsOnly) 22.dp else 16.dp))
+                        if (!iconsOnly) {
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = label,
+                                color = FaceText,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
-                    if (index < MUSIC_HUB_MENU_ITEMS.lastIndex) Spacer(Modifier.height(6.dp))
+                    if (!iconsOnly && index < MUSIC_HUB_MENU_ITEMS.lastIndex) Spacer(Modifier.height(6.dp))
                 }
             }
         }

@@ -37,6 +37,7 @@ A production Android launcher (default-HOME replacement) recreating the Windows 
 - Set as home (test): `adb shell cmd package set-home-activity com.tileshell/.MainActivity`
 
 ## Current status
+- **`main` — live tiles fill every size; tile gallery for checking (folded into 5.1.0).** User-requested audit of text fit on all sizes. Tiles whose shorter side is 3+ cells draw at a larger density (`liveFaceScale`), the calendar / productivity gain more info on big sizes, and overflow found in markets, clock, battery, music, moon phase, tasks, countdown, shopping and the panchang back was fixed. Debug-only `debug.gallery=<iconKey>[|activityName]` shows all 11 sizes, front and back. Checked on the emulator in the gallery; tiles that need real data (notifications, photos, stock selections, money, steps) were seen only in their empty states, and the hub screens were not part of this pass. See DECISIONS.
 - **`main` — calendar systems back in "add live tiles", enriched; panchang month on the big tile (folded into 5.1.0).** User-reported: the generic
   calendar-systems tile (Islamic, Hebrew, Chinese, Buddhist, Persian, Coptic, Ethiopic) had been dropped as a panchang duplicate. Listed again beside "moon phase";
   "panchang hub" stays separate. Each system now shows a structured date (day, month, year + era, weekday, day x of y), month facts, the next observances with a

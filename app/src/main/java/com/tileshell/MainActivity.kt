@@ -287,6 +287,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        intent.getStringExtra("debug.gallery")?.let { com.tileshell.feature.start.TileGalleryState.request.value = it.ifBlank { null } }
         intent.getStringExtra("debug.calsys")?.split(":")?.let { parts ->
             val size = parts.getOrNull(1)?.let { n -> com.tileshell.core.data.TileSize.entries.firstOrNull { it.name == n } } ?: com.tileshell.core.data.TileSize.LARGE
             startViewModel.debugPinCalendarSystem(parts[0], size)

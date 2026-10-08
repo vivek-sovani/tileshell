@@ -81,13 +81,13 @@ fun ProductivityTileFace(size: TileSize, active: Boolean, modifier: Modifier = M
     FlipTile(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
-        front = { ProductivityFront(meetings.firstOrNull(), openCount, dueCount, nextTask, size) },
+        front = { ProductivityFront(meetings.firstOrNull(), meetings.drop(1), openCount, dueCount, nextTask, size) },
         back = { ProductivityAppsBack(apps, size) },
     )
 }
 
 @Composable
-private fun ProductivityFront(meeting: UpcomingMeeting?, openCount: Int, dueCount: Int, nextTask: String?, size: TileSize) {
+private fun ProductivityFront(meeting: UpcomingMeeting?, later: List<UpcomingMeeting>, openCount: Int, dueCount: Int, nextTask: String?, size: TileSize) {
     val context = LocalContext.current
     val color = LocalTileFaceColor.current
     val now = System.currentTimeMillis()
@@ -161,8 +161,32 @@ private fun ProductivityFront(meeting: UpcomingMeeting?, openCount: Int, dueCoun
                     )
                 }
             }
+            // A bigger tile has room for the rest of today: the meetings after the first, one line each.
+            val moreCount = when {
+                size.rows >= 4 -> 4
+                size.rows == 3 -> if (size.cols >= 3) 3 else 2
+                size.cols >= 4 -> 1
+                else -> 0
+            }
+            if (moreCount > 0 && later.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                later.take(moreCount).forEach { m ->
+                    val at = meetingTimeLabel(m.startMillis, m.endMillis, now).substringAfter("· ").substringBefore(" –")
+                    Text(
+                        "$at  ${m.title.lowercase()}",
+                        color = color.copy(alpha = 0.9f),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(vertical = 1.dp),
+                    )
+                }
+            }
         }
-        Text("productivity", color = color, fontSize = 11.sp, maxLines = 1, modifier = Modifier.align(Alignment.BottomStart))
+        // The name is dropped where a row or a column is all there is: it would sit on the text.
+        if (size.rows >= 2 && size.cols >= 2) {
+            Text("productivity", color = color, fontSize = 11.sp, maxLines = 1, modifier = Modifier.align(Alignment.BottomStart))
+        }
     }
 }
 

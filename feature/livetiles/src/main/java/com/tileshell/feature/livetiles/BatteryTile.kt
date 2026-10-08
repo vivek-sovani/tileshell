@@ -297,8 +297,9 @@ private fun BatteryFront(face: BatteryFace, stats: BatteryStats, size: TileSize)
 @Composable
 private fun BatteryBack(face: BatteryFace, stats: BatteryStats, size: TileSize) {
     val narrow = size.narrowLive
+    val short = size.shortLive
     Column(
-        modifier = Modifier.fillMaxSize().padding(if (narrow) 4.dp else 11.dp),
+        modifier = Modifier.fillMaxSize().padding(if (narrow || short) 4.dp else 11.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
     ) {
@@ -306,12 +307,13 @@ private fun BatteryBack(face: BatteryFace, stats: BatteryStats, size: TileSize) 
             Text("battery status unavailable", color = FaceText.copy(alpha = 0.65f), fontSize = 13.sp)
             return@Column
         }
-        batteryBackLines(stats).forEach { line ->
+        // One row tall there is room for two lines, not four; one column wide a line may wrap rather than be cut.
+        batteryBackLines(stats).let { if (short) it.take(2) else it }.forEach { line ->
             Text(
-                line,
+                if (narrow) line.removePrefix("screen ") else line,
                 color = FaceText,
-                fontSize = if (narrow) 11.sp else 13.sp,
-                lineHeight = if (narrow) 15.sp else 19.sp,
+                fontSize = if (short) 11.sp else if (narrow) 11.sp else 13.sp,
+                lineHeight = if (short) 14.sp else if (narrow) 14.sp else 19.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
