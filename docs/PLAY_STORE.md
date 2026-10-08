@@ -14,7 +14,9 @@ unchanged, since that's a separate `android:label` change with much broader
 visible impact for existing users and wasn't part of this ask.)*
 
 ### Short description (80 chars max)
-`Windows Phone–style launcher: live tiles, hubs, real widgets & personalization`
+`Windows Phone style launcher with live tiles, hubs, real widgets and themes`
+
+*(No hyphens, dashes or symbols: Play said it cannot promote an app whose short description has them. Updated 2026-10-08.)*
 
 ### Full description (4 000 chars max)
 
