@@ -56,7 +56,12 @@ private val OUT_FOR_DELIVERY = Regex(
 private val SHIPPED = Regex("""(?:has been |is |was |just )?(?:shipped|dispatched)\b|in transit|left the (?:hub|facility|warehouse)|handed over to (?:the )?(?:courier|delivery)|on its way""")
 private val PLACED = Regex(
     """order (?:has been |is )?(?:placed|confirmed|received|accepted)|thank you for (?:your )?order|we(?:'|’)?ve received your order|""" +
-        """your order (?:is|has been) (?:confirmed|placed|accepted)|being prepared|preparing your order|order summary""",
+        """your order (?:is|has been) (?:confirmed|placed|accepted)|being prepared|preparing your order|order summary|""" +
+        // Amazon's own wording: "Ordered: <item>", "You've ordered…", "Arriving tomorrow" / "Arriving Thursday", and
+        // quick-commerce ones (Amazon Now, Blinkit, Zepto): "packing your order", "will arrive in 10 mins".
+        """\bordered\s*[:\-]|you(?:'ve| have)? ordered|thanks? for (?:your )?order(?:ing)?|thank you for (?:shopping|ordering)|""" +
+        """(?:order|items?) (?:is |are )?(?:being )?packed|packing your order|""" +
+        """(?:will |to )(?:arrive|be delivered) in \d+|arriving (?:tomorrow|on |by |\w+day\b|between)|arrives (?:tomorrow|on |by |\w+day\b)""",
 )
 private val CANCELLED = Regex("""order (?:has been |was |is )?cancel+ed|cancel+ation of your order|your order (?:has been |was )?cancel+ed""")
 private val RETURNED = Regex("""return (?:has been |is )?(?:picked up|completed|successful|received)|has been returned|returned to (?:seller|warehouse)""")

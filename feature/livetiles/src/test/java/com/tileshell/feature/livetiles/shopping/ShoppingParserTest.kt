@@ -26,6 +26,22 @@ class ShoppingParserTest {
     }
 
     @Test
+    fun `amazon style order placed messages are read`() {
+        val ordered = parse("Ordered: Sony WH-1000XM5 Wireless Headphones", "Arriving tomorrow")
+        assertEquals(OrderStatus.PLACED, ordered?.status)
+        assertEquals("Sony WH-1000XM5 Wireless Headphones", ordered?.title)
+        assertEquals("tomorrow", ordered?.eta)
+        assertEquals(OrderStatus.PLACED, parse("Amazon", "You've ordered Philips air fryer. Arriving Thursday")?.status)
+        assertEquals(OrderStatus.PLACED, parse("Amazon Now", "Packing your order. Will arrive in 12 mins")?.status)
+        assertEquals("in 12 min", parse("Amazon Now", "Your order will arrive in 12 mins")?.eta)
+        assertEquals(OrderStatus.PLACED, parse("Amazon", "Thanks for ordering. Arriving by 9 pm")?.status)
+        // Further along statuses still win over the arrival words.
+        assertEquals(OrderStatus.OUT_FOR_DELIVERY, parse("Amazon", "Out for delivery: Arriving today")?.status)
+        assertEquals(OrderStatus.SHIPPED, parse("Amazon", "Shipped: Mixer grinder. Arriving tomorrow")?.status)
+        assertEquals(OrderStatus.DELIVERED, parse("Amazon", "Delivered: Mixer grinder")?.status)
+    }
+
+    @Test
     fun `a future delivery is not delivered`() {
         assertNull(parse("Amazon", "Your parcel will be delivered by tomorrow")?.takeIf { it.status == OrderStatus.DELIVERED })
         assertEquals(OrderStatus.SHIPPED, parse("Flipkart", "Shipped: your order will be delivered by Fri")?.status)
