@@ -282,14 +282,17 @@ private fun AlarmsPage(now: Long, sessions: List<Session>, tokens: ColorTokens, 
         item(key = "dial") {
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                 ClockDial(now, info?.triggerTime, tokens, accent, Modifier.fillMaxWidth(0.82f))
+                // The dial shows the time now; a rule and an accent caption mark where the alarm starts, so its big time isn't read as the dial's.
+                Box(modifier = Modifier.padding(top = 14.dp).fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
+                Text("NEXT ALARM", color = accent, fontSize = 12.sp, letterSpacing = 1.5.sp, modifier = Modifier.padding(top = 12.dp))
                 if (info == null) {
-                    Text("no alarm set", color = tokens.fgDim, fontSize = 22.sp, fontWeight = FontWeight.ExtraLight, modifier = Modifier.padding(top = 10.dp))
+                    Text("none set", color = tokens.fgDim, fontSize = 22.sp, fontWeight = FontWeight.ExtraLight, modifier = Modifier.padding(top = 4.dp))
                 } else {
                     val source = remember(info) { alarmSourceFor(context, info) }
                     val at = java.time.Instant.ofEpochMilli(info.triggerTime).atZone(ZoneId.systemDefault())
-                    Text(clockLabel(at.hour, at.minute), color = tokens.fg, fontSize = 36.sp, fontWeight = FontWeight.ExtraLight, modifier = Modifier.padding(top = 8.dp))
+                    Text(clockLabel(at.hour, at.minute), color = tokens.fg, fontSize = 36.sp, fontWeight = FontWeight.ExtraLight, modifier = Modifier.padding(top = 2.dp))
                     Text(
-                        "next alarm · in ${untilLabel(info.triggerTime - now)} · " + dayLabel(at, now),
+                        "in ${untilLabel(info.triggerTime - now)} · " + dayLabel(at, now),
                         color = tokens.fgDim, fontSize = 12.sp,
                     )
                     Text(alarmCaption("", source?.appLabel.orEmpty(), source?.isClockApp == true), color = accent, fontSize = 12.sp)
