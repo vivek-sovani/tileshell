@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -397,7 +398,8 @@ private fun WorldPage(
                             color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }
-                    Text(if (row.day) "day" else "night", color = if (row.day) accent else tokens.fgDim, fontSize = 13.sp)
+                    Text(if (row.day) "day" else "night", color = if (row.day) accent else tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(end = 12.dp))
+                    DayDisc(row.dayFraction, tokens, accent, Modifier.size(40.dp))
                     if (editing && !isHome) {
                         Text(
                             "✕", color = tokens.fgDim, fontSize = 18.sp,
@@ -405,8 +407,7 @@ private fun WorldPage(
                         )
                     }
                 }
-                DayStrip(row.dayFraction, tokens, accent, Modifier.fillMaxWidth().height(8.dp))
-                Spacer(Modifier.height(8.dp))
+                Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
             }
         }
         item(key = "add") {

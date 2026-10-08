@@ -79,14 +79,28 @@ fun ClockDial(now: Long, alarmAt: Long?, tokens: ColorTokens, accent: Color, mod
     }
 }
 
-/** A city's own 24 hours, midnight to midnight, with the light band 6 am to 6 pm and a marker for now. */
+/**
+ * A city's own 24 hours as a disc: the light half (6 am to 6 pm) lit at the
+ * top, the night half dim at the bottom, and a hand pointing at the local time
+ * ([fraction] of the day since midnight, so noon is straight up).
+ */
 @Composable
-fun DayStrip(fraction: Float, tokens: ColorTokens, accent: Color, modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier) {
-        drawRect(tokens.chip)
-        drawRect(accent.copy(alpha = 0.42f), topLeft = Offset(size.width * 0.25f, 0f), size = Size(size.width * 0.5f, size.height))
-        val x = size.width * fraction.coerceIn(0f, 1f)
-        drawRect(tokens.fg, topLeft = Offset((x - 1.5.dp.toPx()).coerceAtLeast(0f), 0f), size = Size(3.dp.toPx(), size.height))
+fun DayDisc(fraction: Float, tokens: ColorTokens, accent: Color, modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier.aspectRatio(1f)) {
+        val c = center
+        val r = size.minDimension / 2f
+        drawCircle(tokens.chip, radius = r, center = c)
+        drawArc(
+            color = accent.copy(alpha = 0.55f),
+            startAngle = 180f,
+            sweepAngle = 180f,
+            useCenter = true,
+            topLeft = Offset(c.x - r, c.y - r),
+            size = Size(r * 2, r * 2),
+        )
+        val deg = 180f + fraction.coerceIn(0f, 1f) * 360f
+        drawLine(tokens.fg, c, polar(c, r * 0.82f, deg), strokeWidth = 2.5.dp.toPx(), cap = StrokeCap.Round)
+        drawCircle(tokens.fg, radius = 2.dp.toPx(), center = c)
     }
 }
 
