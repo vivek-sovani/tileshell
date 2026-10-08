@@ -35,4 +35,14 @@ class PanchangMonthTest {
         val c = panchangMonth(2026, 10, ist).cells.first()
         assertEquals(PanchangDevanagari.digits(c.tithi), c.label)
     }
+
+    @Test fun `october 2026 spans bhadrapada and then ashwin`() {
+        val m = panchangMonth(2026, 10, ist)
+        assertEquals(listOf("bhadrapada", "ashwin"), m.lunarMonths.map { it.first })
+        // The month changes after the new moon (amavasya, day 10), never back.
+        val idx = m.cells.map { m.lunarMonthIndex(it) }
+        assertEquals(idx.sorted(), idx)
+        assertEquals(0, m.lunarMonthIndex(m.cells.first { it.day == 8 }))
+        assertEquals(1, m.lunarMonthIndex(m.cells.first { it.day == 20 }))
+    }
 }

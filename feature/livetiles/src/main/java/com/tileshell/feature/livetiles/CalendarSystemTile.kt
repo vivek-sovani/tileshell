@@ -840,7 +840,14 @@ private fun PanchangMonthBack(panchang: PanchangInfo, sunTimes: SunTimesInfo?, m
     Column(Modifier.fillMaxSize().padding(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(title, color = FaceText, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
-            Text(PanchangDevanagari.ayana(panchang.ayana), color = FaceText.copy(alpha = 0.7f), fontSize = 11.sp, maxLines = 1)
+            // The lunar months this month touches, the later one on the same tint as its dates below.
+            month?.lunarMonths?.forEachIndexed { i, (name, adhika) ->
+                val word = (if (adhika) "अधिक " else "") + PanchangDevanagari.month(name)
+                Text(
+                    word, color = if (i == 0) TileAccents.Amber else FaceText, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1,
+                    modifier = Modifier.padding(start = 4.dp).let { if (i > 0) it.background(FaceText.copy(alpha = 0.22f)).padding(horizontal = 4.dp) else it },
+                )
+            }
         }
         Row(Modifier.fillMaxWidth().padding(top = 2.dp)) {
             heads.forEach {
@@ -856,7 +863,7 @@ private fun PanchangMonthBack(panchang: PanchangInfo, sunTimes: SunTimesInfo?, m
                         for (c in 0 until 7) {
                             val cell = m.cells.getOrNull(r * 7 + c - m.firstWeekdayOffset)
                             Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                                if (cell != null) PanchangGridCell(cell, isToday = cell.day == today.dayOfMonth)
+                                if (cell != null) PanchangGridCell(cell, isToday = cell.day == today.dayOfMonth, laterMonth = m.lunarMonthIndex(cell) > 0)
                             }
                         }
                     }
@@ -883,7 +890,7 @@ private fun PanchangMonthBack(panchang: PanchangInfo, sunTimes: SunTimesInfo?, m
 }
 
 @Composable
-private fun PanchangGridCell(cell: PanchangDayCell, isToday: Boolean) {
+private fun PanchangGridCell(cell: PanchangDayCell, isToday: Boolean, laterMonth: Boolean) {
     val tithi = when (cell.kind) {
         PanchangDayKind.PURNIMA -> "○"
         PanchangDayKind.AMAVASYA -> "●"
@@ -896,7 +903,7 @@ private fun PanchangGridCell(cell: PanchangDayCell, isToday: Boolean) {
         else -> FaceText.copy(alpha = 0.7f)
     }
     Column(
-        modifier = Modifier.fillMaxSize().padding(1.dp).let { if (isToday) it.clip(CircleShape).background(FaceText) else it },
+        modifier = Modifier.fillMaxSize().padding(1.dp).let { if (isToday) it.clip(CircleShape).background(FaceText) else if (laterMonth) it.background(FaceText.copy(alpha = 0.16f)) else it },
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {

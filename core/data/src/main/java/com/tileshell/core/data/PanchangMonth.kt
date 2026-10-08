@@ -9,12 +9,26 @@ import java.util.TimeZone
  * sunrise-ish hour (shown the way printed panchang calendars do, 1-15 and 1-15 again, with the full and new moon
  * apart), and what kind of day it is.
  */
-data class PanchangDayCell(val day: Int, val tithi: Int, val label: String, val kind: PanchangDayKind)
+data class PanchangDayCell(
+    val day: Int,
+    val tithi: Int,
+    val label: String,
+    val kind: PanchangDayKind,
+    /** The amanta lunar month (bhadrapada, ashwin ...) the day falls in, and whether it is the adhika (extra) one. */
+    val lunarMonth: String,
+    val adhika: Boolean,
+)
 
 enum class PanchangDayKind { NORMAL, EKADASHI, PURNIMA, AMAVASYA }
 
 /** A month of [PanchangDayCell]s and where it starts in a Monday-first week. */
-data class PanchangMonth(val year: Int, val month: Int, val firstWeekdayOffset: Int, val cells: List<PanchangDayCell>)
+data class PanchangMonth(val year: Int, val month: Int, val firstWeekdayOffset: Int, val cells: List<PanchangDayCell>) {
+    /** The lunar months that this Gregorian month touches, in order (usually two: one ends at the new moon). */
+    val lunarMonths: List<Pair<String, Boolean>> get() = cells.map { it.lunarMonth to it.adhika }.distinct()
+
+    /** 0 for the first lunar month in view, 1 for the next, so a grid can tint the change. */
+    fun lunarMonthIndex(cell: PanchangDayCell): Int = lunarMonths.indexOf(cell.lunarMonth to cell.adhika).coerceAtLeast(0)
+}
 
 /** The tithi in force at 6 am local — close enough to sunrise to match a printed panchang. */
 private const val TITHI_HOUR = 6
@@ -31,7 +45,8 @@ fun panchangMonth(year: Int, month: Int, zone: ZoneId = ZoneId.systemDefault()):
             t.tithiInPaksha == 11 -> PanchangDayKind.EKADASHI
             else -> PanchangDayKind.NORMAL
         }
-        PanchangDayCell(day, t.displayNumber, PanchangDevanagari.tithiNumber(t), kind)
+        val (lunar, adhika) = HinduPanchang.lunarMonthAt(millis)
+        PanchangDayCell(day, t.displayNumber, PanchangDevanagari.tithiNumber(t), kind, lunar, adhika)
     }
     return PanchangMonth(year, month, first.dayOfWeek.value - 1, cells)
 }
