@@ -353,7 +353,7 @@ private fun MoonPhaseBack(face: MoonPhaseFace, size: TileSize) {
             text = face.nextEventLabel,
             color = FaceText.copy(alpha = 0.65f),
             fontSize = if (narrow) 11.sp else 13.sp,
-            maxLines = 1,
+            maxLines = if (narrow) 2 else 1,
             textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
         )
     }

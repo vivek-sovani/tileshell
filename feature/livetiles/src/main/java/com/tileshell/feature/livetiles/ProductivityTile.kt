@@ -146,8 +146,9 @@ private fun ProductivityFront(meeting: UpcomingMeeting?, later: List<UpcomingMee
                     },
                     color = color,
                     fontWeight = if (dueCount > 0) FontWeight.Medium else null,
-                    fontSize = 13.sp,
-                    maxLines = 1,
+                    fontSize = if (size.cols <= 1) 12.sp else 13.sp,
+                    maxLines = if (size.cols <= 1) 2 else 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 // Skipped on a 2-row tile already holding a meeting's join button,
                 // where it would run into the "productivity" label.

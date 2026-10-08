@@ -983,9 +983,12 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
         return
     }
     val story = stories[index.coerceIn(0, stories.lastIndex)]
-    val lines = when (size) {
-        TileSize.LARGE, TileSize.XLARGE, TileSize.TALL_MEDIUM, TileSize.COLUMN -> 4
-        TileSize.WIDE, TileSize.WIDE_MEDIUM -> 3
+    // One column wide: smaller type and more lines, so a word is rarely split to fit 64dp.
+    val narrow = size.cols <= 1
+    val lines = when {
+        narrow -> if (size.rows >= 4) 9 else 5
+        size == TileSize.LARGE || size == TileSize.XLARGE || size == TileSize.TALL_MEDIUM -> 4
+        size == TileSize.WIDE || size == TileSize.WIDE_MEDIUM -> 3
         else -> 2
     }
     androidx.compose.animation.Crossfade(targetState = story, animationSpec = tween(500), modifier = modifier.fillMaxSize(), label = "newsTileRoll") { a ->
@@ -1001,7 +1004,7 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
             }
             Column(
                 verticalArrangement = Arrangement.Bottom,
-                modifier = Modifier.fillMaxSize().padding(8.dp),
+                modifier = Modifier.fillMaxSize().padding(if (narrow) 5.dp else 8.dp),
             ) {
                 Text(
                     a.source,
@@ -1011,7 +1014,7 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
                 Text(
                     a.title,
                     color = if (photo != null) Color.White else color,
-                    fontSize = if (lines >= 3) 15.sp else 13.sp, lineHeight = if (lines >= 3) 18.sp else 15.sp,
+                    fontSize = if (narrow) 10.sp else if (lines >= 3) 15.sp else 13.sp, lineHeight = if (narrow) 12.sp else if (lines >= 3) 18.sp else 15.sp,
                     fontWeight = FontWeight.Light, maxLines = lines, overflow = TextOverflow.Ellipsis,
                 )
             }

@@ -504,7 +504,8 @@ private fun PanchangFace(
                 )
             }
             if (!short) {
-                if (devanagari && !(compact && hasStrip)) {
+                // One column wide and two rows tall has room for the day, the number and the tithi, not the rest.
+                if (devanagari && !(compact && hasStrip) && (!narrow || size.rows >= 3)) {
                     Text(
                         text = "$nakshatraLabel: $nakshatra",
                         color = FaceText.copy(alpha = 0.8f),
@@ -514,7 +515,7 @@ private fun PanchangFace(
                         textAlign = if (narrow) TextAlign.Center else TextAlign.Unspecified,
                     )
                 }
-                if (devanagari && !compact) {
+                if (devanagari && !compact && (!narrow || size.rows >= 4)) {
                     Text(
                         text = yearLabel,
                         color = FaceText.copy(alpha = 0.6f),
@@ -536,7 +537,7 @@ private fun PanchangFace(
             verticalArrangement = Arrangement.SpaceEvenly,
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            MoonPhaseVisual(fraction = moonFraction, modifier = Modifier.size(visualSize))
+            if (size.rows >= 3) MoonPhaseVisual(fraction = moonFraction, modifier = Modifier.size(visualSize))
             ScaleDownToFit(Modifier.weight(1f, fill = false)) { textColumn() }
         }
     } else if (short) {

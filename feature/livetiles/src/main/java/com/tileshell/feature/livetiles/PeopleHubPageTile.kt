@@ -143,6 +143,8 @@ private fun FavouritesTileFace(size: TileSize, interactive: Boolean, fallback: @
         val (shown, more) = favouritesTileSplit(list, capacity)
         // A 2-column tile only has room for the count beside the title.
         val wide = maxWidth >= 200.dp
+        // One column wide: no room for a name beside the photo, so the photos stand alone, centred.
+        val iconsOnly = maxWidth < 100.dp
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp, vertical = 4.dp)) {
             // "+ N more" sits in the title row, so it never costs a person's
             // row; tapping the title or empty space opens favourites (the
@@ -153,19 +155,23 @@ private fun FavouritesTileFace(size: TileSize, interactive: Boolean, fallback: @
             ) {
                 // On a 2-column tile the heart would squeeze "favourites"
                 // once "+N" is showing; the title names the tile anyway.
-                if (wide || more == 0) {
+                if (wide || more == 0 || iconsOnly) {
                     Icon(TileIcons["heart"], contentDescription = null, tint = color, modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(5.dp))
                 }
-                Text(
-                    "favourites",
-                    color = color,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                if (iconsOnly) {
+                    Spacer(Modifier.weight(1f))
+                } else {
+                    Text(
+                        "favourites",
+                        color = color,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
                 if (more > 0) {
                     val label = if (wide) "+$more more ›" else "+$more"
                     Text(label, color = color, fontSize = 12.sp, maxLines = 1)
@@ -177,14 +183,15 @@ private fun FavouritesTileFace(size: TileSize, interactive: Boolean, fallback: @
             shown.forEach { person ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = if (iconsOnly) Arrangement.Center else Arrangement.Start,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(rowHeight)
                         .personTap(enabled = interactive) { PeopleHubNavigation.showQuickActions(person) },
                 ) {
                     ContactAvatar(person, size = avatarSize, fontSize = (avatarSize.value * 0.4f).sp)
-                    Spacer(Modifier.width(6.dp))
-                    Text(
+                    if (!iconsOnly) Spacer(Modifier.width(6.dp))
+                    if (!iconsOnly) Text(
                         person.name.lowercase(),
                         color = color,
                         fontSize = nameSize,
