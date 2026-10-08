@@ -68,7 +68,7 @@ Auto-save, a visual layout history, and export to a file for your next phone.
 TileShell offers an optional Accessibility Service, off until you turn it on in Android Settings after an in-app explanation. It is not an assistive-technology app; it is used only to perform three system actions you ask for, as a launcher feature:
 • Lock the screen — the Quick Panel "lock screen" tile
 • Open recent apps — the edge-strip button
-• Open the notification shade — swipe down along the screen edge
+• Open the notification shade — swipe down along the left screen edge
 It uses Android's global-action API only. It does not read your screen, other apps, passwords or anything you type, collects and shares no data, and changes no settings. Everything else in TileShell works without it, and you can switch it off any time in Settings › Accessibility.
 
 ★ PRIVACY FIRST
@@ -77,7 +77,7 @@ No accounts. No analytics. No ads. Your data stays on your phone. Online feature
 Requires Android 8.0 or higher.
 ```
 
-*(3803 chars, under Play's 4 000 limit.)*
+*(3808 chars, under Play's 4 000 limit.)*
 
 ### Category
 Personalization
@@ -213,12 +213,34 @@ cert SHA-256 1a904ad5…), keyboard left out. Permissions new since 4.5.0:
    Open-Meteo; contacts, calendar, app interactions, financial info, messages, music files and
    fitness collected on-device only, not shared; HTTPS only (no cleartext allowed); deletion by
    uninstall / clear data. New since 4.5.0: financial info, messages, music files, fitness.
-3. **Accessibility API declaration** — the prominent disclosure was updated (Quick Panel lock
-   tile, card bills). **Re-record the demo video** from this build: open the disclosure, scroll
-   slowly, pause on every bullet (2.2.0/2.2.1 were rejected when a too-fast video hid the
-   contacts and calendar bullets), tap "Go to Settings", enable, then lock the screen from the
-   Quick Panel tile and open the shade with a left-edge swipe. The service's own description
-   now names all three actions.
+3. **Accessibility API declaration — demo video** (Play asks for an updated video with every
+   submission; 2.2.0 and 2.2.1 were rejected for a too-fast video, and the 5.0.0 listing was
+   rejected because the long description did not mention the service). Re-record from the
+   build being submitted, one continuous take, screen recording with touches shown:
+   1. **Show the store listing text first**: the "ACCESSIBILITY SERVICE (optional)" section of
+      the long description must match what the video shows (lock screen, recent apps,
+      notification shade — three actions, nothing else).
+   2. **Trigger the prominent disclosure** from a fresh state (service off): Quick Panel →
+      "lock screen" tile. The dialog "Before you enable accessibility" opens.
+   3. **Scroll the whole dialog slowly and pause ~3 s on every bullet**: the purpose paragraph
+      (lock screen, recent apps, notification shade; never reads your screen, other apps or
+      keystrokes), then contacts, calendar, approximate location, notification content,
+      installed apps, which apps you tap, app usage, bank and payment notifications, music
+      files, step count, battery log — and the privacy policy line. Tap "Privacy policy" once
+      to show it opens.
+   4. Tap **"Go to Settings"**, open Android's Accessibility list, tap TileShell and read its
+      description aloud on screen, turn it **on**, accept Android's own permission prompt.
+   5. **Show each action working**: back in TileShell, Quick Panel → "lock screen" (screen
+      locks, unlock with fingerprint); edge strip's recents button (recent apps open);
+      swipe down along the **left** screen edge (system notification shade opens).
+      The right-edge swipe opens TileShell's own Quick Panel and does not use the service.
+   6. Show it can be **turned off**: Settings → Accessibility → TileShell → off.
+   7. In the Play Console form, say the service is **not** an accessibility tool
+      (`isAccessibilityTool` stays false), and that it only calls `performGlobalAction`
+      (lock screen, recents, notifications), ignores every accessibility event
+      (`onAccessibilityEvent` is empty) and never reads window content. Upload the video link with this build.
+   The service's own description (`lock_accessibility_service_description`) names all three
+   actions.
 4. **Foreground service declaration** (new) — type `mediaPlayback`: music, podcasts and radio
    the user starts in the Music hub keep playing with the screen off, with media controls in the
    notification; stops when the user pauses or closes it. Attach a short video: start a song,
@@ -237,7 +259,7 @@ cert SHA-256 1a904ad5…), keyboard left out. Permissions new since 4.5.0:
 9. **Usage access / device admin / battery exemption** — usage access and battery exemption
    are user-granted special access, explained in the policy; the device-admin receiver (screen
    lock on Android 8–9) and battery exemption shipped in 4.5.0 unchanged.
-10. **Store listing** — description 3803 / 4000 chars, release notes under 500 (below), no
+10. **Store listing** — description 3808 / 4000 chars, release notes under 500 (below), no
     keyboard mentions; app icon and screenshots use original glyphs, no Microsoft assets.
     Consider adding hub screenshots (not required).
 11. **Upload** — `release-out/tileshell-5.0.0-release.aab` (signed; Play App Signing re-signs).
