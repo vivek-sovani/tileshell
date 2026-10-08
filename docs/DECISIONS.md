@@ -11683,3 +11683,6 @@ User-requested, designed first (goal 8,000; no water log; keep estimates; no sle
 - Hub pages: today (ring toward goal, distance, calories and active minutes labelled "estimate", streak), week (this / last week bars, best day, days at goal), apps (`HubKind.HEALTH`, sub-entries, on-tile marks). Settings: goal choices, height, clear history.
 - Tile `healthhub`: front a ring and the count; back the health apps as icons (marked ones, else all), paging when there are more than fit. Existing `steps` tiles keep their face but now open the hub on tap; the steps widget body opens the hub too (`hubPendingIntent(..., "health")`). "add live tiles" lists "health hub" and no longer lists "steps".
 - Distance/calories/active minutes are rough (stride from height, flat kcal per step), hence the labels.
+
+### Calendar systems tile put back in "add live tiles"
+The reorganisation dropped the generic "calendar systems" tile as a duplicate of the panchang hub, but it is not one: it shows today's date in any calendar system the user picks (tap the tile to change it), not just the Hindu panchang. Listed again as a widget beside "moon phase"; "panchang hub" still pins the same tile with the Hindu panchang chosen and opens the hub.
