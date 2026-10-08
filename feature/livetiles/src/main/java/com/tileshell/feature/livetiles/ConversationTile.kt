@@ -137,6 +137,18 @@ internal fun ConversationCountFace(count: Int, word: String, size: TileSize = Ti
     // TALL/COLUMN are only 1 column wide (same as SMALL) — centre and shrink
     // slightly so the count + word both stay clear of the narrow edges.
     val narrow = size.narrowLive
+    if (size.shortLive) {
+        // One row tall: the count and its word on one line (stacked, the word was clipped under the number).
+        Row(
+            modifier = Modifier.fillMaxSize().padding(start = 38.dp, end = 30.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text(text = count.toString(), color = FaceText, fontSize = 24.sp, fontWeight = FontWeight.Light, maxLines = 1)
+            Text(text = word, color = FaceText.copy(alpha = 0.82f), fontSize = 13.sp, maxLines = 1)
+        }
+        return
+    }
     Column(
         modifier = Modifier.fillMaxSize().padding(if (narrow) 4.dp else 11.dp),
         verticalArrangement = if (narrow) Arrangement.SpaceEvenly else Arrangement.Center,
@@ -185,8 +197,9 @@ internal fun NotificationFaceContent(
 ) {
     when {
         size.narrowLive -> NotificationFaceContentNarrow(item, avatar, size)
-        size == TileSize.XLARGE -> NotificationFaceContentXLarge(item, avatar, picture)
-        size == TileSize.LARGE -> NotificationFaceContentLarge(item, avatar, picture)
+        // These two already have their own large-tile sizing; the tile-wide enlargement would double it.
+        size == TileSize.XLARGE -> CancelLiveFaceScale(keep = 1.15f) { NotificationFaceContentXLarge(item, avatar, picture) }
+        size == TileSize.LARGE -> CancelLiveFaceScale(keep = 1.15f) { NotificationFaceContentLarge(item, avatar, picture) }
         size == TileSize.WIDE || size == TileSize.WIDE_MEDIUM -> NotificationFaceContentWide(item, avatar, picture)
         size == TileSize.TALL_MEDIUM -> NotificationFaceContentTallMedium(item, avatar, picture)
         size == TileSize.BANNER -> NotificationFaceContentBanner(item, avatar, picture)

@@ -36,7 +36,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
  * is used. Not reachable in a release build.
  */
 object TileGalleryState {
-    /** "iconKey" or "iconKey|activityName"; null = closed. */
+    /** "iconKey", "iconKey|activityName" or "iconKey|activityName|package" (so notification faces find their notifications); null = closed. */
     val request = MutableStateFlow<String?>(null)
 }
 
@@ -48,8 +48,10 @@ private const val GALLERY_GAP_DP = 3
 internal fun TileGalleryLayer() {
     val request by TileGalleryState.request.collectAsState()
     val req = request ?: return
-    val key = req.substringBefore("|")
-    val activity = req.substringAfter("|", "")
+    val parts = req.split("|")
+    val key = parts[0]
+    val activity = parts.getOrElse(1) { "" }
+    val pkg = parts.getOrElse(2) { "" }
     BackHandler { TileGalleryState.request.value = null }
     // Everything is drawn at half scale (density and text together, so fit is exactly the real one) with the front
     // and the back side by side, so one screenshot covers every size of both faces.
@@ -68,7 +70,7 @@ internal fun TileGalleryLayer() {
                             Column {
                                 Text(size.name.lowercase(), fontSize = 10.sp, color = Color.Black)
                                 Box(Modifier.size(w, h)) {
-                                    GalleryTile(key, activity, size, back)
+                                    GalleryTile(key, activity, pkg, size, back)
                                 }
                             }
                         }
@@ -80,18 +82,19 @@ internal fun TileGalleryLayer() {
 }
 
 @Composable
-private fun GalleryTile(key: String, activity: String, size: TileSize, back: Boolean) {
+private fun GalleryTile(key: String, activity: String, pkg: String, size: TileSize, back: Boolean) {
+    val snapshot by com.tileshell.feature.livetiles.NotificationCenter.snapshot.collectAsState()
     TileView(
         tile = TileModel.App(
             id = "gallery-$key-${size.name}", position = 0, size = size, colorId = "blue",
-            packageName = "", activityName = activity, label = key, iconKey = key,
+            packageName = pkg, activityName = activity, label = key, iconKey = key,
         ),
         index = 0, editMode = false, selected = false, dragging = false, mergeTarget = false,
         accent = TileAccents.forId("blue"), glass = false, transparency = 0.55f, glassLine = Color.Transparent,
         tiledWallpaper = false, wallpaper = Wallpapers.Mono, wallpaperPhoto = null,
         wallpaperAlignX = 0.5f, wallpaperAlignY = 0.5f, wallpaperZoom = 1f, wallpaperOrigin = { Offset.Zero },
         fullWidth = 0f, fullHeight = 0f, jigglePhase = 0f,
-        flipped = back, liveActive = true, notifications = NotificationSnapshot.EMPTY, badgeCount = 0,
+        flipped = back, liveActive = true, notifications = snapshot, badgeCount = snapshot.badges[pkg] ?: 0,
         darkTheme = true, canMoveBack = false, canMoveForward = false,
         onTap = {}, onLongPress = {}, onResize = {}, onUnpin = {}, onSelect = {}, onExitEdit = {}, onMove = {},
     )
