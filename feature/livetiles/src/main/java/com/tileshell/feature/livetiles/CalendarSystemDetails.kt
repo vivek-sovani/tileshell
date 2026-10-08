@@ -231,7 +231,7 @@ internal fun SystemDayBack(systemId: String, details: SystemDetails, romanDate: 
             details.upcoming.take(if (size.rows >= 3) 2 else 1).forEach {
                 Text("${it.name} ${daysAwayText(it.daysAway)}", color = FaceText, fontSize = 13.sp, fontWeight = FontWeight.Medium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
-            if (systemId == "islamic" && size.rows >= 3) {
+            if (systemId == "islamic" && (size.rows >= 4 || size.cols <= 2)) {
                 Text("a day either way of the sighted moon", color = FaceText.copy(alpha = 0.65f), fontSize = 10.sp, maxLines = 2)
             }
         }
