@@ -2,6 +2,7 @@ package com.tileshell
 
 import android.app.PendingIntent
 import android.content.Intent
+import android.graphics.drawable.Icon
 import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
@@ -17,6 +18,8 @@ class PersonalizeTileService : TileService() {
         qsTile?.apply {
             state = Tile.STATE_INACTIVE
             label = getString(R.string.qs_personalize_label)
+            // Set here too: the panel caches the icon it first saw, so a changed drawable would otherwise not show.
+            icon = Icon.createWithResource(this@PersonalizeTileService, R.drawable.ic_qs_personalize)
             updateTile()
         }
     }

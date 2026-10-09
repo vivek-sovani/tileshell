@@ -310,6 +310,8 @@ class MainActivity : ComponentActivity() {
             "sports" -> startViewModel.openSportsHub()
             "clock" -> startViewModel.openClockHub()
             "panchang" -> startViewModel.openPanchang()
+            "about" -> startViewModel.openAbout()
+            "guide" -> startViewModel.openPersonalizeGuide()
         }
     }
 

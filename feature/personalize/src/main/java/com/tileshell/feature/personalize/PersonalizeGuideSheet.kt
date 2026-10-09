@@ -45,6 +45,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.pager.rememberPagerState
+import com.tileshell.core.design.HubAppBar
+import com.tileshell.core.design.HubAppBarAction
+import com.tileshell.core.design.HubPanorama
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.SquircleShape
 import com.tileshell.core.design.TileAccents
@@ -62,6 +66,9 @@ import com.tileshell.core.design.tileGradientBrush
  * [AboutSheet]'s sheet chrome and [FeatureGroup]/[SectionHeader] list style,
  * just with instructional wording instead of a feature inventory.
  */
+/** The guide's pages, one per section of the panorama. */
+private val GUIDE_PAGES = listOf("look", "layout", "glance", "hubs", "panel", "system")
+
 @Composable
 fun PersonalizeGuideSheet(
     visible: Boolean,
@@ -83,311 +90,281 @@ fun PersonalizeGuideSheet(
 
     BackHandler(enabled = visible) { onDismiss() }
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.5f * progress))
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onDismiss,
-                ),
-        )
+    val pagerState = rememberPagerState(pageCount = { GUIDE_PAGES.size })
 
+    SheetStage(rightHalf = rightHalf, modifier = modifier) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
                 .fillMaxSize()
                 .graphicsLayer { translationY = size.height * (1f - progress) }
-                .background(tokens.sheet)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = {},
-                )
+                .background(tokens.bg)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
                 .statusBarsPadding()
-                .verticalScroll(rememberScrollState())
-                .navigationBarsPadding()
-                .padding(bottom = 32.dp),
+                .navigationBarsPadding(),
         ) {
-            // Grip
-            Box(
-                modifier = Modifier
-                    .padding(top = 10.dp, bottom = 4.dp)
-                    .align(Alignment.CenterHorizontally)
-                    .width(40.dp)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(tokens.fgDim.copy(alpha = 0.5f)),
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 20.dp),
-            ) {
-                Text(
-                    text = "how to personalize",
-                    color = tokens.fg,
-                    fontSize = 26.sp,
-                    fontWeight = FontWeight.W200,
-                    letterSpacing = (-0.8).sp,
-                )
-                Text(
-                    text = "colours, wallpaper, tiles, home style, pages, pinning apps, the feed, the quick panel, and permissions",
-                    color = tokens.fgDim,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.W300,
-                )
+            HubPanorama(
+                title = "guide",
+                sections = GUIDE_PAGES,
+                pagerState = pagerState,
+                tokens = tokens,
+                modifier = Modifier.weight(1f),
+            ) { page ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 18.dp)
+                        .padding(bottom = 16.dp),
+                ) {
+                    when (page) {
+                    0 -> {
+                        FeatureGroup(
+                            title = "colours",
+                            accent = accent,
+                            tokens = tokens,
+                            visual = { ColoursVisual(accent, tokens) },
+                            items = listOf(
+                                "personalize · accent colour sets the colour every tile uses by default",
+                                "in edit mode, tap the colour dot on a selected tile to give just that tile its own colour",
+                                "turn on \"tile colour from app icon\" (personalize · colour & fill) to auto-pick each app's dominant colour instead",
+                                "pick \"multicolour\" as the tile colour source to keep each tile's own colour, grouped by purpose",
+                                "pick \"wallpaper\" as the tile colour source to tint every tile with the same wallpaper-derived accent the feed page and quick panel already use",
+                                "turn on \"gradient fill\" for a subtle diagonal gradient instead of a flat colour",
+                            ),
+                        )
+                        FeatureGroup(
+                            title = "wallpaper",
+                            accent = accent,
+                            tokens = tokens,
+                            visual = { WallpaperVisual(tokens) },
+                            items = listOf(
+                                "personalize · wallpaper: choose none, a photo, a slideshow, daily bing, or a stock gradient",
+                                "with a photo or bing wallpaper set, use \"adjust position · reframe\" to pinch-zoom and drag it into place",
+                                "slideshow rotates through photos you pick, every 15 minutes to 3 hours",
+                                "turn on \"behind tiles\" (tile background) to let the wallpaper show through the grid",
+                                "after picking a new wallpaper, choose home screen, lock screen, or both to also set it as your device's real system wallpaper, framed exactly as you positioned it — cancel to skip and keep it just for start",
+                            ),
+                        )
+                        FeatureGroup(
+                            title = "tile look",
+                            accent = accent,
+                            tokens = tokens,
+                            visual = { TileLookVisual(accent, tokens) },
+                            items = listOf(
+                                "personalize · tile background: none, transparent (glass), behind tiles, or widget cards",
+                                "with transparent chosen, drag \"tile transparency\" to control how see-through tiles are",
+                                "widget cards turns every tile into its own rounded, translucent card floating over the wallpaper, like a home-screen gadget — a fixed corner radius and gap replace the corner-radius/spacing sliders, which have no effect here",
+                                "widget cards also carries onto the feed page — weather, today, and now-playing become the same translucent cards there",
+                                "and onto quick panel — every toggle shares the same translucent card; an active one shows in accent colour on its icon and label instead of a filled tile",
+                                "quick panel's brightness/volume sliders match too — a frosted translucent track instead of a solid bar",
+                                "\"tile outline\" (transparent & behind tiles only) drops the thin edge line around each tile, so neighbours read as one continuous surface",
+                                "tile style · corner radius slider rounds every tile's corners",
+                                "tile style · tile spacing slider sets the gap between tiles — drag it up to spread them out, down to pack them tighter",
+                                "typography switches every tile's text between system, outfit, and nunito",
+                                "\"reset tile style\" at the bottom of tile style puts corners, spacing, fill, colour & font back to default",
+                            ),
+                        )
+                    }
+                    1 -> {
+                        FeatureGroup(
+                            title = "home style",
+                            accent = accent,
+                            tokens = tokens,
+                            visual = { HomeStyleVisual(accent, tokens) },
+                            items = listOf(
+                                "shown on first launch as a short setup: tiles or icons (with a live preview), then theme, tile colour, and default or custom apps",
+                                "\"custom\" lists your apps with the defaults already ticked — untick or add apps; hubs and live tiles are always kept",
+                                "personalize · backup, restore & reset · reset start layout runs the same setup again",
+                                "personalize · home style switches any time between \"tiles\" (the classic windows-phone look) and \"icons\" (a normal android-style grid)",
+                                "in icons mode, small tiles render as shaped icons; live tiles, folders, and widget stacks look exactly the same as in tiles mode",
+                                "growing an icon past its smallest size turns it into a live tile; shrinking one back down turns it back into an icon",
+                                "in icons mode, personalize · home style also lets you pick an icon shape — circle, squircle, rounded, square, or original (your device's own, unmasked shape)",
+                                "\"monochrome icons\" (personalize · home style) turns every app icon into a flat glyph — nothing-phone style — across start, the app list, folder mini-grids, and live-tile notification badges; choose whether the glyphs tint to your accent colour or a fixed black/white",
+                                "icons mode defaults to \"free\" arrangement (personalize · arrangement) — nothing moves unless you move it, and dropping onto another tile swaps the two instead of pushing everything down",
+                            ),
+                        )
+                        FeatureGroup(
+                            title = "organizing tiles",
+                            accent = accent,
+                            tokens = tokens,
+                            visual = { OrganizingVisual(accent, tokens) },
+                            items = listOf(
+                                "long-press any tile to enter edit mode",
+                                "while editing, tap \"add live tiles\" in the bottom bar: hubs (weather, calendar, clock, people, music, productivity, battery, money, markets, sports, news, shopping and panchang — each a tile plus the hub it opens) and widgets (mail, messages, photos, sticky note, countdown, steps, moon phase, flashlight) — each pins to the end of start; a team, stock, commodity, note or task list is pinned from its own hub",
+                                "adding a weather tile asks for current location or a picked place — pin more than one, each tracking somewhere different",
+                                "drag one tile onto another, centre to centre, to merge them into a folder — merging two large tiles forms a widget stack directly",
+                                "any folder with 2 or more children can become a widget stack too — tap its colour dot and use the \"show as stack\" toggle at the bottom of the colour picker; \"show as folder\" reverts it just as easily",
+                                "works at any size wider than one column — medium, wide, large, wide small, banner, and the other roomier drag-resize sizes; only single-column presets (tall, column) are too thin and excluded",
+                                "use a selected tile's resize handle to cycle its size — medium → small → wide → large",
+                                "drag a tile's corner instead of tapping to resize it freely, across 11 sizes in total — from a tiny 1×1 icon up to a full 4×4 tile, including thin banner and column strips along the way",
+                                "dragging a stack's corner resizes and homogenizes every member to the new size at once",
+                                "tap the folder icon on a selected folder or stack to expand it in place and manage its members",
+                                "drag an app out of an open folder to drop it exactly where you release it on start, or onto another tile to merge into it",
+                                "tap × on a selected tile to unpin it — inside an open folder or stack, that sends the member to the end of start without needing to drag",
+                                "a selected folder's colour picker also offers \"unfold folder\" (dissolves it — every app stays pinned to start, just no longer grouped) and \"remove folder & tiles\" (unpins the folder and everything in it at once, with a confirmation first — apps stay installed)",
+                            ),
+                        )
+                        FeatureGroup(
+                            title = "pages",
+                            accent = accent,
+                            tokens = tokens,
+                            items = listOf(
+                                "start is organized into pages — swipe left/right to move between them; the first one is always \"main\", for anything you haven't grouped, with your named pages after it",
+                                "a small dot row at the top of start shows how many pages there are and which one you're on, whenever there's more than one — hidden in edit mode, since each page's own header shows its name there instead",
+                                "in edit mode, tap the \"+\" at the top of start and name it to add a page; each page's own name (hidden the rest of the time) appears there too, with ←/→ to move it earlier/later",
+                                "while editing a named page (not main), a \"remove\" control in start's top-right corner offers \"merge with main\" (ungroups its tiles back into main, nothing lost) or \"remove page & tiles\" (unpins the page and everything on it at once, with a confirmation first — apps stay installed)",
+                                "pinning an app from the app list — \"pin to start\" or \"more from this app\" (its shortcuts and other activities) — always lands it on whichever page you were last viewing, no picker to answer",
+                                "a live tile added from start's own edit-mode \"add live tiles\" lands the same way, on whichever page you were last viewing",
+                                "already-pinned tile? select it in edit mode, tap its colour dot, and use \"move to page\" at the bottom of the colour picker to move it somewhere else — or, in edit mode, drag it to the left or right edge of the screen instead: the page shifts there right away, with a floating preview of the tile so you can keep aiming before releasing to drop it in place",
+                                "on a page with room to spare below its tiles, drag down from that empty space to pull the tiles closer to your thumb — release to hold them there, tap one to open it (that also lets go), or tap the empty area to let go without doing anything",
+                            ),
+                        )
+                        FeatureGroup(
+                            title = "pinning apps",
+                            accent = accent,
+                            tokens = tokens,
+                            visual = { PinningVisual(accent, tokens) },
+                            items = listOf(
+                                "tap the chevron at the bottom of start (or swipe left) to open the app list",
+                                "long-press any app for \"pin to start\", \"hide\", or \"uninstall\" — a light haptic buzz confirms the menu opened",
+                                "before the alphabetical list: a \"recent\" section shows your most-used and newly-installed apps, plus any with a pending notification even if it isn't pinned",
+                                "tap a letter on the right for the jump grid, to skip straight to that part of the alphabet",
+                                "hid an app by mistake? personalize · app visibility · hidden apps brings it back with \"show\"",
+                            ),
+                        )
+                    }
+                    2 -> {
+                        FeatureGroup(
+                            title = "feed: glance & news",
+                            accent = accent,
+                            tokens = tokens,
+                            visual = { FeedVisual(tokens) },
+                            items = listOf(
+                                "swipe right from start (or swipe left from the app list) to open the feed",
+                                "one continuous scroll: your greeting, live clock, weather, calendar events, now-playing, widgets, and news",
+                                "greeting auto-fills your name from your contact profile if available — edit or clear it any time in personalize · feed & glance",
+                                "tap the search pill to jump straight into quick search",
+                                "tap the weather card for the weather hub, the agenda card for the calendar hub, and the now-playing card for the music hub",
+                                "narrow widgets automatically pair up side by side — drag a widget's edge past the midpoint to switch it between side-by-side and full width",
+                                "pin any real android widget from the picker — tileshell's own 14 (stock market, commodities & currencies, sports scores, extra calendar systems including hindu panchang, countdown, sticky note, notes, tasks, battery, alarm, moon phase, flashlight, and steps) sit at the top, ahead of every other app",
+                                "search the picker by app name or widget name to jump straight to one",
+                                "adding a weather widget asks for current location or a picked place — each one you add can track its own location",
+                                "stock, sports, and weather widgets have their own refresh button — tap it for a quick flash and pulse confirming the tap, and stock/sports refresh faster on their own while the market's open or a match is live",
+                                "weather, agenda, and now-playing share this same system too — tap \"edit\" next to \"widgets\" to turn on move/resize handles for every card at once, hosted widgets included",
+                                "drag a card's move handle (top) to reorder it, its edge handle to resize width or height, or its corner to resize both at once",
+                                "pick any number of news regions — india plus ~20 other countries, defaulting to your device's own",
+                                "tap the ⚙ in the news section to add your own rss/atom feeds and pick categories",
+                                "personalize · feed & glance · \"no background\" gives the feed its own flat look, independent of start's wallpaper",
+                            ),
+                        )
+                    }
+                    3 -> {
+                        FeatureGroup(
+                            title = "hubs",
+                            accent = accent,
+                            tokens = tokens,
+                            items = listOf(
+                                "tap the weather, music, calendar, people, productivity, or battery tile to open its hub; swipe left and right between its pages",
+                                "people · what's new: tap a message to open its app, tap the arrow to expand and reply, swipe sideways to dismiss; the chips filter by app",
+                                "people · apps and productivity · apps put your most-used apps first once usage access is on",
+                                "productivity: long-press a note, list, or app to add it to the quick row; long-press a quick shortcut to remove it",
+                                "pin a note or task list from productivity to give it its own start tile; pin people's apps page for an apps tile",
+                                "money: add it from \"add live tiles\"; transactions start appearing as new bank sms and payment notifications arrive (older messages can't be read)",
+                                "money · settings (the gear in its bar): what the tile shows (nothing, your last payment and receipt, or the card bills still to pay), the fingerprint/screen-lock lock, reading bank messages on or off, and clearing the history",
+                                "markets and sports hub: add them from \"add live tiles\"; in sports, the + in the bar picks your sports and teams (tap a star); live shows today's matches and results the last week or month, for my teams or my sports, and tapping a match opens its scorecard",
+                                "clock hub: add it from \"add live tiles\" — the tile shows the time and flips to your next alarm; tap it for alarms, world clocks, timers, a stopwatch and timer sets (swipe between them, and in sets build a row of timers with the + in the bar); \"pin\" on a set puts it on start as its own tile with start, pause and stop buttons",
+                                "weather hub: the globe button in its bar opens google weather for your place in the browser (\"···\" adds accuweather and timeanddate)",
+                                "shopping hub: its deals page collects your stores' offers from their apps, store texts and business chats such as amazon india on whatsapp; arriving shows orders on their way",
+                            ),
+                        )
+                        FeatureGroup(
+                            title = "live data refresh",
+                            accent = accent,
+                            tokens = tokens,
+                            items = listOf(
+                                "personalize · live data refresh · refresh rates sets how often each kind of live data updates",
+                                "weather and news: 15m, 30m (default), 1h, or 3h",
+                                "stocks and commodities: 1m (default), 5m, 15m, 30m, or 1h — they also slow down outside market hours by themselves",
+                                "sports: 90s (default), 5m, 15m, 30m, or 1h",
+                                "slower saves battery and data; home-screen widgets follow too, but android refreshes them at most every 15 minutes",
+                            ),
+                        )
+                    }
+                    4 -> {
+                        FeatureGroup(
+                            title = "quick panel",
+                            accent = accent,
+                            tokens = tokens,
+                            visual = { QuickPanelVisual(accent, tokens) },
+                            items = listOf(
+                                "swipe down with two fingers anywhere on start to open the quick panel — or swipe down from the right screen edge with one finger",
+                                "docks to and slides down from the top of the screen, like a real device's quick settings panel",
+                                "background is a colour gradient synthesized from start's own wallpaper, same as the feed page — tile and slider colours switch to match it too",
+                                "clock and date sit on the left of the panel's own header; wifi, bluetooth, cellular, and battery status sit on the right, standing in for the status bar you can hide",
+                                "wifi and bluetooth icons brighten (dim when off) same as the cellular icon; airplane mode replaces the cellular icon with a plane",
+                                "battery icon fills proportionately to the charge level and turns red/amber/green as it gets low",
+                                "personalize, android settings, and lock screen icons sit in a second row under the status row",
+                                "true square tiles, four across, just like windows phone's action center",
+                                "tap a tile to toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, or rotation lock",
+                                "tap the pencil icon at the top of the panel to edit the grid — every tile shows a move handle (top) and a resize handle (right edge) at once, no long-press needed",
+                                "drag a tile's move handle to reorder it, or drag its resize handle to switch it between square and wide",
+                                "tap the checkmark where the pencil was to finish editing",
+                                "brightness, ring volume, and media volume are real drag sliders below the tile grid",
+                                "tap the bell or speaker icon on the ring/media sliders to mute or unmute",
+                                "tap the screen-timeout tile to cycle through presets",
+                                "one theme tile cycles dark → light → auto, tinted with your accent colour",
+                                "drag the handle at the bottom of the panel upward to close it, or tap outside it",
+                                "taps and gestures throughout the panel give a light haptic buzz",
+                            ),
+                        )
+                        FeatureGroup(
+                            title = "system shortcuts",
+                            accent = accent,
+                            tokens = tokens,
+                            visual = { EdgeSwipeVisual(accent, tokens) },
+                            items = listOf(
+                                "swipe down from start's left screen edge to pull down the system notification shade",
+                                "swipe down from start's right screen edge to open this app's own quick panel",
+                                "add the \"personalize\" tile to android's own quick settings panel (edit the panel, find it under tileshell) to open personalize from anywhere",
+                                "swipe up from either screen edge to open quick search",
+                                "the swipe can start at any height along the edge, not just the very top",
+                                "first use asks you to enable tileshell's accessibility service — the same one screen lock uses, a one-time step",
+                            ),
+                        )
+                    }
+                    5 -> {
+                        FeatureGroup(
+                            title = "permissions",
+                            accent = accent,
+                            tokens = tokens,
+                            visual = { PermissionsVisual(accent, tokens) },
+                            items = listOf(
+                                "personalize · permissions lists every permission in two groups — data (contacts, calendar, location, physical activity, music & audio, notifications) and special access (notification access, usage access, background battery, modify system settings, accessibility)",
+                                "each row says what it's for and whether it's on; tap \"allow\" to grant it, or \"turn on\" to open its android setting — it updates when you come back",
+                                "personalize · live tiles has a master on/off switch, plus \"badges & live mail\" to turn on unread badge counts on tiles and live mail/messages tile faces",
+                                "turning live tiles on for the first time explains and asks before opening notification access, instead of jumping straight there — you can say not now",
+                                "tap the \"lock screen\" icon in the quick panel's header to lock the device",
+                                "the first time, this opens android's accessibility settings so you can turn on tileshell's lock service once — it's a one-time manual step, the launcher can't enable it for you",
+                                "turning it on preserves biometric unlock (android 9 and up); without it, locking falls back to a plain device-admin lock with no biometrics",
+                                "usage access sorts the people and productivity apps pages by most used and shows battery hub screen time",
+                            ),
+                        )
+                        FeatureGroup(
+                            title = "backup, restore & reset",
+                            accent = accent,
+                            tokens = tokens,
+                            items = listOf(
+                                "personalize · backup, restore & reset · manage backups",
+                                "turn on auto-save, browse layout history, or save a snapshot now",
+                                "export to a file (save it to google drive for your next phone), or restore from one",
+                                "reset start layout, in its own section at the bottom, runs the setup again from the first step",
+                            ),
+                        )
+                    }
+                    }
+                }
             }
-
-            HorizontalDivider(color = tokens.tileLine, modifier = Modifier.padding(horizontal = 20.dp))
-            Spacer(Modifier.height(20.dp))
-
-            FeatureGroup(
-                title = "colours",
-                accent = accent,
-                tokens = tokens,
-                visual = { ColoursVisual(accent, tokens) },
-                items = listOf(
-                    "personalize · accent colour sets the colour every tile uses by default",
-                    "in edit mode, tap the colour dot on a selected tile to give just that tile its own colour",
-                    "turn on \"tile colour from app icon\" (personalize · colour & fill) to auto-pick each app's dominant colour instead",
-                    "pick \"multicolour\" as the tile colour source to keep each tile's own colour, grouped by purpose",
-                    "pick \"wallpaper\" as the tile colour source to tint every tile with the same wallpaper-derived accent the feed page and quick panel already use",
-                    "turn on \"gradient fill\" for a subtle diagonal gradient instead of a flat colour",
-                ),
-            )
-
-            FeatureGroup(
-                title = "wallpaper",
-                accent = accent,
-                tokens = tokens,
-                visual = { WallpaperVisual(tokens) },
-                items = listOf(
-                    "personalize · wallpaper: choose none, a photo, a slideshow, daily bing, or a stock gradient",
-                    "with a photo or bing wallpaper set, use \"adjust position · reframe\" to pinch-zoom and drag it into place",
-                    "slideshow rotates through photos you pick, every 15 minutes to 3 hours",
-                    "turn on \"behind tiles\" (tile background) to let the wallpaper show through the grid",
-                    "after picking a new wallpaper, choose home screen, lock screen, or both to also set it as your device's real system wallpaper, framed exactly as you positioned it — cancel to skip and keep it just for start",
-                ),
-            )
-
-            FeatureGroup(
-                title = "tile look",
-                accent = accent,
-                tokens = tokens,
-                visual = { TileLookVisual(accent, tokens) },
-                items = listOf(
-                    "personalize · tile background: none, transparent (glass), behind tiles, or widget cards",
-                    "with transparent chosen, drag \"tile transparency\" to control how see-through tiles are",
-                    "widget cards turns every tile into its own rounded, translucent card floating over the wallpaper, like a home-screen gadget — a fixed corner radius and gap replace the corner-radius/spacing sliders, which have no effect here",
-                    "widget cards also carries onto the feed page — weather, today, and now-playing become the same translucent cards there",
-                    "and onto quick panel — every toggle shares the same translucent card; an active one shows in accent colour on its icon and label instead of a filled tile",
-                    "quick panel's brightness/volume sliders match too — a frosted translucent track instead of a solid bar",
-                    "\"tile outline\" (transparent & behind tiles only) drops the thin edge line around each tile, so neighbours read as one continuous surface",
-                    "tile style · corner radius slider rounds every tile's corners",
-                    "tile style · tile spacing slider sets the gap between tiles — drag it up to spread them out, down to pack them tighter",
-                    "typography switches every tile's text between system, outfit, and nunito",
-                    "\"reset tile style\" at the bottom of tile style puts corners, spacing, fill, colour & font back to default",
-                ),
-            )
-
-            FeatureGroup(
-                title = "home style",
-                accent = accent,
-                tokens = tokens,
-                visual = { HomeStyleVisual(accent, tokens) },
-                items = listOf(
-                    "shown on first launch as a short setup: tiles or icons (with a live preview), then theme, tile colour, and default or custom apps",
-                    "\"custom\" lists your apps with the defaults already ticked — untick or add apps; hubs and live tiles are always kept",
-                    "personalize · backup, restore & reset · reset start layout runs the same setup again",
-                    "personalize · home style switches any time between \"tiles\" (the classic windows-phone look) and \"icons\" (a normal android-style grid)",
-                    "in icons mode, small tiles render as shaped icons; live tiles, folders, and widget stacks look exactly the same as in tiles mode",
-                    "growing an icon past its smallest size turns it into a live tile; shrinking one back down turns it back into an icon",
-                    "in icons mode, personalize · home style also lets you pick an icon shape — circle, squircle, rounded, square, or original (your device's own, unmasked shape)",
-                    "\"monochrome icons\" (personalize · home style) turns every app icon into a flat glyph — nothing-phone style — across start, the app list, folder mini-grids, and live-tile notification badges; choose whether the glyphs tint to your accent colour or a fixed black/white",
-                    "icons mode defaults to \"free\" arrangement (personalize · arrangement) — nothing moves unless you move it, and dropping onto another tile swaps the two instead of pushing everything down",
-                ),
-            )
-
-            FeatureGroup(
-                title = "organizing tiles",
-                accent = accent,
-                tokens = tokens,
-                visual = { OrganizingVisual(accent, tokens) },
-                items = listOf(
-                    "long-press any tile to enter edit mode",
-                    "while editing, tap \"add live tiles\" in the bottom bar: hubs (weather, calendar, clock, people, music, productivity, battery, money, markets, sports, news, shopping and panchang — each a tile plus the hub it opens) and widgets (mail, messages, photos, sticky note, countdown, steps, moon phase, flashlight) — each pins to the end of start; a team, stock, commodity, note or task list is pinned from its own hub",
-                    "adding a weather tile asks for current location or a picked place — pin more than one, each tracking somewhere different",
-                    "drag one tile onto another, centre to centre, to merge them into a folder — merging two large tiles forms a widget stack directly",
-                    "any folder with 2 or more children can become a widget stack too — tap its colour dot and use the \"show as stack\" toggle at the bottom of the colour picker; \"show as folder\" reverts it just as easily",
-                    "works at any size wider than one column — medium, wide, large, wide small, banner, and the other roomier drag-resize sizes; only single-column presets (tall, column) are too thin and excluded",
-                    "use a selected tile's resize handle to cycle its size — medium → small → wide → large",
-                    "drag a tile's corner instead of tapping to resize it freely, across 11 sizes in total — from a tiny 1×1 icon up to a full 4×4 tile, including thin banner and column strips along the way",
-                    "dragging a stack's corner resizes and homogenizes every member to the new size at once",
-                    "tap the folder icon on a selected folder or stack to expand it in place and manage its members",
-                    "drag an app out of an open folder to drop it exactly where you release it on start, or onto another tile to merge into it",
-                    "tap × on a selected tile to unpin it — inside an open folder or stack, that sends the member to the end of start without needing to drag",
-                    "a selected folder's colour picker also offers \"unfold folder\" (dissolves it — every app stays pinned to start, just no longer grouped) and \"remove folder & tiles\" (unpins the folder and everything in it at once, with a confirmation first — apps stay installed)",
-                ),
-            )
-
-            FeatureGroup(
-                title = "pages",
-                accent = accent,
-                tokens = tokens,
-                items = listOf(
-                    "start is organized into pages — swipe left/right to move between them; the first one is always \"main\", for anything you haven't grouped, with your named pages after it",
-                    "a small dot row at the top of start shows how many pages there are and which one you're on, whenever there's more than one — hidden in edit mode, since each page's own header shows its name there instead",
-                    "in edit mode, tap the \"+\" at the top of start and name it to add a page; each page's own name (hidden the rest of the time) appears there too, with ←/→ to move it earlier/later",
-                    "while editing a named page (not main), a \"remove\" control in start's top-right corner offers \"merge with main\" (ungroups its tiles back into main, nothing lost) or \"remove page & tiles\" (unpins the page and everything on it at once, with a confirmation first — apps stay installed)",
-                    "pinning an app from the app list — \"pin to start\" or \"more from this app\" (its shortcuts and other activities) — always lands it on whichever page you were last viewing, no picker to answer",
-                    "a live tile added from start's own edit-mode \"add live tiles\" lands the same way, on whichever page you were last viewing",
-                    "already-pinned tile? select it in edit mode, tap its colour dot, and use \"move to page\" at the bottom of the colour picker to move it somewhere else — or, in edit mode, drag it to the left or right edge of the screen instead: the page shifts there right away, with a floating preview of the tile so you can keep aiming before releasing to drop it in place",
-                    "on a page with room to spare below its tiles, drag down from that empty space to pull the tiles closer to your thumb — release to hold them there, tap one to open it (that also lets go), or tap the empty area to let go without doing anything",
-                ),
-            )
-
-            FeatureGroup(
-                title = "pinning apps",
-                accent = accent,
-                tokens = tokens,
-                visual = { PinningVisual(accent, tokens) },
-                items = listOf(
-                    "tap the chevron at the bottom of start (or swipe left) to open the app list",
-                    "long-press any app for \"pin to start\", \"hide\", or \"uninstall\" — a light haptic buzz confirms the menu opened",
-                    "before the alphabetical list: a \"recent\" section shows your most-used and newly-installed apps, plus any with a pending notification even if it isn't pinned",
-                    "tap a letter on the right for the jump grid, to skip straight to that part of the alphabet",
-                    "hid an app by mistake? personalize · app visibility · hidden apps brings it back with \"show\"",
-                ),
-            )
-
-            FeatureGroup(
-                title = "feed: glance & news",
-                accent = accent,
-                tokens = tokens,
-                visual = { FeedVisual(tokens) },
-                items = listOf(
-                    "swipe right from start (or swipe left from the app list) to open the feed",
-                    "one continuous scroll: your greeting, live clock, weather, calendar events, now-playing, widgets, and news",
-                    "greeting auto-fills your name from your contact profile if available — edit or clear it any time in personalize · feed & glance",
-                    "tap the search pill to jump straight into quick search",
-                    "narrow widgets automatically pair up side by side — drag a widget's edge past the midpoint to switch it between side-by-side and full width",
-                    "pin any real android widget from the picker — tileshell's own 14 (stock market, commodities & currencies, sports scores, extra calendar systems including hindu panchang, countdown, sticky note, notes, tasks, battery, alarm, moon phase, flashlight, and steps) sit at the top, ahead of every other app",
-                    "search the picker by app name or widget name to jump straight to one",
-                    "adding a weather widget asks for current location or a picked place — each one you add can track its own location",
-                    "stock, sports, and weather widgets have their own refresh button — tap it for a quick flash and pulse confirming the tap, and stock/sports refresh faster on their own while the market's open or a match is live",
-                    "weather, agenda, and now-playing share this same system too — tap \"edit\" next to \"widgets\" to turn on move/resize handles for every card at once, hosted widgets included",
-                    "drag a card's move handle (top) to reorder it, its edge handle to resize width or height, or its corner to resize both at once",
-                    "pick any number of news regions — india plus ~20 other countries, defaulting to your device's own",
-                    "tap the ⚙ in the news section to add your own rss/atom feeds and pick categories",
-                    "personalize · feed & glance · \"no background\" gives the feed its own flat look, independent of start's wallpaper",
-                ),
-            )
-
-            FeatureGroup(
-                title = "permissions",
-                accent = accent,
-                tokens = tokens,
-                visual = { PermissionsVisual(accent, tokens) },
-                items = listOf(
-                    "personalize · permissions lists every permission in two groups — data (contacts, calendar, location, physical activity, music & audio, notifications) and special access (notification access, usage access, background battery, modify system settings, accessibility)",
-                    "each row says what it's for and whether it's on; tap \"allow\" to grant it, or \"turn on\" to open its android setting — it updates when you come back",
-                    "personalize · live tiles has a master on/off switch, plus \"badges & live mail\" to turn on unread badge counts on tiles and live mail/messages tile faces",
-                    "turning live tiles on for the first time explains and asks before opening notification access, instead of jumping straight there — you can say not now",
-                    "tap the \"lock screen\" icon in the quick panel's header to lock the device",
-                    "the first time, this opens android's accessibility settings so you can turn on tileshell's lock service once — it's a one-time manual step, the launcher can't enable it for you",
-                    "turning it on preserves biometric unlock (android 9 and up); without it, locking falls back to a plain device-admin lock with no biometrics",
-                    "usage access sorts the people and productivity apps pages by most used and shows battery hub screen time",
-                ),
-            )
-
-            FeatureGroup(
-                title = "hubs",
-                accent = accent,
-                tokens = tokens,
-                items = listOf(
-                    "tap the weather, music, calendar, people, productivity, or battery tile to open its hub; swipe left and right between its pages",
-                    "people · what's new: tap a message to open its app, tap the arrow to expand and reply, swipe sideways to dismiss; the chips filter by app",
-                    "people · apps and productivity · apps put your most-used apps first once usage access is on",
-                    "productivity: long-press a note, list, or app to add it to the quick row; long-press a quick shortcut to remove it",
-                    "pin a note or task list from productivity to give it its own start tile; pin people's apps page for an apps tile",
-                    "money: add it from \"add live tiles\"; transactions start appearing as new bank sms and payment notifications arrive (older messages can't be read)",
-                    "money · settings (the gear in its bar): what the tile shows (nothing, your last payment and receipt, or the card bills still to pay), the fingerprint/screen-lock lock, reading bank messages on or off, and clearing the history",
-                    "markets and sports hub: add them from \"add live tiles\"; in sports, the + in the bar picks your sports and teams (tap a star); live shows today's matches and results the last week or month, for my teams or my sports, and tapping a match opens its scorecard",
-                    "clock hub: add it from \"add live tiles\" — the tile shows the time and flips to your next alarm; tap it for alarms, world clocks, timers, a stopwatch and timer sets (swipe between them, and in sets build a row of timers with the + in the bar)",
-                ),
-            )
-
-            FeatureGroup(
-                title = "live data refresh",
-                accent = accent,
-                tokens = tokens,
-                items = listOf(
-                    "personalize · live data refresh · refresh rates sets how often each kind of live data updates",
-                    "weather and news: 15m, 30m (default), 1h, or 3h",
-                    "stocks and commodities: 1m (default), 5m, 15m, 30m, or 1h — they also slow down outside market hours by themselves",
-                    "sports: 90s (default), 5m, 15m, 30m, or 1h",
-                    "slower saves battery and data; home-screen widgets follow too, but android refreshes them at most every 15 minutes",
-                ),
-            )
-
-            FeatureGroup(
-                title = "backup, restore & reset",
-                accent = accent,
-                tokens = tokens,
-                items = listOf(
-                    "personalize · backup, restore & reset · manage backups",
-                    "turn on auto-save, browse layout history, or save a snapshot now",
-                    "export to a file (save it to google drive for your next phone), or restore from one",
-                    "reset start layout, in its own section at the bottom, runs the setup again from the first step",
-                ),
-            )
-
-            FeatureGroup(
-                title = "quick panel",
-                accent = accent,
-                tokens = tokens,
-                visual = { QuickPanelVisual(accent, tokens) },
-                items = listOf(
-                    "swipe down with two fingers anywhere on start to open the quick panel — or swipe down from the right screen edge with one finger",
-                    "docks to and slides down from the top of the screen, like a real device's quick settings panel",
-                    "background is a colour gradient synthesized from start's own wallpaper, same as the feed page — tile and slider colours switch to match it too",
-                    "clock and date sit on the left of the panel's own header; wifi, bluetooth, cellular, and battery status sit on the right, standing in for the status bar you can hide",
-                    "wifi and bluetooth icons brighten (dim when off) same as the cellular icon; airplane mode replaces the cellular icon with a plane",
-                    "battery icon fills proportionately to the charge level and turns red/amber/green as it gets low",
-                    "personalize, android settings, and lock screen icons sit in a second row under the status row",
-                    "true square tiles, four across, just like windows phone's action center",
-                    "tap a tile to toggle wi-fi, bluetooth, flashlight, dnd, airplane mode, location, or rotation lock",
-                    "tap the pencil icon at the top of the panel to edit the grid — every tile shows a move handle (top) and a resize handle (right edge) at once, no long-press needed",
-                    "drag a tile's move handle to reorder it, or drag its resize handle to switch it between square and wide",
-                    "tap the checkmark where the pencil was to finish editing",
-                    "brightness, ring volume, and media volume are real drag sliders below the tile grid",
-                    "tap the bell or speaker icon on the ring/media sliders to mute or unmute",
-                    "tap the screen-timeout tile to cycle through presets",
-                    "one theme tile cycles dark → light → auto, tinted with your accent colour",
-                    "drag the handle at the bottom of the panel upward to close it, or tap outside it",
-                    "taps and gestures throughout the panel give a light haptic buzz",
-                ),
-            )
-
-            FeatureGroup(
-                title = "system shortcuts",
-                accent = accent,
-                tokens = tokens,
-                visual = { EdgeSwipeVisual(accent, tokens) },
-                items = listOf(
-                    "swipe down from start's left screen edge to pull down the system notification shade",
-                    "swipe down from start's right screen edge to open this app's own quick panel",
-                    "swipe up from either screen edge to open quick search",
-                    "the swipe can start at any height along the edge, not just the very top",
-                    "first use asks you to enable tileshell's accessibility service — the same one screen lock uses, a one-time step",
-                ),
-            )
-
-            Spacer(Modifier.height(4.dp))
+            HubAppBar(tokens = tokens, actions = listOf(HubAppBarAction("back", "back", onDismiss)))
         }
     }
 }
