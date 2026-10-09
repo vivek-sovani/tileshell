@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -196,6 +197,8 @@ internal fun NotificationFaceContent(
     size: TileSize = TileSize.MEDIUM,
 ) {
     when {
+        // A notification with a photo (any app) fills the tile with it, the text over it, like the news tile.
+        picture != null && size != TileSize.SMALL -> NotificationPhotoFace(item, picture, size)
         size.narrowLive -> NotificationFaceContentNarrow(item, avatar, size)
         // These two already have their own large-tile sizing; the tile-wide enlargement would double it.
         size == TileSize.XLARGE -> CancelLiveFaceScale(keep = 1.15f) { NotificationFaceContentXLarge(item, avatar, picture) }
@@ -205,6 +208,68 @@ internal fun NotificationFaceContent(
         size == TileSize.BANNER -> NotificationFaceContentBanner(item, avatar, picture)
         size == TileSize.WIDE_SMALL -> NotificationFaceContentWideSmall(item, avatar)
         else -> NotificationFaceContentMedium(item, avatar, picture)
+    }
+}
+
+// ── Photo notifications: the picture is the tile ───────────────────────────────
+
+/**
+ * A notification that carries a photo: the photo covers the whole tile and the sender and text sit over it on a
+ * dark gradient (heavier at the bottom), like the news tile. The text is always white, whatever the theme: it
+ * sits on the photo, not on the tile colour. Sizes only change how much text fits.
+ */
+@Composable
+private fun NotificationPhotoFace(item: ConversationItem, picture: ImageBitmap, size: TileSize) {
+    val oneRow = size.rows <= 1
+    val narrow = size.narrowLive
+    val bodySp = when {
+        size.rows >= 4 -> 18
+        size.rows >= 3 -> 16
+        oneRow || narrow -> 12
+        else -> 13
+    }
+    val bodyLines = when {
+        oneRow -> 1
+        narrow -> if (size.rows >= 3) 6 else 3
+        else -> (size.rows * 2).coerceIn(2, 8)
+    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        Image(
+            bitmap = picture,
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                Brush.verticalGradient(0f to Color(0x33000000), 0.45f to Color(0x22000000), 1f to Color(0xDD000000)),
+            ),
+        )
+        Column(
+            modifier = Modifier.align(Alignment.BottomStart).fillMaxWidth().padding(if (narrow) 6.dp else 10.dp),
+        ) {
+            if (!oneRow || item.snippet.isEmpty()) {
+                Text(
+                    text = item.sender.ifBlank { "someone" },
+                    color = Color.White.copy(alpha = 0.85f),
+                    fontSize = if (narrow || oneRow) 11.sp else 12.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (item.snippet.isNotEmpty()) {
+                Text(
+                    text = if (oneRow) item.sender.ifBlank { "someone" } + ": " + item.snippet else item.snippet,
+                    color = Color.White,
+                    fontSize = bodySp.sp,
+                    lineHeight = (bodySp + 3).sp,
+                    maxLines = bodyLines,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = if (oneRow) 0.dp else 2.dp),
+                )
+            }
+        }
     }
 }
 
