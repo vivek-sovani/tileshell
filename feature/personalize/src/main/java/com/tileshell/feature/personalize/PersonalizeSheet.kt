@@ -252,8 +252,6 @@ fun PersonalizeSheet(
     onColumnsChange: (Int) -> Unit,
     tilePackMode: TilePackMode,
     onTilePackModeChange: (TilePackMode) -> Unit,
-    tileControlStyle: com.tileshell.core.data.settings.TileControlStyle,
-    onTileControlStyleChange: (com.tileshell.core.data.settings.TileControlStyle) -> Unit,
     homeStyle: HomeStyle,
     onHomeStyleChange: (HomeStyle) -> Unit,
     iconShape: IconShape,
@@ -1003,34 +1001,6 @@ fun PersonalizeSheet(
                                         fontSize = 12.sp,
                                     )
                                 }
-                            }
-                        }
-
-                        // ---- edit controls: corner buttons or a bar above the tile ----
-                        SettingGroup(label = "edit controls", tokens.fgDim) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(
-                                    "where a selected tile's unpin, colour and size buttons are",
-                                    color = tokens.fgDim,
-                                    fontSize = 13.sp,
-                                )
-                                Row(modifier = Modifier.fillMaxWidth()) {
-                                    SegCell("corners", selected = tileControlStyle == com.tileshell.core.data.settings.TileControlStyle.CORNERS, accent = accent, fg = tokens.fg) {
-                                        onTileControlStyleChange(com.tileshell.core.data.settings.TileControlStyle.CORNERS)
-                                    }
-                                    SegCell("bar above", selected = tileControlStyle == com.tileshell.core.data.settings.TileControlStyle.BAR, accent = accent, fg = tokens.fg) {
-                                        onTileControlStyleChange(com.tileshell.core.data.settings.TileControlStyle.BAR)
-                                    }
-                                }
-                                Text(
-                                    if (tileControlStyle == com.tileshell.core.data.settings.TileControlStyle.BAR) {
-                                        "the buttons sit in a bar above the tile, so you can grab the whole tile to move it. drag the corner to resize."
-                                    } else {
-                                        "buttons on the tile's corners: unpin top-left, colour bottom-left, resize bottom-right."
-                                    },
-                                    color = tokens.fgDim,
-                                    fontSize = 12.sp,
-                                )
                             }
                         }
 

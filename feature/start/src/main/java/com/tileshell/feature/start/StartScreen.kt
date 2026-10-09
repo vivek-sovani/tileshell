@@ -330,7 +330,6 @@ import com.tileshell.feature.system.rememberAppUpdateState
 import com.tileshell.feature.system.rememberDefaultLauncherState
 import java.net.URLEncoder
 import kotlin.math.abs
-import androidx.compose.foundation.layout.wrapContentSize
 import kotlin.math.roundToInt
 import kotlin.random.Random
 import kotlinx.coroutines.Dispatchers
@@ -1388,7 +1387,6 @@ fun StartScreen(
                     columns = settings.columns,
                     sticky = settings.tilePackMode.isAnchored,
                     freeMode = settings.tilePackMode == TilePackMode.FREE,
-                    controlBar = settings.tileControlStyle == com.tileshell.core.data.settings.TileControlStyle.BAR,
                     homeStyle = settings.homeStyle,
                     iconShape = settings.iconShape,
                     themedIcons = settings.themedIcons,
@@ -2731,11 +2729,6 @@ private const val REACHABILITY_HELD_FRACTION = 0.7f
 // specifically, not reused from any other zone width elsewhere in this file.
 private const val CROSS_PAGE_DRAG_EDGE_ZONE_DP = 20f
 
-/** Size of the bar above a selected tile ("bar above" edit controls): its height, each button's width and the gap to the tile. */
-private const val TILE_BAR_HEIGHT_DP = 34f
-private const val TILE_BAR_BUTTON_WIDTH_DP = 62f
-private const val TILE_BAR_GAP_DP = 6f
-
 /** How long the finger must rest in the edge zone before the tile is carried to the next page. */
 private const val CROSS_PAGE_DWELL_MS = 350L
 
@@ -2868,8 +2861,6 @@ private fun StartPage(
     // apart, since only STICKY pushes other tiles out of the way while
     // dragging; FREE never previews any other tile moving.
     freeMode: Boolean = false,
-    // "bar above" edit controls (see TileControlStyle): the selected tile's buttons sit in a bar above it.
-    controlBar: Boolean = false,
     // Which cell renderer a SMALL (1×1) tile uses — the icons-mode arc. 2×2+
     // always renders via TileView regardless, so this only ever changes
     // behaviour for SMALL app tiles (including inline-expanded folder
@@ -3553,10 +3544,6 @@ private fun StartPage(
             val editDrag = Modifier.editDragGesture(
                 editMode = editMode,
                 widthPx = widthPx,
-                controlBar = controlBar,
-                barHeightPx = with(density) { TILE_BAR_HEIGHT_DP.dp.toPx() },
-                barButtonWidthPx = with(density) { TILE_BAR_BUTTON_WIDTH_DP.dp.toPx() },
-                barGapPx = with(density) { TILE_BAR_GAP_DP.dp.toPx() },
                 columns = columns,
                 gapPx = tileGapPx,
                 order = blockIds,
@@ -3768,36 +3755,18 @@ private fun StartPage(
                 } else {
                     null
                 }
-                // The "bar above" controls show for the selected tile (not while it is dragged or resized, nor an
-                // expanded folder's placeholder); its wrapper rises above its neighbours so the bar isn't covered.
-                val barVisible = controlBar && editMode && model.id == selectedTileId &&
-                    spec.id != expandedFolderId && !dragging && !resizing
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.tileshell.feature.livetiles.LocalNotificationMuted provides (model.id in mutedNotificationTiles),
-                    LocalControlBar provides controlBar,
                 ) {
                 Box(
                     modifier = Modifier
                         .offset { if (dragging) dragOffset.value else slotState.value }
-                        .zIndex(if (dragging || resizing || barVisible) 10f else 0f)
+                        .zIndex(if (dragging || resizing) 10f else 0f)
                         .size(
                             with(density) { (livePreviewSizePx?.width ?: sizePx.width).toDp() },
                             with(density) { (livePreviewSizePx?.height ?: sizePx.height).toDp() },
                         ),
                 ) {
-                    if (barVisible) {
-                        val actions = barActionsFor(model is TileModel.Folder)
-                        val buttonPx = with(density) { TILE_BAR_BUTTON_WIDTH_DP.dp.toPx() }
-                        val bar = controlBarRect(
-                            slot.x.toFloat(), slot.y.toFloat(), slot.x + sizePx.width.toFloat(), slot.y + sizePx.height.toFloat(),
-                            widthPx, buttonPx * actions.size, with(density) { TILE_BAR_HEIGHT_DP.dp.toPx() }, with(density) { TILE_BAR_GAP_DP.dp.toPx() },
-                        )
-                        TileControlBarView(
-                            actions = actions,
-                            offset = IntOffset((bar.left - slot.x).roundToInt(), (bar.top - slot.y).roundToInt()),
-                            modifier = Modifier.zIndex(5f),
-                        )
-                    }
                     // Per-tile accent (FR-7): a saved override (palette id or exact
                     // #hex) always wins; otherwise, in app-icon-colour mode an app
                     // tile takes its icon's dominant colour, else the global accent.
@@ -5884,38 +5853,13 @@ internal fun FolderChildBadge(count: Int, dark: Boolean, modifier: Modifier = Mo
  * the taps are handled by the grid's [editDragGesture] corner hot-zones
  * (FR-3.4/3.5/7), and the resize drag itself by [tileStretchGesture].
  */
-/** The bar above a selected tile: its buttons are drawn here, their taps handled by [editDragGesture]. */
-@Composable
-private fun TileControlBarView(actions: List<BarAction>, offset: IntOffset, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .wrapContentSize(Alignment.TopStart, unbounded = true)
-            .offset { offset }
-            .size(TILE_BAR_BUTTON_WIDTH_DP.dp * actions.size, TILE_BAR_HEIGHT_DP.dp)
-            .clip(RoundedCornerShape((TILE_BAR_HEIGHT_DP / 2f).dp))
-            .background(Color(0xE6101014)),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        actions.forEachIndexed { i, action ->
-            if (i > 0) Box(Modifier.width(0.5.dp).height(16.dp).background(Color.White.copy(alpha = 0.3f)))
-            Box(modifier = Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                Text(action.label, color = Color.White, fontSize = 12.sp, maxLines = 1)
-            }
-        }
-    }
-}
-
-/** True while the "bar above" edit controls are on: the corner unpin / colour buttons are not drawn (only the resize arc). */
-internal val LocalControlBar = androidx.compose.runtime.compositionLocalOf { false }
-
 @Composable
 internal fun BoxScope.TileControls(
     showColor: Boolean,
     dotColor: Color,
     isFolder: Boolean = false,
 ) {
-    val barMode = LocalControlBar.current
-    if (!barMode) TileControl(
+    TileControl(
         iconKey = if (isFolder) "folder" else "close",
         description = if (isFolder) "open folder" else "unpin",
         modifier = Modifier.align(Alignment.TopStart),
@@ -5924,7 +5868,7 @@ internal fun BoxScope.TileControls(
         tint = LocalTileFaceColor.current,
         modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp).size(20.dp),
     )
-    if (showColor && !barMode) {
+    if (showColor) {
         Box(
             modifier = Modifier
                 .align(Alignment.BottomStart)
@@ -6399,12 +6343,6 @@ private fun Modifier.editDragGesture(
     // tile's *actual* redirect-to-nearest-free-cell resolution happens once,
     // at release, in the ViewModel write path (GridPacker.freePlacement).
     freeMode: Boolean = false,
-    // "bar above" edit controls: the selected tile's unpin / colour / size buttons are a bar above it (its taps are
-    // handled here, like the corner buttons, since this gesture sees every touch on the grid).
-    controlBar: Boolean = false,
-    barHeightPx: Float = 0f,
-    barButtonWidthPx: Float = 0f,
-    barGapPx: Float = 0f,
     onStickyDrop: (dragId: String, slot: Int?) -> Unit = { _, _ -> },
     // Live push-down preview while a sticky-mode drag is in progress — called
     // with every tile that would be displaced (plus the dragged tile's own
@@ -6546,31 +6484,6 @@ private fun Modifier.editDragGesture(
         // never also fires.
         val sel = selectedId()
         val selPlacement = sel?.let { id -> placementsNow().firstOrNull { it.id == id } }
-        if (controlBar && selPlacement != null) {
-            val tr = geom.rect(selPlacement)
-            val actions = barActionsFor(byId[selPlacement.id] is TileModel.Folder)
-            val bar = controlBarRect(tr.left, tr.top, tr.right, tr.bottom, widthPx, barButtonWidthPx * actions.size, barHeightPx, barGapPx)
-            if (bar.contains(down.position.x, down.position.y)) {
-                val action = actions[barButtonIndexAt(down.position.x, bar, actions.size)]
-                var movedBar = false
-                while (true) {
-                    val event = awaitPointerEvent()
-                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                    if ((change.position - down.position).getDistance() > slop) movedBar = true
-                    change.consume()
-                    if (!change.pressed) {
-                        if (!movedBar) when (action) {
-                            BarAction.UNPIN -> onUnpin(selPlacement.id)
-                            BarAction.OPEN_FOLDER -> onOpenFolder(selPlacement.id)
-                            BarAction.COLOUR -> onColor(selPlacement.id)
-                            BarAction.SIZE -> onResize(selPlacement.id)
-                        }
-                        break
-                    }
-                }
-                return@awaitEachGesture
-            }
-        }
         if (selPlacement != null) {
             val r = geom.rect(selPlacement)
             // Smaller on a small tile, where three 30dp corners would cover most of it and make every press a button.
@@ -6584,14 +6497,13 @@ private fun Modifier.editDragGesture(
             // resize, or the colour picker on the *previously* selected tile
             // instead of switching the selection to the tapped one.
             val inTile = r.contains(down.position)
-            // With the bar the unpin and colour corners don't exist: the whole tile is free to grab.
-            val inUnpin = !controlBar && inTile && down.position.x <= r.left + zone && down.position.y <= r.top + zone
+            val inUnpin = inTile && down.position.x <= r.left + zone && down.position.y <= r.top + zone
             // The resize corner keeps its full size: [tileStretchGesture] (the drag that resizes) owns that corner, and a
             // smaller zone here would leave a band where this handler and the stretch both act.
             val resizeZone = 30.dp.toPx()
             val inResize = inTile && down.position.x >= r.right - resizeZone && down.position.y >= r.bottom - resizeZone
             val inColor =
-                !controlBar && inTile && down.position.x <= r.left + zone && down.position.y >= r.bottom - zone
+                inTile && down.position.x <= r.left + zone && down.position.y >= r.bottom - zone
             if (inUnpin || inResize || inColor) {
                 // A corner is a button only for a quick tap. Moving the finger from it picks the tile up and drags
                 // it (it used to do nothing, so dragging a small tile by its corner just resized or exited), and
@@ -6619,8 +6531,7 @@ private fun Modifier.editDragGesture(
                             else
                                 onUnpin(selPlacement.id)
                             inColor -> onColor(selPlacement.id)
-                            // With the bar, size is its button; a tap on the corner does nothing (the drag resizes).
-                            else -> if (!controlBar) onResize(selPlacement.id)
+                            else -> onResize(selPlacement.id)
                         }
                         break
                     }
@@ -9431,8 +9342,6 @@ private fun PersonalizeSheetLayer(
         onColumnsChange = viewModel::setColumns,
         tilePackMode = settings.tilePackMode,
         onTilePackModeChange = viewModel::setTilePackMode,
-        tileControlStyle = settings.tileControlStyle,
-        onTileControlStyleChange = viewModel::setTileControlStyle,
         homeStyle = settings.homeStyle,
         onHomeStyleChange = viewModel::setHomeStyle,
         iconShape = settings.iconShape,

@@ -1638,10 +1638,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * tile unanchored) this reduces to the current dense-packed layout, so the
      * switch is visually seamless.
      */
-    fun setTileControlStyle(style: com.tileshell.core.data.settings.TileControlStyle) {
-        viewModelScope.launch(writeContext) { settingsRepository.setTileControlStyle(style) }
-    }
-
     fun setTilePackMode(mode: TilePackMode) {
         viewModelScope.launch(writeContext) {
             if (mode.isAnchored) seedStickySlots(settings.value.columns)

@@ -350,11 +350,6 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(tilePackMode = mode) }
     }
 
-    /** Where a selected tile's edit buttons live: its corners, or a bar above it. */
-    suspend fun setTileControlStyle(style: TileControlStyle) {
-        store.updateData { it.copy(tileControlStyle = style) }
-    }
-
     /** Switch the Start grid's cell renderer between WP tiles and Android-style icons. */
     suspend fun setHomeStyle(style: HomeStyle) {
         store.updateData { it.copy(homeStyle = style) }
