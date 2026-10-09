@@ -279,6 +279,10 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
     }
 
     /** Hides the Android system status bar while TileShell is in the foreground. */
+    suspend fun setDoubleTapLock(enabled: Boolean) {
+        store.updateData { it.copy(doubleTapLock = enabled) }
+    }
+
     suspend fun setHideStatusBar(hidden: Boolean) {
         store.updateData { it.copy(hideStatusBar = hidden) }
     }

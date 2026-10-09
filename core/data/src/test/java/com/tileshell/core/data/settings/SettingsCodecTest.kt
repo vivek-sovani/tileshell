@@ -279,6 +279,13 @@ class SettingsCodecTest {
     }
 
     @Test
+    fun `doubleTapLock is off by default, round trips and a bad value keeps the default`() {
+        assertEquals(false, LauncherSettings().doubleTapLock)
+        assertEquals(true, SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(doubleTapLock = true))).doubleTapLock)
+        assertEquals(false, SettingsCodec.decode("doubleTapLock=maybe").doubleTapLock)
+    }
+
+    @Test
     fun `hideStatusBar decodes and bad value keeps default`() {
         assertEquals(true, SettingsCodec.decode("hideStatusBar=true").hideStatusBar)
         assertEquals(

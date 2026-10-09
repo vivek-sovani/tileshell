@@ -318,6 +318,8 @@ data class LauncherSettings(
     val liveTilesEnabled: Boolean = true,
     val feedNoBackground: Boolean = false,
     val hideStatusBar: Boolean = true,
+    /** A double tap on empty Start space turns the screen off (the same lock the quick panel's lock tile uses). */
+    val doubleTapLock: Boolean = false,
     /** Persisted Quick Panel tile order, pipe-separated ids in the codec (`QuickPanelTileSpec.id`). */
     val quickPanelTileOrder: List<String> = emptyList(),
     /** Persisted Quick Panel tile sizes as `"id:cols"` tokens, pipe-separated in the codec. */
@@ -418,6 +420,7 @@ object SettingsCodec {
         append("liveTiles=").append(settings.liveTilesEnabled).append('\n')
         append("feedNoBg=").append(settings.feedNoBackground).append('\n')
         append("hideStatusBar=").append(settings.hideStatusBar).append('\n')
+        append("doubleTapLock=").append(settings.doubleTapLock).append('\n')
         append("quickPanelOrder=").append(settings.quickPanelTileOrder.joinToString("|")).append('\n')
         append("quickPanelSizes=").append(settings.quickPanelTileSizes.joinToString("|")).append('\n')
         append("favOrder=").append(encodeKeys(settings.favouritesOrder)).append('\n')
@@ -476,6 +479,7 @@ object SettingsCodec {
         var liveTilesEnabled = d.liveTilesEnabled
         var feedNoBackground = d.feedNoBackground
         var hideStatusBar = d.hideStatusBar
+        var doubleTapLock = d.doubleTapLock
         var quickPanelTileOrder = d.quickPanelTileOrder
         var quickPanelTileSizes = d.quickPanelTileSizes
         var favouritesOrder = d.favouritesOrder
@@ -550,6 +554,7 @@ object SettingsCodec {
                 "liveTiles" -> liveTilesEnabled = value.toBooleanStrictOrNull() ?: liveTilesEnabled
                 "feedNoBg" -> feedNoBackground = value.toBooleanStrictOrNull() ?: feedNoBackground
                 "hideStatusBar" -> hideStatusBar = value.toBooleanStrictOrNull() ?: hideStatusBar
+                "doubleTapLock" -> doubleTapLock = value.toBooleanStrictOrNull() ?: doubleTapLock
                 "quickPanelOrder" -> quickPanelTileOrder = if (value.isEmpty()) emptyList()
                     else value.split("|").filter { it.isNotBlank() }
                 "quickPanelSizes" -> quickPanelTileSizes = if (value.isEmpty()) emptyList()
@@ -615,6 +620,7 @@ object SettingsCodec {
             liveTilesEnabled = liveTilesEnabled,
             feedNoBackground = feedNoBackground,
             hideStatusBar = hideStatusBar,
+            doubleTapLock = doubleTapLock,
             quickPanelTileOrder = quickPanelTileOrder,
             quickPanelTileSizes = quickPanelTileSizes,
             favouritesOrder = favouritesOrder,

@@ -264,6 +264,8 @@ fun PersonalizeSheet(
     onLockLayoutChange: (Boolean) -> Unit,
     hideStatusBar: Boolean,
     onHideStatusBarChange: (Boolean) -> Unit,
+    doubleTapLock: Boolean = false,
+    onDoubleTapLockChange: (Boolean) -> Unit = {},
     onClearPhotos: () -> Unit,
     onRemovePhoto: (String) -> Unit,
     /** Master on/off switch for live-tile flipping/updates. */
@@ -1435,6 +1437,13 @@ fun PersonalizeSheet(
                                 Text(
                                     "hides the clock/battery/signal strip at the top of the screen — swipe down " +
                                     "from the top edge to reveal it temporarily",
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                                ToggleRow("double tap to lock", on = doubleTapLock, accent = accent, tokens, onDoubleTapLockChange)
+                                Text(
+                                    "a double tap on empty space on start turns the screen off. it uses the same " +
+                                    "accessibility lock as the quick panel's lock tile, so it asks for that once.",
                                     color = tokens.fgDim,
                                     fontSize = 12.sp,
                                 )

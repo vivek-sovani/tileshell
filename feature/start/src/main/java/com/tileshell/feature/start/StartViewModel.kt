@@ -2949,6 +2949,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Toggle "hide status bar" (Personalize): hides the system status bar over TileShell. */
+    fun setDoubleTapLock(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setDoubleTapLock(enabled) }
+    }
+
     fun setHideStatusBar(hidden: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setHideStatusBar(hidden) }
     }

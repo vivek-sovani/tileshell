@@ -417,7 +417,7 @@ fun AboutSheet(
                             tokens = tokens,
                             items = listOf(
                                 "tap the \"lock screen\" tile in the quick panel to lock the device",
-                                "double-tap an empty area of start to lock it too",
+                                "turn on \"double tap to lock\" (personalize › system) to lock by double-tapping an empty area of start",
                                 "preserves biometric unlock on android 9 and above",
                             ),
                         )

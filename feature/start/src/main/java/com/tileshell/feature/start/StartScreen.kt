@@ -1387,6 +1387,8 @@ fun StartScreen(
                     viewportHeightPx = viewportHeightPx,
                     statusBarTopPx = statusBarTopPx,
                     hideStatusBar = settings.hideStatusBar,
+                    doubleTapLock = settings.doubleTapLock,
+                    onDoubleTapLock = onLockScreen,
                     columns = settings.columns,
                     sticky = settings.tilePackMode.isAnchored,
                     freeMode = settings.tilePackMode == TilePackMode.FREE,
@@ -2857,6 +2859,9 @@ private fun StartPage(
      * out, confirmed against a real device with a punch-hole camera cutout.
      */
     hideStatusBar: Boolean = false,
+    // A double tap on empty space locks the screen (personalize › system).
+    doubleTapLock: Boolean = false,
+    onDoubleTapLock: () -> Unit = {},
     columns: Int,
     sticky: Boolean,
     // TilePackMode.FREE specifically (a subset of [sticky], which is also true
@@ -3397,6 +3402,14 @@ private fun StartPage(
                 active = !editMode && expandedFolderId != null,
                 absoluteTileRects = absoluteTileRects,
                 onExit = onCollapseFolder,
+            )
+            // A double tap on empty space turns the screen off (opt-in). Watches only, never consumes.
+            .doubleTapOnEmptySpace(
+                active = doubleTapLock && !editMode && expandedFolderId == null,
+                absoluteTileRects = absoluteTileRects,
+                contentTopPx = if (hideStatusBar) 0f else statusBarTopPx,
+                scrollOffsetPx = { activeScrollState.value.toFloat() },
+                onDoubleTap = onDoubleTapLock,
             )
             // Long-press on empty grid space also enters edit mode (with
             // nothing selected), matching a tile's own long-press — only
@@ -6393,6 +6406,55 @@ private fun Modifier.folderCollapseOnEmptyTap(
  * scrolled at all — confirmed live on an emulator (an on-screen gap hit an
  * unrelated tile below it once scrolled).
  */
+/**
+ * Two quick taps on empty Start space (not on a tile) call [onDoubleTap]. Watches in the Initial pass and never
+ * consumes, so taps, scrolls, long-presses and swipes behave exactly as before; a tap that moves, or lasts long, is
+ * not a tap. Same content-space hit test as [emptySpaceEnterEdit].
+ */
+private fun Modifier.doubleTapOnEmptySpace(
+    active: Boolean,
+    absoluteTileRects: List<Pair<String, Rect>>,
+    contentTopPx: Float,
+    scrollOffsetPx: () -> Float,
+    onDoubleTap: () -> Unit,
+): Modifier = pointerInput(active, absoluteTileRects) {
+    if (!active) return@pointerInput
+    val slop = viewConfiguration.touchSlop
+    val maxTapMs = 250L
+    val maxGapMs = 300L
+    val maxApartPx = 100.dp.toPx()
+    var lastTapTime = 0L
+    var lastTapPos = Offset.Zero
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        val contentPos = down.position.copy(y = down.position.y - contentTopPx + scrollOffsetPx())
+        val onTile = absoluteTileRects.any { it.second.contains(contentPos) }
+        var tap = !onTile
+        while (true) {
+            val event = awaitPointerEvent(PointerEventPass.Initial)
+            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+            if (event.changes.size > 1) tap = false
+            if ((change.position - down.position).getDistance() > slop) tap = false
+            if (change.uptimeMillis - down.uptimeMillis > maxTapMs) tap = false
+            if (!change.pressed) {
+                if (tap) {
+                    val now = change.uptimeMillis
+                    if (lastTapTime != 0L && now - lastTapTime <= maxGapMs && (change.position - lastTapPos).getDistance() <= maxApartPx) {
+                        lastTapTime = 0L
+                        onDoubleTap()
+                    } else {
+                        lastTapTime = now
+                        lastTapPos = change.position
+                    }
+                } else {
+                    lastTapTime = 0L
+                }
+                break
+            }
+        }
+    }
+}
+
 private fun Modifier.emptySpaceEnterEdit(
     active: Boolean,
     // Same precomputed, already block-offset rects as [folderCollapseOnEmptyTap].
@@ -9655,6 +9717,8 @@ private fun PersonalizeSheetLayer(
         onLockLayoutChange = viewModel::setLockLayout,
         hideStatusBar = settings.hideStatusBar,
         onHideStatusBarChange = viewModel::setHideStatusBar,
+        doubleTapLock = settings.doubleTapLock,
+        onDoubleTapLockChange = viewModel::setDoubleTapLock,
         onAbout = viewModel::openAbout,
         onPersonalizeGuide = viewModel::openPersonalizeGuide,
         onFolders = viewModel::openFolders,
