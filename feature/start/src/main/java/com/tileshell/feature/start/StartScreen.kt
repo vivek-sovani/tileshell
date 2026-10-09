@@ -202,7 +202,6 @@ import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.data.settings.WallpaperSyncTarget
 import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.core.data.shortcutIconDrawable
-import com.tileshell.core.design.CornerArcGlyph
 import com.tileshell.core.design.DarkColorTokens
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LIGHT_BACKGROUND_LUMINANCE_THRESHOLD
@@ -3008,6 +3007,8 @@ private fun StartPage(
     var mergeTargetId by remember { mutableStateOf<String?>(null) }
     // Tile whose accent-colour picker is open (edit-mode colour dot tapped), or null.
     var colorPickerFor by remember { mutableStateOf<String?>(null) }
+    // The size picker (edit-mode size button, bottom-right): lists every size; dragging that corner still resizes.
+    var sizePickerFor by remember { mutableStateOf<String?>(null) }
     // Folder id pending confirmation for "remove folder & tiles" (a bulk,
     // multi-tile unpin — worth a confirm, unlike "unfold folder" which loses
     // nothing) — set once the picker's own button is tapped, shown after the
@@ -3582,10 +3583,8 @@ private fun StartPage(
                     augmentedById[id]?.let(onTile)
                     onExitEdit()
                 },
-                onResize = { id ->
-                    val ref = folderChildRef(id)
-                    if (ref != null) onResizeFolderChild(ref.first, ref.second) else onResize(id)
-                },
+                // A tap on the size button (bottom-right corner) opens the size picker; dragging the corner resizes.
+                onResize = { id -> sizePickerFor = id },
                 onColor = { id -> colorPickerFor = id },
                 // Merging is disabled while a folder is expanded: its children
                 // are never valid merge participants, and without this a drag
@@ -4465,6 +4464,31 @@ private fun StartPage(
             )
         }
 
+        // Size picker (edit-mode size button → every size, pick one).
+        sizePickerFor?.let { pickId ->
+            val model = augmentedById[pickId]
+            val childRef = folderChildRef(pickId)
+            if (model == null) {
+                sizePickerFor = null
+            } else {
+                val tall = AppCategories.requiresTallTile((model as? TileModel.App)?.iconKey)
+                TileSizePicker(
+                    current = model.size,
+                    sizes = TileSize.entries.filter { it.cols <= columns && (!tall || it.rows >= 2) }.sortedWith(compareBy({ it.cols * it.rows }, { it.rows })),
+                    accent = accent,
+                    onPick = { picked ->
+                        when {
+                            childRef != null -> onResizeFolderChildTo(childRef.first, childRef.second, picked)
+                            model is TileModel.Folder && model.isStack -> onResizeStack(model.id, picked)
+                            else -> onResizeTo(model.id, picked)
+                        }
+                        sizePickerFor = null
+                    },
+                    onDismiss = { sizePickerFor = null },
+                )
+            }
+        }
+
         // "remove folder & tiles" confirmation — a bulk, multi-tile unpin in
         // one tap is worth guarding against an accidental press, unlike
         // "unfold folder" (nothing is lost there, just ungrouped).
@@ -4509,6 +4533,90 @@ private fun StartPage(
  * the colour swatches with a thin divider, since it's a distinct setting,
  * not another colour choice.
  */
+/**
+ * The size picker: every size a tile can take, drawn as its own shape in grid units (so a wide tile looks wide), with
+ * its dimensions; the current one is ringed. Tapping one applies it. Opened by the size button on a selected tile.
+ */
+@Composable
+private fun BoxScope.TileSizePicker(
+    current: TileSize,
+    sizes: List<TileSize>,
+    accent: Color,
+    onPick: (TileSize) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Box(
+        modifier = Modifier
+            .matchParentSize()
+            .background(Color.Black.copy(alpha = 0.5f))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+    )
+    Column(
+        modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .background(Color(0xFF1A1A1F))
+            .navigationBarsPadding()
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
+            .padding(20.dp),
+    ) {
+        Text("tile size", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        Spacer(Modifier.height(4.dp))
+        Text("pick a size. you can also drag the corner to resize.", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
+        Spacer(Modifier.height(14.dp))
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            sizes.forEach { size ->
+                val selected = size == current
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .width(72.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onPick(size) }
+                        .padding(vertical = 6.dp),
+                ) {
+                    // A fixed 56dp cell holds the shape, drawn to scale (4 units across the cell).
+                    Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+                        Box(
+                            modifier = Modifier
+                                .width((size.cols * 13).dp)
+                                .height((size.rows * 13).dp)
+                                .background(accent, RoundedCornerShape(2.dp))
+                                .border(
+                                    width = if (selected) 2.dp else 0.dp,
+                                    color = if (selected) Color.White else Color.Transparent,
+                                    shape = RoundedCornerShape(2.dp),
+                                ),
+                        )
+                    }
+                    Text(
+                        "${size.cols}×${size.rows}",
+                        color = if (selected) Color.White else Color.White.copy(alpha = 0.8f),
+                        fontSize = 12.sp,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    )
+                    Text(size.pickerName(), color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp, maxLines = 1)
+                }
+            }
+        }
+    }
+}
+
+/** What a size is called in the picker, for the ones that have a name. */
+private fun TileSize.pickerName(): String = when (this) {
+    TileSize.SMALL -> "small"
+    TileSize.MEDIUM -> "medium"
+    TileSize.WIDE -> "wide"
+    TileSize.LARGE -> "large"
+    TileSize.XLARGE -> "extra large"
+    TileSize.BANNER -> "banner"
+    TileSize.COLUMN -> "column"
+    else -> ""
+}
+
 @Composable
 private fun BoxScope.TileColorPicker(
     current: String?,
@@ -5864,10 +5972,23 @@ internal fun BoxScope.TileControls(
         description = if (isFolder) "open folder" else "unpin",
         modifier = Modifier.align(Alignment.TopStart),
     )
-    CornerArcGlyph(
-        tint = LocalTileFaceColor.current,
-        modifier = Modifier.align(Alignment.BottomEnd).padding(4.dp).size(20.dp),
-    )
+    // The size button: a white ring like the colour dot, holding a small and a big square. A tap opens the size
+    // picker; dragging it resizes (see tileStretchGesture).
+    Box(
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(6.dp)
+            .size(22.dp)
+            .clip(CircleShape)
+            .background(Color.White),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.Canvas(modifier = Modifier.size(12.dp)) {
+            val c = Color(0xFF1A1A1F)
+            drawRect(c, topLeft = androidx.compose.ui.geometry.Offset(size.width * 0.35f, 0f), size = androidx.compose.ui.geometry.Size(size.width * 0.65f, size.height * 0.65f), style = androidx.compose.ui.graphics.drawscope.Stroke(1.6.dp.toPx()))
+            drawRect(c, topLeft = androidx.compose.ui.geometry.Offset(0f, size.height * 0.45f), size = androidx.compose.ui.geometry.Size(size.width * 0.5f, size.height * 0.55f))
+        }
+    }
     if (showColor) {
         Box(
             modifier = Modifier
