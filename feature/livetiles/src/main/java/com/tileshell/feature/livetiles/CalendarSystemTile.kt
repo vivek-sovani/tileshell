@@ -843,10 +843,12 @@ internal fun ScaleDownToFit(modifier: Modifier = Modifier, content: @Composable 
 @Composable
 private fun PanchangMonthBack(panchang: PanchangInfo, sunTimes: SunTimesInfo?, moonTimes: MoonTimesInfo?, nowMillis: Long) {
     // The month is laid out in the tile's own size: the tile-wide enlargement would leave the cells too short for a tithi.
+    // It also ignores the system font size (the grid has fixed rows): a larger font pushed each tithi out of its cell
+    // and left only the dates (user-reported).
     val outer = androidx.compose.ui.platform.LocalDensity.current
     val k = LocalLiveFaceScale.current.coerceAtMost(1.3f)
     androidx.compose.runtime.CompositionLocalProvider(
-        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(outer.density / k, outer.fontScale),
+        androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(outer.density / k, 1f),
     ) { PanchangMonthBackBody(panchang, sunTimes, moonTimes, nowMillis) }
 }
 
