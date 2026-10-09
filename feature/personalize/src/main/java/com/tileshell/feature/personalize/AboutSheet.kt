@@ -481,7 +481,7 @@ fun AboutSheet(
                     }
                     7 -> {
                         FeatureGroup(
-                            title = "backup, restore & reset",
+                            title = "backups, snapshots & reset",
                             accent = accent,
                             tokens = tokens,
                             items = listOf(

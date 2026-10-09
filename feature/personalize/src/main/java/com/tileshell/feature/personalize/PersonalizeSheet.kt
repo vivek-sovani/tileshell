@@ -1476,24 +1476,27 @@ fun PersonalizeSheet(
                             }
                         }
                         // ---- backup & restore ----
-                        SettingGroup(label = "backup, restore & reset", tokens.fgDim) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable(onClick = onBackupRestore)
-                                    .padding(vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = "manage backups", color = tokens.fg, fontSize = 14.sp)
-                                    Text(
-                                        text = "snapshots on this phone, backup files and reset",
-                                        color = tokens.fgDim,
-                                        fontSize = 12.sp,
-                                    )
+                        SettingGroup(label = "backups, snapshots & reset", tokens.fgDim) {
+                            // Each row says what it is; all three open the same screen, which has them as its three groups.
+                            listOf(
+                                "snapshots" to "restore points of your layout, kept on this phone",
+                                "backup file" to "everything in one file, for a new phone or a safety copy",
+                                "reset start layout" to "set start up again from the first step",
+                            ).forEach { (title, description) ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable(onClick = onBackupRestore)
+                                        .padding(vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = title, color = tokens.fg, fontSize = 14.sp)
+                                        Text(text = description, color = tokens.fgDim, fontSize = 12.sp)
+                                    }
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(text = "›", color = accent, fontSize = 16.sp)
                                 }
-                                Spacer(Modifier.width(8.dp))
-                                Text(text = "›", color = accent, fontSize = 16.sp)
                             }
                         }
                         // ---- help ----

@@ -243,7 +243,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _historyOpen = MutableStateFlow(false)
     val historyOpen: StateFlow<Boolean> = _historyOpen.asStateFlow()
 
-    /** True while the backup & restore sheet is open (personalize → manage backups). */
+    /** True while the backup & restore sheet is open (personalize → backups, snapshots & reset). */
     private val _backupOpen = MutableStateFlow(false)
     val backupOpen: StateFlow<Boolean> = _backupOpen.asStateFlow()
 
@@ -1012,7 +1012,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Close the layout history sheet. */
     fun closeHistory() { _historyOpen.value = false }
 
-    /** Open the backup & restore sheet (personalize → manage backups). */
+    /** Open the backup & restore sheet (personalize → backups, snapshots & reset). */
     fun openBackup() { _backupOpen.value = true }
 
     /** Close the backup & restore sheet. */

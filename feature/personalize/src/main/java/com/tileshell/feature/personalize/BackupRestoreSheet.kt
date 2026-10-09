@@ -45,7 +45,7 @@ import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 
 /**
- * The backup & restore sub-sheet (personalize → manage backups): layout history,
+ * The backup & restore sub-sheet (personalize → backups, snapshots & reset): layout history,
  * auto-save + frequency, save-now, and file export/import. Pulled out of the main
  * [PersonalizeSheet] — which was growing too long — the same way [AboutSheet] and
  * [LayoutHistorySheet] already stand on their own.
@@ -123,7 +123,7 @@ fun BackupRestoreSheet(
                 )
 
                 Text(
-                    text = "backup, restore & reset",
+                    text = "backups, snapshots & reset",
                     color = tokens.fg,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Medium,

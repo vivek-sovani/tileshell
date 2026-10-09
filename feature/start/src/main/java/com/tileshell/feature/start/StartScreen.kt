@@ -2123,7 +2123,7 @@ fun StartScreen(
             rightHalf = isLandscape,
         )
 
-        // Backup & restore sheet (personalize → manage backups). Its own composable,
+        // Backup & restore sheet (personalize → backups, snapshots & reset). Its own composable,
         // like the hubs below: this layout lambda is near the dex register limit.
         BackupSheetLayer(
             viewModel = viewModel,

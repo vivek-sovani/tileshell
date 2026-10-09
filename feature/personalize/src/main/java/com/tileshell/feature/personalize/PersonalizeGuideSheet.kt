@@ -174,7 +174,7 @@ fun PersonalizeGuideSheet(
                             items = listOf(
                                 "shown on first launch as a short setup: tiles or icons (with a live preview), then theme, tile colour, and default or custom apps",
                                 "\"custom\" lists your apps with the defaults already ticked — untick or add apps; hubs and live tiles are always kept",
-                                "personalize · backup, restore & reset · reset start layout runs the same setup again",
+                                "personalize · backups, snapshots & reset · reset start layout runs the same setup again",
                                 "personalize · home style switches any time between \"tiles\" (the classic windows-phone look) and \"icons\" (a normal android-style grid)",
                                 "in icons mode, small tiles render as shaped icons; live tiles, folders, and widget stacks look exactly the same as in tiles mode",
                                 "growing an icon past its smallest size turns it into a live tile; shrinking one back down turns it back into an icon",
@@ -350,11 +350,11 @@ fun PersonalizeGuideSheet(
                             ),
                         )
                         FeatureGroup(
-                            title = "backup, restore & reset",
+                            title = "backups, snapshots & reset",
                             accent = accent,
                             tokens = tokens,
                             items = listOf(
-                                "personalize · backup, restore & reset · manage backups",
+                                "personalize · backups, snapshots & reset opens one screen with three groups: snapshots, backup file and reset",
                                 "snapshots on this phone: turn on automatic snapshots, save one now, or restore a previous layout — they stay on this phone, so use a backup file for a new one",
                                 "backup file: export everything (layout, settings, notes, tasks, music favourites) to one file — save it to google drive for your next phone — or restore from one",
                                 "reset start layout, in its own section at the bottom, runs the setup again from the first step",
