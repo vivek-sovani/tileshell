@@ -62,13 +62,19 @@ internal fun messageOf(title: String, text: String): String {
     return joined.take(1000)
 }
 
-private val NOT_YET_DELIVERED = Regex("""will be delivered|to be delivered|be delivered (?:by|on|today|tomorrow)|expected (?:to be )?deliver|delivery (?:is )?expected|delivered by""")
-private val DELIVERED = Regex("""(?:has been|was|is|been|successfully) delivered|delivered (?:to|at|on|successfully|by)|(?:^|[.:!]\s*)delivered\b|order delivered|handed (?:it )?over""")
+private val NOT_YET_DELIVERED = Regex("""will be delivered|to be delivered|be delivered (?:by|on|today|tomorrow)|expected (?:to be )?deliver|delivery (?:is )?expected|delivered by|wird (?:voraussichtlich )?(?:am |bis )|sera livr[ée]e? (?:le|demain|entre)|ser[áa] entregado|sar[àa] consegnat|wordt (?:morgen|vandaag) bezorgd|zal (?:morgen|vandaag) worden bezorgd""")
+private val DELIVERED = Regex("""(?:has been|was|is|been|successfully) delivered|delivered (?:to|at|on|successfully|by)|(?:^|[.:!]\s*)delivered\b|order delivered|handed (?:it )?over|your package (?:was |has been )?(?:left|delivered)|your (?:package|parcel|order) has arrived|was left (?:at|in|on|with)|left (?:at|in|on|with) (?:your|the) (?:front|door|porch|mailbox|neighbo)|(?:wurde|ist|erfolgreich) zugestellt|wurde geliefert|ist angekommen|a [ée]t[ée] livr[ée]e?|est livr[ée]e?|livr[ée]e? (?:le|à|chez)|ha sido entregado|fue entregado|entregado en|[èe] stato consegnato|consegnato|is bezorgd|werd bezorgd|pakket bezorgd""")
 private val OUT_FOR_DELIVERY = Regex(
     """out for delivery|arriving today|arrives today|will be delivered today|on (?:its|the) way to you|is on the way|is on its way to you|""" +
-        """(?:delivery )?(?:partner|agent|executive|rider|person) (?:is |has )?(?:on the way|nearby|reaching|arriving|assigned|picked)|reaching you|arriving in \d+|picked up your order""",
+        """(?:delivery )?(?:partner|agent|executive|rider|person) (?:is |has )?(?:on the way|nearby|reaching|arriving|assigned|picked)|reaching you|arriving in \d+|picked up your order|""" +
+        // The same in the languages of the main European markets, and the usual US wording.
+        """out for delivery today|delivery attempt|driver is (?:nearby|\d+ stops? away)|your driver|""" +
+        """in zustellung|wird heute (?:geliefert|zugestellt)|zustellung heute|heute (?:bei ihnen|zugestellt)|""" +
+        """en cours de livraison|livraison pr[ée]vue aujourd|sera livr[ée]e? aujourd|""" +
+        """en reparto|llegar[áa] hoy|reparto hoy|in consegna|consegna prevista oggi|oggi in consegna|""" +
+        """onderweg naar u|wordt vandaag bezorgd|bezorger is onderweg""",
 )
-private val SHIPPED = Regex("""(?:has been |is |was |just )?(?:shipped|dispatched)\b|in transit|left the (?:hub|facility|warehouse)|handed over to (?:the )?(?:courier|delivery)|on its way""")
+private val SHIPPED = Regex("""(?:has been |is |was |just )?(?:shipped|dispatched)\b|in transit|left the (?:hub|facility|warehouse)|handed over to (?:the )?(?:courier|delivery)|on its way|has shipped|was shipped|label created|picked up by (?:the )?carrier|departed (?:from )?(?:facility|hub)|arrived at (?:facility|hub)|versandt|versendet|auf dem weg|exp[ée]di[ée]e?|pris en charge|enviado|en camino|spedito|in viaggio|verzonden|onderweg""")
 private val PLACED = Regex(
     """order (?:has been |is )?(?:placed|confirmed|received|accepted)|thank you for (?:your )?order|we(?:'|’)?ve received your order|""" +
         """your order (?:is|has been) (?:confirmed|placed|accepted)|being prepared|preparing your order|order summary|""" +
@@ -76,11 +82,17 @@ private val PLACED = Regex(
         // quick-commerce ones (Amazon Now, Blinkit, Zepto): "packing your order", "will arrive in 10 mins".
         """\bordered\s*[:\-]|you(?:'ve| have)? ordered|thanks? for (?:your )?order(?:ing)?|thank you for (?:shopping|ordering)|""" +
         """(?:order|items?) (?:is |are )?(?:being )?packed|packing your order|""" +
-        """(?:will |to )(?:arrive|be delivered) in \d+|arriving (?:tomorrow|on |by |\w+day\b|between)|arrives (?:tomorrow|on |by |\w+day\b)""",
+        """(?:will |to )(?:arrive|be delivered) in \d+|arriving (?:tomorrow|on |by |\w+day\b|between)|arrives (?:tomorrow|on |by |\w+day\b)|""" +
+        """order (?:#\S+ )?(?:is )?(?:confirmed|received)|we got your order|thanks for shopping|your order was placed|""" +
+        """bestellung (?:ist )?(?:eingegangen|best[äa]tigt)|vielen dank f[üu]r ihre bestellung|""" +
+        """commande (?:bien )?(?:re[çc]ue|confirm[ée]e|valid[ée]e)|merci pour votre commande|""" +
+        """pedido (?:recibido|confirmado)|gracias por tu pedido|""" +
+        """ordine (?:ricevuto|confermato)|grazie per il tuo ordine|""" +
+        """bestelling (?:ontvangen|bevestigd)|bedankt voor je bestelling""",
 )
-private val CANCELLED = Regex("""order (?:has been |was |is )?cancel+ed|cancel+ation of your order|your order (?:has been |was )?cancel+ed""")
-private val RETURNED = Regex("""return (?:has been |is )?(?:picked up|completed|successful|received)|has been returned|returned to (?:seller|warehouse)""")
-private val PROMO = Regex("""\b(?:offer|offers|% off|sale|coupon|cashback|discount|deal|deals|reorder|order now|order again|use code|win)\b""")
+private val CANCELLED = Regex("""order (?:has been |was |is )?cancel+ed|cancel+ation of your order|your order (?:has been |was )?cancel+ed|bestellung (?:wurde )?storniert|storniert|commande (?:a [ée]t[ée] )?annul[ée]e|pedido (?:ha sido )?cancelado|ordine (?:[èe] stato )?annullato|bestelling (?:is )?geannuleerd""")
+private val RETURNED = Regex("""return (?:has been |is )?(?:picked up|completed|successful|received)|has been returned|returned to (?:seller|warehouse)|r[üu]cksendung|retour (?:re[çc]u|effectu)|devoluci[óo]n (?:recibida|completada)|reso (?:ricevuto|completato)|retour ontvangen""")
+private val PROMO = Regex("""\b(?:offer|offers|% off|sale|coupon|cashback|discount|deal|deals|reorder|order now|order again|use code|win|promo|promotion|save up to|angebot|rabatt|gutschein|soldes|promotion|r[ée]duction|oferta|descuento|cup[óo]n|sconto|offerta|aanbieding|korting)\b""")
 
 /** The status a message names, strongest first, or null when it names none. */
 internal fun statusOf(lower: String): OrderStatus? = when {

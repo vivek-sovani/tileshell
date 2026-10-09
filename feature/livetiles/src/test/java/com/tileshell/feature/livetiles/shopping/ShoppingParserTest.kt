@@ -236,6 +236,39 @@ class ShoppingParserTest {
     }
 
     @Test
+    fun `us and european stores, couriers and wording are recognised`() {
+        assertEquals("Walmart", storeIn("Walmart: your order is on the way")?.name)
+        assertEquals("Uber Eats", storeIn("Your Uber Eats order")?.name)
+        assertEquals("Zalando", storeIn("Ihre Zalando Bestellung")?.name)
+        assertEquals("UPS", storeIn("UPS: your package is out for delivery")?.name)
+        assertEquals(ShoppingAppKind.COURIER, storeIn("DHL Paket")?.kind)
+        assertEquals(ShoppingAppKind.FOOD, storeIn("Deliveroo")?.kind)
+        // A short name stands alone, so it isn't found inside other words.
+        assertNull(storeIn("a great upside for groups"))
+        assertNull(storeIn("it was a gloss"))
+        // Apps named for what they do, whatever the brand; the Play Store and friends are not shopping.
+        assertEquals(ShoppingAppKind.SHOPPING, builtInShoppingKind("x.y", "Hometown Shopping"))
+        assertEquals(ShoppingAppKind.FOOD, builtInShoppingKind("x.y", "Corner Grocery"))
+        assertEquals(ShoppingAppKind.COURIER, builtInShoppingKind("x.y", "Parcel Tracker"))
+        assertNull(builtInShoppingKind("com.android.vending", "Play Store"))
+        assertNull(builtInShoppingKind("com.sec.android.app.samsungapps", "Galaxy Store"))
+        // The usual US and European order wording.
+        assertEquals(OrderStatus.SHIPPED, statusOf("your order has shipped"))
+        assertEquals(OrderStatus.DELIVERED, statusOf("your package was left at your front door"))
+        assertEquals(OrderStatus.OUT_FOR_DELIVERY, statusOf("your driver is nearby"))
+        assertEquals(OrderStatus.SHIPPED, statusOf("ihre bestellung wurde versendet"))
+        assertEquals(OrderStatus.DELIVERED, statusOf("ihr paket wurde zugestellt"))
+        assertEquals(OrderStatus.OUT_FOR_DELIVERY, statusOf("ihr paket wird heute zugestellt"))
+        assertEquals(OrderStatus.SHIPPED, statusOf("votre commande a été expédiée"))
+        assertEquals(OrderStatus.DELIVERED, statusOf("votre colis a été livré"))
+        assertEquals(OrderStatus.SHIPPED, statusOf("tu pedido ha sido enviado"))
+        assertEquals(OrderStatus.CANCELLED, statusOf("tu pedido ha sido cancelado".replace("tu pedido ha sido", "pedido ha sido")))
+        assertEquals(OrderStatus.DELIVERED, statusOf("il tuo ordine è stato consegnato"))
+        assertEquals(OrderStatus.CANCELLED, statusOf("uw bestelling is geannuleerd".replace("uw bestelling", "bestelling")))
+        assertNull(statusOf("your order will be delivered tomorrow"))
+    }
+
+    @Test
     fun `a store's chat or deal is claimed by shopping, a friend's chat is not`() {
         // A business chat from a store, an order update and a promotion: shopping's, so people leaves them out.
         assertEquals(true, shoppingClaims("com.whatsapp", "AJIO", "Your order has been shipped. Order ID: 12345-678"))

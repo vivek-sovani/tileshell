@@ -19,7 +19,7 @@ private val SMS_SHOPPING_APPS = setOf(
  * app, or it is an SMS, email or chat that names a known store (a chat only when the store is who it is with). Pure.
  */
 internal fun shoppingSourceOf(packageName: String, appLabel: String, title: String, text: String): ShoppingSource? {
-    val appKinds = shoppingAppKinds(packageName, appLabel)
+    val appKinds = shoppingKindsOfPackage(packageName, appLabel)
     if (appKinds.isNotEmpty()) {
         // A shopping app: the store is the app (its known name when it has one).
         val store = storeIn(appLabel)
