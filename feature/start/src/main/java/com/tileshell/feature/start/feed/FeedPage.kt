@@ -157,6 +157,7 @@ fun FeedPage(
     onOpenQuickSearch: () -> Unit,
     onWeatherDetails: (String) -> Unit,
     onAddSchedule: () -> Unit,
+    onOpenMusicHub: () -> Unit = {},
     onOpenArticle: (String) -> Unit,
     onRefresh: () -> Unit,
     active: Boolean,
@@ -389,7 +390,8 @@ fun FeedPage(
                 nowPlaying = nowPlaying,
                 nowPlayingPackage = nowPlayingPackage,
                 nowPlayingArt = nowPlayingPackage?.let { artwork[it] },
-                onNowPlayingClick = nowPlayingPackage?.let { pkg -> { launchPackage(context, pkg) } },
+                // TileShell's own music hub plays under TileShell's package: launching that only brings up Start, so open the hub.
+                onNowPlayingClick = nowPlayingPackage?.let { pkg -> { if (pkg == context.packageName) onOpenMusicHub() else launchPackage(context, pkg) } },
                 editMode = glanceEditMode,
                 onEditModeChange = { glanceEditMode = it },
                 active = active,

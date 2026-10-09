@@ -1800,6 +1800,7 @@ fun StartScreen(
                 onOpenQuickSearch = viewModel::openSearch,
                 onWeatherDetails = { query -> launchWebSearch(context, query) },
                 onAddSchedule = { launchAddEvent(context) },
+                onOpenMusicHub = { viewModel.openMusicHub() },
                 onOpenArticle = { link -> launchUrl(context, link) },
                 onRefresh = {
                     viewModel.refreshFeeds()
