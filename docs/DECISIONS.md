@@ -11776,5 +11776,5 @@ A tester asked for square WP-like tiles in the app list (reference: WP8 all-apps
 (icons | tiles, default icons) in personalize › start rather than changing the default, so existing users see no
 change. Tiles reuse the monochrome plate path (`MaskedAppIcon`, square, 44dp, `glyphScale` 1.35) instead of a new
 renderer, so the plate follows the accent and "monochrome icons" keeps controlling glyph tint. Letter headers become
-outlined accent squares as in the reference. Follow-up: with tile colour source "app icon" the plate uses the icon's most common saturated hue (hue-bucket mode,
+outlined accent squares as in the reference. Follow-up: the plate always uses (independent of the tile colour source, per the user) the icon's most common saturated hue (hue-bucket mode,
 not the mean, which muddies multi-colour logos) and the badge is an outlined circle on the tile corner.

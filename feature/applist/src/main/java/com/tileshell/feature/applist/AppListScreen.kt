@@ -83,7 +83,6 @@ import com.tileshell.core.data.settings.AppListStyle
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.MonochromeIconTint
-import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.LocalColorTokens
@@ -227,7 +226,6 @@ fun AppListScreen(
                                 iconShape = settings.iconShape,
                                 themedIcons = settings.themedIcons,
                                 appListStyle = settings.appListStyle,
-                                tileColorSource = settings.tileColorSource,
                                 monochromeIconTint = settings.monochromeIconTint,
                                 siblings = siblingsByPackage[app.packageName].orEmpty(),
                                 pinnedActivityKeys = pinnedActivityKeys,
@@ -273,7 +271,6 @@ fun AppListScreen(
                             iconShape = settings.iconShape,
                             themedIcons = settings.themedIcons,
                             appListStyle = settings.appListStyle,
-                            tileColorSource = settings.tileColorSource,
                             monochromeIconTint = settings.monochromeIconTint,
                             onHide = { viewModel.hide(app) },
                             siblings = siblingsByPackage[app.packageName].orEmpty(),
@@ -398,7 +395,6 @@ private fun AppRow(
     themedIcons: Boolean = false,
     monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
     appListStyle: AppListStyle = AppListStyle.ICONS,
-    tileColorSource: TileColorSource = TileColorSource.GLOBAL_ACCENT,
     siblings: List<AppEntry> = emptyList(),
     pinnedActivityKeys: Set<String> = emptySet(),
     onPinSibling: (AppEntry) -> Unit = {},
@@ -497,7 +493,7 @@ private fun AppRow(
                             monochromeIconTint = if (themedIcons) monochromeIconTint else MonochromeIconTint.ACCENT,
                             // Adaptive icons carry a safe-zone margin; the plate is the whole tile.
                             glyphScale = 1.35f,
-                            plateColor = if (tileColorSource == TileColorSource.APP_ICON) icon.dominantColor else null,
+                            plateColor = icon.dominantColor,
                         )
                     } else {
                         MaskedAppIcon(
