@@ -11764,3 +11764,9 @@ one). The commit still waits for release, as before.
 small tile most presses were buttons, and a press that moved did nothing at all. Zones are now at most 27% of the
 tile's shorter side, count as a button only for a tap released within 300ms, and a press that moves is handed
 to the ordinary drag (the tile lifts).
+
+**Follow-up (same day): resize corner.** The first version handed *every* moving corner press over to the tile
+drag, which broke resizing: the bottom-right corner is owned by `tileStretchGesture` (the resize drag), so a
+resize drag also picked the tile up. The resize corner is back to its full 30dp and a press that moves from it
+is left to the stretch gesture; only the unpin and colour corners hand a moving press to the tile drag, a moved
+press never counts as a tap, and `change.isConsumed` is respected.

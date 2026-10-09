@@ -6498,7 +6498,10 @@ private fun Modifier.editDragGesture(
             // instead of switching the selection to the tapped one.
             val inTile = r.contains(down.position)
             val inUnpin = inTile && down.position.x <= r.left + zone && down.position.y <= r.top + zone
-            val inResize = inTile && down.position.x >= r.right - zone && down.position.y >= r.bottom - zone
+            // The resize corner keeps its full size: [tileStretchGesture] (the drag that resizes) owns that corner, and a
+            // smaller zone here would leave a band where this handler and the stretch both act.
+            val resizeZone = 30.dp.toPx()
+            val inResize = inTile && down.position.x >= r.right - resizeZone && down.position.y >= r.bottom - resizeZone
             val inColor =
                 inTile && down.position.x <= r.left + zone && down.position.y >= r.bottom - zone
             if (inUnpin || inResize || inColor) {
@@ -6506,16 +6509,22 @@ private fun Modifier.editDragGesture(
                 // it (it used to do nothing, so dragging a small tile by its corner just resized or exited), and
                 // a hold that is released in place does nothing.
                 var handOverToDrag = false
+                var movedCtl = false
                 while (true) {
                     val event = awaitPointerEvent()
                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
                     if ((change.position - down.position).getDistance() > slop) {
-                        handOverToDrag = true
-                        break
+                        movedCtl = true
+                        // Moving from the unpin or colour corner picks the tile up. Moving from the resize corner
+                        // is the resize drag, handled by tileStretchGesture: leave it alone, as before.
+                        if (!inResize && !change.isConsumed) {
+                            handOverToDrag = true
+                            break
+                        }
                     }
                     change.consume()
                     if (!change.pressed) {
-                        val quick = change.uptimeMillis - down.uptimeMillis <= CORNER_TAP_MAX_MS
+                        val quick = !movedCtl && change.uptimeMillis - down.uptimeMillis <= CORNER_TAP_MAX_MS
                         if (quick) when {
                             inUnpin -> if (byId[selPlacement.id] is TileModel.Folder)
                                 onOpenFolder(selPlacement.id)
