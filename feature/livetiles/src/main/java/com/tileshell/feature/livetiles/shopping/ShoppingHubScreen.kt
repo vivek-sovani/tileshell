@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
@@ -59,6 +60,8 @@ import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 import com.tileshell.feature.livetiles.HubAppsPage
+import com.tileshell.feature.livetiles.RowAction
+import com.tileshell.feature.livetiles.SwipeToDismissRow
 import com.tileshell.feature.livetiles.HubKind
 import com.tileshell.feature.livetiles.HubPageApp
 import com.tileshell.feature.livetiles.HubPinNote
@@ -301,6 +304,7 @@ private fun DealsPage(tokens: ColorTokens, accent: Color, reading: Boolean) {
     val context = LocalContext.current
     val deals by ShoppingStore.deals.collectAsStateWithLifecycle()
     val apps = com.tileshell.feature.livetiles.shopping.rememberShoppingApps().orEmpty()
+    var expandedKey by remember { mutableStateOf<String?>(null) }
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         item(key = "note") {
             Text(
@@ -316,27 +320,89 @@ private fun DealsPage(tokens: ColorTokens, accent: Color, reading: Boolean) {
         }
         items(deals, key = { it.key }) { d ->
             val app = appForMerchant(apps, d.merchant)
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
-                Row(
-                    modifier = Modifier.fillMaxWidth().clickable(enabled = app != null) { app?.let { openApp(context, it.packageName) } }.padding(vertical = 10.dp),
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(d.title, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        if (d.text.isNotEmpty()) Text(d.text, color = tokens.fgDim, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            "${d.merchant} · ${dayLabel(d.time)} · " + SimpleDateFormat("h:mm a", Locale.ENGLISH).format(Date(d.time)).lowercase(),
-                            color = if (d.food) FoodOrange else ShopBlue, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(top = 3.dp),
-                        )
-                    }
-                    Text("✕", color = tokens.fgDim, fontSize = 16.sp, modifier = Modifier.clickable { ShoppingStore.removeDeal(context, d.key) }.padding(start = 10.dp, top = 2.dp, bottom = 8.dp))
-                }
-            }
+            MessageRow(
+                title = d.title,
+                body = d.text,
+                meta = "${d.merchant} · ${dayLabel(d.time)} · " + SimpleDateFormat("h:mm a", Locale.ENGLISH).format(Date(d.time)).lowercase(),
+                metaColor = if (d.food) FoodOrange else ShopBlue,
+                appLabel = app?.label?.lowercase(),
+                expanded = expandedKey == d.key,
+                onToggle = { expandedKey = if (expandedKey == d.key) null else d.key },
+                onOpen = { app?.let { openApp(context, it.packageName) } },
+                onDismiss = {
+                    if (expandedKey == d.key) expandedKey = null
+                    ShoppingStore.removeDeal(context, d.key)
+                },
+                tokens = tokens,
+                accent = accent,
+            )
         }
         if (deals.isNotEmpty()) {
             item(key = "clear") {
                 Text("clear all deals", color = accent, fontSize = 14.sp, modifier = Modifier.clickable { ShoppingStore.clearDeals(context) }.padding(vertical = 12.dp))
+            }
+        }
+    }
+}
+
+// --- a message row, as in people's what's new ------------------------------------------
+
+/**
+ * A deal or a finished order, the way a "what's new" row works in the people hub: tap it to open the store's app,
+ * the arrow expands it to the whole message, and swiping it sideways (or "dismiss" when expanded) removes it.
+ */
+@Composable
+private fun MessageRow(
+    title: String,
+    body: String,
+    meta: String,
+    metaColor: Color,
+    appLabel: String?,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    onOpen: () -> Unit,
+    onDismiss: () -> Unit,
+    tokens: ColorTokens,
+    accent: Color,
+) {
+    SwipeToDismissRow(tokens = tokens, onDismiss = onDismiss) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
+            Column(modifier = Modifier.fillMaxWidth().background(if (expanded) tokens.fg.copy(alpha = 0.06f) else Color.Transparent)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onOpen)
+                        .padding(vertical = 10.dp, horizontal = if (expanded) 8.dp else 0.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(title, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, maxLines = if (expanded) 8 else 2, overflow = TextOverflow.Ellipsis)
+                        if (body.isNotEmpty()) {
+                            Text(body, color = tokens.fgDim, fontSize = 13.sp, maxLines = if (expanded) 30 else 2, overflow = TextOverflow.Ellipsis)
+                        }
+                        Text(meta, color = metaColor, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 3.dp))
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onToggle),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.material3.Icon(
+                            com.tileshell.core.design.TileIcons["chevron"],
+                            contentDescription = if (expanded) "collapse" else "expand",
+                            tint = tokens.fgDim,
+                            modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = if (expanded) -90f else 90f },
+                        )
+                    }
+                }
+                if (expanded) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 10.dp)) {
+                        if (appLabel != null) RowAction("open in $appLabel", accent, onOpen)
+                        RowAction("dismiss", accent, onDismiss)
+                    }
+                }
             }
         }
     }
@@ -349,26 +415,32 @@ private fun PastPage(tokens: ColorTokens, accent: Color) {
     val context = LocalContext.current
     val orders by ShoppingStore.orders.collectAsStateWithLifecycle()
     val past = remember(orders) { pastOrders(orders) }
+    val apps = com.tileshell.feature.livetiles.shopping.rememberShoppingApps().orEmpty()
+    var expandedKey by remember { mutableStateOf<String?>(null) }
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         item(key = "note") {
             Text("last 90 days. only what arrived after this was turned on is here.", color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp))
         }
         if (past.isEmpty()) item(key = "empty") { Text("no finished orders yet", color = tokens.fgDim, fontSize = 15.sp, modifier = Modifier.padding(vertical = 12.dp)) }
         items(past, key = { it.key }) { o ->
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 9.dp)) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(o.title, color = tokens.fg, fontSize = 16.sp, fontWeight = FontWeight.Light, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                        Text(
-                            "${o.merchant} · ${o.status.label} · ${dayLabel(o.updated)}",
-                            color = if (o.status == OrderStatus.DELIVERED) tokens.fgDim else Closed,
-                            fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    Text("✕", color = tokens.fgDim, fontSize = 16.sp, modifier = Modifier.clickable { ShoppingStore.remove(context, o.key) }.padding(start = 10.dp, top = 4.dp, bottom = 4.dp))
-                }
-            }
+            val app = appForMerchant(apps, o.merchant)
+            MessageRow(
+                title = o.title,
+                // The message itself, when it says more than the item's name.
+                body = o.message.takeUnless { it.isBlank() || it.equals(o.title, ignoreCase = true) }.orEmpty(),
+                meta = "${o.merchant} · ${o.status.label} · ${dayLabel(o.updated)}",
+                metaColor = if (o.status == OrderStatus.DELIVERED) tokens.fgDim else Closed,
+                appLabel = app?.label?.lowercase(),
+                expanded = expandedKey == o.key,
+                onToggle = { expandedKey = if (expandedKey == o.key) null else o.key },
+                onOpen = { app?.let { openApp(context, it.packageName) } },
+                onDismiss = {
+                    if (expandedKey == o.key) expandedKey = null
+                    ShoppingStore.remove(context, o.key)
+                },
+                tokens = tokens,
+                accent = accent,
+            )
         }
     }
 }

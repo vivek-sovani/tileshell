@@ -1191,7 +1191,7 @@ private fun ActivityRow(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SwipeToDismissRow(tokens: ColorTokens, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+internal fun SwipeToDismissRow(tokens: ColorTokens, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     val state = rememberSwipeToDismissBoxState(
         confirmValueChange = { value ->
             if (value != SwipeToDismissBoxValue.Settled) onDismiss()
@@ -1273,7 +1273,7 @@ private fun InlineReplyField(tokens: ColorTokens, accent: Color, sender: String,
 }
 
 @Composable
-private fun RowAction(label: String, accent: Color, onClick: () -> Unit) {
+internal fun RowAction(label: String, accent: Color, onClick: () -> Unit) {
     Text(
         text = label,
         color = accent,

@@ -263,9 +263,33 @@ class ShoppingParserTest {
         val back = DealCodec.decode(DealCodec.encode(d))
         assertEquals(d.key, back?.key)
         assertEquals("Big title", back?.title)
-        assertEquals("line one line two", back?.text)
+        assertEquals("line one\nline two", back?.text)
         assertTrue(back?.food == true)
         assertEquals(42L, back?.time)
         assertNull(DealCodec.decode("too\tfew"))
+    }
+
+    @Test
+    fun `an order keeps its latest full message`() {
+        val a = parse("Amazon", "Your package is out for delivery with our agent.\n\nOrder ID: 407-2341856-1256365", titleIsItem = false)!!
+        assertEquals("Your package is out for delivery with our agent.\n\nOrder ID: 407-2341856-1256365", a.message)
+        val d = parse("Delivered: Phone case", "Your Amazon package was delivered. Order #402-7654321-1111111", time = 9_000L)!!
+        assertEquals("Delivered: Phone case\nYour Amazon package was delivered. Order #402-7654321-1111111", d.message)
+        // Merged: the order shows the newest message.
+        val merged = mergeOrder(mergeOrder(emptyList(), a.copy(ref = "x", time = 1_000L)), d.copy(ref = "x", time = 9_000L))
+        assertEquals(d.message, merged.single().message)
+        // A repeat of the title adds no second line.
+        assertEquals("Order shipped", messageOf("Order shipped", "order shipped"))
+        assertEquals("Only a title", messageOf("Only a title", ""))
+    }
+
+    @Test
+    fun `order codec keeps the message and reads older lines without one`() {
+        val o = mergeOrder(emptyList(), parse("Amazon", "Out for delivery today.\nOrder ID: 407-2341856-1256365", titleIsItem = false)!!).single()
+        val back = ShoppingCodec.decode(ShoppingCodec.encode(o))!!
+        assertEquals(o.message, back.message)
+        // A line saved before messages were kept (ten columns).
+        val old = ShoppingCodec.encode(o).split("\t").take(10).joinToString("\t")
+        assertEquals("", ShoppingCodec.decode(old)!!.message)
     }
 }

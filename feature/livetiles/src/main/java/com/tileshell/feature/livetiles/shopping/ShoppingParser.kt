@@ -32,6 +32,8 @@ data class Order(
     val food: Boolean,
     val firstSeen: Long,
     val updated: Long,
+    /** The latest message about it in full (the notification's text), for expanding a row; blank for older entries. */
+    val message: String = "",
 )
 
 /** What one notification says about an order. */
@@ -45,7 +47,20 @@ data class OrderUpdate(
     val sourcePackage: String,
     val food: Boolean,
     val time: Long,
+    val message: String = "",
 )
+
+/** The whole message a notification carried: its text, with the title above it when that adds something. Pure. */
+internal fun messageOf(title: String, text: String): String {
+    val t = title.trim()
+    val b = text.trim()
+    val joined = when {
+        b.isEmpty() || b.equals(t, ignoreCase = true) -> t
+        t.isEmpty() || b.startsWith(t, ignoreCase = true) -> b
+        else -> "$t\n$b"
+    }
+    return joined.take(1000)
+}
 
 private val NOT_YET_DELIVERED = Regex("""will be delivered|to be delivered|be delivered (?:by|on|today|tomorrow)|expected (?:to be )?deliver|delivery (?:is )?expected|delivered by""")
 private val DELIVERED = Regex("""(?:has been|was|is|been|successfully) delivered|delivered (?:to|at|on|successfully|by)|(?:^|[.:!]\s*)delivered\b|order delivered|handed (?:it )?over""")
@@ -187,6 +202,8 @@ fun parseOrderMessage(
         sourcePackage = sourcePackage,
         food = food,
         time = time,
+        // An app's title can be part of the message ("Delivered: Phone case"); an SMS's or a chat's is the sender.
+        message = if (titleIsItem) messageOf(title, text) else text.trim().ifEmpty { title.trim() }.take(1000),
     )
 }
 
@@ -226,6 +243,7 @@ fun mergeOrder(orders: List<Order>, u: OrderUpdate, now: Long = u.time): List<Or
             food = u.food,
             firstSeen = u.time,
             updated = u.time,
+            message = u.message,
         )
     } else {
         val forward = when {
@@ -242,6 +260,7 @@ fun mergeOrder(orders: List<Order>, u: OrderUpdate, now: Long = u.time): List<Or
             eta = if (closed) null else (u.eta ?: match.eta.takeIf { !forward || u.status == match.status }),
             otp = if (closed) null else (u.otp ?: match.otp),
             updated = maxOf(match.updated, u.time),
+            message = if (u.time >= match.updated && u.message.isNotBlank()) u.message else match.message,
         )
     }
     return (listOf(next) + orders.filter { it.key != next.key })
@@ -287,7 +306,7 @@ fun dealOf(title: String, text: String, sourcePackage: String, merchant: String,
     val shownTitle = t.ifEmpty { body }
     val shownText = if (t.isEmpty() || body.equals(t, ignoreCase = true)) "" else body
     val key = "${merchant.lowercase()}|${(shownTitle + shownText).lowercase().filter { it.isLetterOrDigit() }.hashCode()}"
-    return Deal(key, merchant, shownTitle.take(120), shownText.take(400), sourcePackage, food, time)
+    return Deal(key, merchant, shownTitle.take(120), shownText.take(1000), sourcePackage, food, time)
 }
 
 /** Adds [d] (a repeat of the same message only refreshes its time), newest first, within [KEEP_DEALS_MS] and [MAX_DEALS]. Pure. */

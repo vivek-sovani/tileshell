@@ -120,11 +120,14 @@ object ShoppingStore {
     }
 }
 
+/** Stands for a line break inside a stored message (the file is one record per line). */
+private const val LINE = '\u2424'
+
 /** One [Order] per line, tab-separated; blank fields for nulls. Pure, unit-tested. */
 object ShoppingCodec {
     fun encode(o: Order): String = listOf(
         o.key, o.merchant, o.title, o.status.name, o.eta.orEmpty(), o.otp.orEmpty(), o.sourcePackage,
-        if (o.food) "f" else "", o.firstSeen.toString(), o.updated.toString(),
+        if (o.food) "f" else "", o.firstSeen.toString(), o.updated.toString(), o.message.replace('\n', LINE),
     ).joinToString("\t") { it.replace('\t', ' ').replace('\n', ' ') }
 
     fun decode(line: String): Order? {
@@ -141,18 +144,20 @@ object ShoppingCodec {
             food = f[7] == "f",
             firstSeen = f[8].toLongOrNull() ?: return null,
             updated = f[9].toLongOrNull() ?: return null,
+            // Older logs have no message column.
+            message = f.getOrNull(10).orEmpty().replace(LINE, '\n'),
         )
     }
 }
 
 /** One [Deal] per line, tab-separated. Pure, unit-tested. */
 object DealCodec {
-    fun encode(d: Deal): String = listOf(d.key, d.merchant, d.title, d.text, d.sourcePackage, if (d.food) "f" else "", d.time.toString())
+    fun encode(d: Deal): String = listOf(d.key, d.merchant, d.title, d.text.replace('\n', LINE), d.sourcePackage, if (d.food) "f" else "", d.time.toString())
         .joinToString("\t") { it.replace('\t', ' ').replace('\n', ' ') }
 
     fun decode(line: String): Deal? {
         val f = line.split("\t")
         if (f.size < 7) return null
-        return Deal(f[0], f[1], f[2], f[3], f[4], f[5] == "f", f[6].toLongOrNull() ?: return null)
+        return Deal(f[0], f[1], f[2], f[3].replace(LINE, '\n'), f[4], f[5] == "f", f[6].toLongOrNull() ?: return null)
     }
 }
