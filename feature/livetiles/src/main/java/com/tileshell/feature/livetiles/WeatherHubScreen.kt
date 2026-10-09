@@ -187,7 +187,14 @@ fun WeatherHubScreen(
                 actions = listOf(
                     HubAppBarAction("back", "back", onDismiss),
                     HubAppBarAction("refresh", "refresh forecast", "refresh") { WeatherRefreshWorker.refreshNow(context) },
+                    // More than the hub shows (radar, pollen, longer outlook): the forecast's place on a weather site.
+                    HubAppBarAction("web", "more weather details on the web", "on the web") {
+                        openWeatherWeb(context, WeatherSite.GOOGLE, snapshot?.place.orEmpty())
+                    },
                 ),
+                menuItems = listOf(WeatherSite.ACCUWEATHER, WeatherSite.TIMEANDDATE).map { site ->
+                    HubAppBarAction("web", "open ${site.label}", site.label) { openWeatherWeb(context, site, snapshot?.place.orEmpty()) }
+                },
             )
         }
     }

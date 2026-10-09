@@ -4,9 +4,6 @@ package com.tileshell.feature.start.feed
 
 import android.Manifest
 import android.content.Intent
-import android.net.Uri
-import android.provider.CalendarContract
-import android.widget.Toast
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -128,7 +125,8 @@ import java.util.Calendar
  *
  * @param onOpenQuickSearch opens the same apps/contacts/web-engines/ask-ai overlay the
  *   two-finger swipe gesture does — the search pill itself is just an entry point into it.
- * @param onWeatherDetails opens fuller weather for the given place query.
+ * @param onOpenWeatherHub opens the weather hub (the glance weather card's tap).
+ * @param onOpenCalendarHub opens the calendar hub (the agenda card's tap).
  * @param onAddSchedule opens the calendar app's add-event screen.
  * @param onOpenArticle opens a tapped article's link in the browser.
  * @param onRefresh forces a manual news refresh.
@@ -155,7 +153,8 @@ fun FeedPage(
     feedRegions: Set<String>,
     onFeedRegionToggle: (region: String, enabled: Boolean) -> Unit,
     onOpenQuickSearch: () -> Unit,
-    onWeatherDetails: (String) -> Unit,
+    onOpenWeatherHub: () -> Unit,
+    onOpenCalendarHub: () -> Unit,
     onAddSchedule: () -> Unit,
     onOpenMusicHub: () -> Unit = {},
     onOpenArticle: (String) -> Unit,
@@ -382,11 +381,11 @@ fun FeedPage(
                 cardFg = feedFg,
                 cardFgDim = feedFgDim,
                 weatherSnapshot = snapshot,
-                onWeatherClick = { onWeatherDetails(("weather " + (snapshot?.place ?: "")).trim()) },
+                onWeatherClick = onOpenWeatherHub,
                 agenda = agenda,
                 calendarGranted = calGranted,
                 onAddSchedule = onAddSchedule,
-                onAgendaClick = { openCalendar(context) },
+                onAgendaClick = onOpenCalendarHub,
                 nowPlaying = nowPlaying,
                 nowPlayingPackage = nowPlayingPackage,
                 nowPlayingArt = nowPlayingPackage?.let { artwork[it] },
@@ -1497,24 +1496,6 @@ private fun FeedsManager(
             )
         }
     }
-}
-
-/**
- * Opens the default calendar app. Tries the calendar content provider VIEW intent
- * (the standard way to land in the device's calendar at the current time), then
- * falls back to the add-event INSERT intent. Best-effort — toasts if no calendar
- * app handles either.
- */
-private fun openCalendar(context: android.content.Context) {
-    val view = Intent(Intent.ACTION_VIEW)
-        .setData(Uri.parse("content://com.android.calendar/time"))
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    if (runCatching { context.startActivity(view) }.isSuccess) return
-    val insert = Intent(Intent.ACTION_INSERT)
-        .setData(CalendarContract.Events.CONTENT_URI)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    if (runCatching { context.startActivity(insert) }.isSuccess) return
-    Toast.makeText(context, "no calendar app found", Toast.LENGTH_SHORT).show()
 }
 
 /** Launches [packageName]'s main activity via the launcher intent. Best-effort; silently no-ops on failure. */
