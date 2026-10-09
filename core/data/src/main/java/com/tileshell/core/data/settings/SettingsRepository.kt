@@ -397,6 +397,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(monochromeIconTint = tint) }
     }
 
+    /** See [LauncherSettings.appListStyle]'s doc comment. */
+    suspend fun setAppListStyle(style: AppListStyle) {
+        store.updateData { it.copy(appListStyle = style) }
+    }
+
     /** Replace all settings with a restored backup value atomically. */
     suspend fun restoreSettings(settings: LauncherSettings) {
         store.updateData { settings }

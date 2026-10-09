@@ -78,6 +78,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.PinResult
+import com.tileshell.core.data.settings.AppListStyle
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.MonochromeIconTint
@@ -223,6 +224,7 @@ fun AppListScreen(
                                 homeStyle = settings.homeStyle,
                                 iconShape = settings.iconShape,
                                 themedIcons = settings.themedIcons,
+                                appListStyle = settings.appListStyle,
                                 monochromeIconTint = settings.monochromeIconTint,
                                 siblings = siblingsByPackage[app.packageName].orEmpty(),
                                 pinnedActivityKeys = pinnedActivityKeys,
@@ -238,7 +240,7 @@ fun AppListScreen(
                         key = { _, app -> app.key },
                     ) { index, app ->
                         val newSection = index == 0 || apps[index - 1].letter != app.letter
-                        if (newSection) LetterHeader(app.letter, accent) { jumpOpen = true }
+                        if (newSection) LetterHeader(app.letter, accent, settings.appListStyle) { jumpOpen = true }
                         AppRow(
                             app = app,
                             onTap = {
@@ -267,6 +269,7 @@ fun AppListScreen(
                             homeStyle = settings.homeStyle,
                             iconShape = settings.iconShape,
                             themedIcons = settings.themedIcons,
+                            appListStyle = settings.appListStyle,
                             monochromeIconTint = settings.monochromeIconTint,
                             onHide = { viewModel.hide(app) },
                             siblings = siblingsByPackage[app.packageName].orEmpty(),
@@ -341,7 +344,32 @@ private fun SectionHeader(text: String, accent: Color) {
 }
 
 @Composable
-private fun LetterHeader(letter: String, accent: Color, onClick: () -> Unit) {
+private fun LetterHeader(
+    letter: String,
+    accent: Color,
+    style: AppListStyle = AppListStyle.ICONS,
+    onClick: () -> Unit,
+) {
+    if (style == AppListStyle.TILES) {
+        // Windows Phone all-apps look: the letter sits in an outlined accent
+        // square the same size as the app tiles below it.
+        Box(
+            modifier = Modifier
+                .padding(start = 18.dp, top = 9.dp)
+                .size(44.dp)
+                .border(2.dp, accent)
+                .clickable(onClick = onClick),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = letter.lowercase(),
+                color = accent,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.ExtraLight,
+            )
+        }
+        return
+    }
     Text(
         text = letter.lowercase(),
         color = accent,
@@ -365,6 +393,7 @@ private fun AppRow(
     iconShape: IconShape = IconShape.ORIGINAL,
     themedIcons: Boolean = false,
     monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
+    appListStyle: AppListStyle = AppListStyle.ICONS,
     siblings: List<AppEntry> = emptyList(),
     pinnedActivityKeys: Set<String> = emptySet(),
     onPinSibling: (AppEntry) -> Unit = {},
@@ -450,14 +479,30 @@ private fun AppRow(
                         modifier = Modifier.size(28.dp),
                     )
                 } else if (icon != null) {
-                    MaskedAppIcon(
-                        loaded = icon,
-                        homeStyle = homeStyle,
-                        shape = iconShape,
-                        size = 40.dp,
-                        themedIcons = themedIcons,
-                        monochromeIconTint = monochromeIconTint,
-                    )
+                    if (appListStyle == AppListStyle.TILES) {
+                        // The prototype's `.app-tile`: a square 44dp accent plate
+                        // with the app's glyph on it (the monochrome plate path,
+                        // forced square and full row-slot size).
+                        MaskedAppIcon(
+                            loaded = icon,
+                            homeStyle = homeStyle,
+                            shape = IconShape.SQUARE,
+                            size = 44.dp,
+                            themedIcons = true,
+                            monochromeIconTint = if (themedIcons) monochromeIconTint else MonochromeIconTint.ACCENT,
+                            // Adaptive icons carry a safe-zone margin; the plate is the whole tile.
+                            glyphScale = 1.35f,
+                        )
+                    } else {
+                        MaskedAppIcon(
+                            loaded = icon,
+                            homeStyle = homeStyle,
+                            shape = iconShape,
+                            size = 40.dp,
+                            themedIcons = themedIcons,
+                            monochromeIconTint = monochromeIconTint,
+                        )
+                    }
                 } else {
                     // No real icon: the monoline glyph on the list background (no square).
                     Icon(

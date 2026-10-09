@@ -9713,6 +9713,8 @@ private fun PersonalizeSheetLayer(
         onThemedIconsChange = viewModel::setThemedIcons,
         monochromeIconTint = settings.monochromeIconTint,
         onMonochromeIconTintChange = viewModel::setMonochromeIconTint,
+        appListStyle = settings.appListStyle,
+        onAppListStyleChange = viewModel::setAppListStyle,
         lockLayout = settings.lockLayout,
         onLockLayoutChange = viewModel::setLockLayout,
         hideStatusBar = settings.hideStatusBar,

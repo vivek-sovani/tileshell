@@ -11770,3 +11770,11 @@ drag, which broke resizing: the bottom-right corner is owned by `tileStretchGest
 resize drag also picked the tile up. The resize corner is back to its full 30dp and a press that moves from it
 is left to the stretch gesture; only the unpin and colour corners hand a moving press to the tile drag, a moved
 press never counts as a tap, and `change.isConsumed` is respected.
+
+## App list style: tiles (square Windows Phone tiles)
+A tester asked for square WP-like tiles in the app list (reference: WP8 all-apps screenshot). Added `appListStyle`
+(icons | tiles, default icons) in personalize › start rather than changing the default, so existing users see no
+change. Tiles reuse the monochrome plate path (`MaskedAppIcon`, square, 44dp, `glyphScale` 1.35) instead of a new
+renderer, so the plate follows the accent and "monochrome icons" keeps controlling glyph tint. Letter headers become
+outlined accent squares as in the reference. Left for a follow-up: per-app plate colours (reference shows the app's
+own colour for some) and outlined-circle badges.

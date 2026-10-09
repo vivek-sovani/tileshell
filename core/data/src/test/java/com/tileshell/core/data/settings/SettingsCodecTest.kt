@@ -28,6 +28,7 @@ class SettingsCodecTest {
             columns = 6,
             tilePackMode = TilePackMode.STICKY,
             themedIcons = true,
+            appListStyle = AppListStyle.TILES,
             borderlessTiles = true,
             tileOutline = false,
         )
@@ -53,6 +54,15 @@ class SettingsCodecTest {
             LauncherSettings().tileOutline,
             SettingsCodec.decode("tileOutline=hairline").tileOutline,
         )
+    }
+
+    @Test
+    fun `appListStyle defaults to icons, decodes tiles, and a bad value keeps the default`() {
+        assertEquals(AppListStyle.ICONS, LauncherSettings().appListStyle)
+        // An older save file predates the key — the list must keep showing real icons.
+        assertEquals(AppListStyle.ICONS, SettingsCodec.decode("glass=true").appListStyle)
+        assertEquals(AppListStyle.TILES, SettingsCodec.decode("appListStyle=TILES").appListStyle)
+        assertEquals(AppListStyle.ICONS, SettingsCodec.decode("appListStyle=squares").appListStyle)
     }
 
     @Test

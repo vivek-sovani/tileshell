@@ -89,6 +89,7 @@ import com.tileshell.core.data.settings.LiveRefreshRate
 import com.tileshell.core.data.settings.resolveMs
 import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.data.settings.TileFill
+import com.tileshell.core.data.settings.AppListStyle
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.MonochromeIconTint
@@ -260,6 +261,8 @@ fun PersonalizeSheet(
     onThemedIconsChange: (Boolean) -> Unit,
     monochromeIconTint: MonochromeIconTint,
     onMonochromeIconTintChange: (MonochromeIconTint) -> Unit,
+    appListStyle: AppListStyle,
+    onAppListStyleChange: (AppListStyle) -> Unit,
     lockLayout: Boolean,
     onLockLayoutChange: (Boolean) -> Unit,
     hideStatusBar: Boolean,
@@ -1127,6 +1130,34 @@ fun PersonalizeSheet(
                                         fontSize = 12.sp,
                                     )
                                 }
+                            }
+                        }
+                        // ---- app list style: the app's own icon vs. the prototype's square tile ----
+                        SettingGroup(label = "app list style", tokens.fgDim) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    SegCell(
+                                        "icons",
+                                        selected = appListStyle == AppListStyle.ICONS,
+                                        accent = accent,
+                                        fg = tokens.fg,
+                                    ) { onAppListStyleChange(AppListStyle.ICONS) }
+                                    SegCell(
+                                        "tiles",
+                                        selected = appListStyle == AppListStyle.TILES,
+                                        accent = accent,
+                                        fg = tokens.fg,
+                                    ) { onAppListStyleChange(AppListStyle.TILES) }
+                                }
+                                Text(
+                                    if (appListStyle == AppListStyle.TILES) {
+                                        "every app in the list sits on a square accent tile, like a windows phone all-apps list"
+                                    } else {
+                                        "every app in the list shows its own icon"
+                                    },
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
                             }
                         }
                         // ---- pages: start is organized into always-available, swipeable

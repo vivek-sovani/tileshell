@@ -76,6 +76,9 @@ enum class TileColorSource { GLOBAL_ACCENT, APP_ICON, WALLPAPER_ACCENT, MULTICOL
 /** See [LauncherSettings.monochromeIconTint]'s doc comment. */
 enum class MonochromeIconTint { ACCENT, NEUTRAL }
 
+/** See [LauncherSettings.appListStyle]'s doc comment. */
+enum class AppListStyle { ICONS, TILES }
+
 /**
  * Whether TileShell's own wallpaper (gradient or photo) is also pushed to the
  * real Android [android.app.WallpaperManager] — since this app draws its own
@@ -299,6 +302,15 @@ data class LauncherSettings(
      * to the accent-tinted default. Unused while [themedIcons] is off.
      */
     val monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
+    /**
+     * How the app list draws each app: [AppListStyle.ICONS] (default, every
+     * release so far) shows the app's own icon, shaped by [homeStyle] /
+     * [iconShape]; [AppListStyle.TILES] is the prototype's `.app-tile` — a
+     * 44dp square accent plate with the app's glyph in a contrasting colour,
+     * like a Windows Phone all-apps list. Independent of [homeStyle] and of
+     * [themedIcons] (which, when on, only decides the glyph's tint here).
+     */
+    val appListStyle: AppListStyle = AppListStyle.ICONS,
     /** Periodic background layout snapshot saves (for LayoutHistorySheet). */
     val autoBackupEnabled: Boolean = true,
     /** Hours between automatic snapshots: 1, 4, 6, 12, or 24. */
@@ -408,6 +420,7 @@ object SettingsCodec {
         append("iconShape=").append(settings.iconShape.name).append('\n')
         append("themedIcons=").append(settings.themedIcons).append('\n')
         append("monochromeIconTint=").append(settings.monochromeIconTint.name).append('\n')
+        append("appListStyle=").append(settings.appListStyle.name).append('\n')
         append("autoBackup=").append(settings.autoBackupEnabled).append('\n')
         append("autoBackupInterval=").append(settings.autoBackupIntervalHours).append('\n')
         append("edgeStripEnabled=").append(settings.edgeStripEnabled).append('\n')
@@ -467,6 +480,7 @@ object SettingsCodec {
         var iconShape = d.iconShape
         var themedIcons = d.themedIcons
         var monochromeIconTint = d.monochromeIconTint
+        var appListStyle = d.appListStyle
         var autoBackupEnabled = d.autoBackupEnabled
         var autoBackupIntervalHours = d.autoBackupIntervalHours
         var edgeStripEnabled = d.edgeStripEnabled
@@ -539,6 +553,8 @@ object SettingsCodec {
                 "themedIcons" -> themedIcons = value.toBooleanStrictOrNull() ?: themedIcons
                 "monochromeIconTint" ->
                     MonochromeIconTint.entries.find { it.name == value }?.let { monochromeIconTint = it }
+                "appListStyle" ->
+                    AppListStyle.entries.find { it.name == value }?.let { appListStyle = it }
                 "autoBackup" -> autoBackupEnabled = value.toBooleanStrictOrNull() ?: autoBackupEnabled
                 "autoBackupInterval" -> value.toIntOrNull()?.let {
                     autoBackupIntervalHours = it.coerceIn(1, 24)
@@ -608,6 +624,7 @@ object SettingsCodec {
             iconShape = iconShape,
             themedIcons = themedIcons,
             monochromeIconTint = monochromeIconTint,
+            appListStyle = appListStyle,
             autoBackupEnabled = autoBackupEnabled,
             autoBackupIntervalHours = autoBackupIntervalHours,
             edgeStripEnabled = edgeStripEnabled,

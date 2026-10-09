@@ -49,6 +49,7 @@ import com.tileshell.core.data.hasNotesTile
 import com.tileshell.core.data.isPersonalizeTile
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.data.WeatherTile
+import com.tileshell.core.data.settings.AppListStyle
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.core.data.settings.SettingsRepository
 import com.tileshell.core.data.settings.HomeStyle
@@ -1832,6 +1833,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** See [LauncherSettings.monochromeIconTint]'s doc comment. */
     fun setMonochromeIconTint(tint: MonochromeIconTint) {
         viewModelScope.launch(writeContext) { settingsRepository.setMonochromeIconTint(tint) }
+    }
+
+    /** See [LauncherSettings.appListStyle]'s doc comment. */
+    fun setAppListStyle(style: AppListStyle) {
+        viewModelScope.launch(writeContext) { settingsRepository.setAppListStyle(style) }
     }
 
     /**

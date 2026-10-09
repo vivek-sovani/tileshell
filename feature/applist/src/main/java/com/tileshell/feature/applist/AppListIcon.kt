@@ -19,6 +19,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ImageBitmap
@@ -249,6 +250,7 @@ internal fun MaskedAppIcon(
     themedIcons: Boolean = false,
     monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
     modifier: Modifier = Modifier,
+    glyphScale: Float = 1f,
 ) {
     if (themedIcons) {
         val mono = loaded.monochromeBitmap
@@ -279,7 +281,7 @@ internal fun MaskedAppIcon(
                 // same built-in safe-zone inset as the real full-colour icon
                 // — matching the isAdaptive branch below, which also draws at
                 // full [size] with no extra scale-down.
-                modifier = Modifier.size(size),
+                modifier = Modifier.size(size).scale(glyphScale),
             )
         }
         return
