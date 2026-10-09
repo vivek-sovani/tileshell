@@ -2727,7 +2727,13 @@ private const val REACHABILITY_HELD_FRACTION = 0.7f
 // — no dwell/hold requirement (a deliberate simplification per direct user
 // request, see docs/DECISIONS.md). A fresh, explicit choice for this gesture
 // specifically, not reused from any other zone width elsewhere in this file.
-private const val CROSS_PAGE_DRAG_EDGE_ZONE_DP = 32f
+private const val CROSS_PAGE_DRAG_EDGE_ZONE_DP = 20f
+
+/** How long the finger must rest in the edge zone before the tile is carried to the next page. */
+private const val CROSS_PAGE_DWELL_MS = 350L
+
+/** A press on a selected tile's corner button counts as a tap only when released within this. */
+private const val CORNER_TAP_MAX_MS = 300L
 
 private fun folderChildTileId(folderId: String, rowId: Long): String =
     "$FOLDER_CHILD_ID_PREFIX$folderId:$rowId"
@@ -6480,7 +6486,8 @@ private fun Modifier.editDragGesture(
         val selPlacement = sel?.let { id -> placementsNow().firstOrNull { it.id == id } }
         if (selPlacement != null) {
             val r = geom.rect(selPlacement)
-            val zone = 30.dp.toPx()
+            // Smaller on a small tile, where three 30dp corners would cover most of it and make every press a button.
+            val zone = cornerZoneSize(r.width, r.height, 30.dp.toPx())
             // Each corner check must also confirm the tap actually landed
             // *inside* the selected tile's own rect — otherwise a one-sided
             // threshold like "x <= r.left + zone" is satisfied by any point up
@@ -6495,14 +6502,21 @@ private fun Modifier.editDragGesture(
             val inColor =
                 inTile && down.position.x <= r.left + zone && down.position.y >= r.bottom - zone
             if (inUnpin || inResize || inColor) {
-                var movedCtl = false
+                // A corner is a button only for a quick tap. Moving the finger from it picks the tile up and drags
+                // it (it used to do nothing, so dragging a small tile by its corner just resized or exited), and
+                // a hold that is released in place does nothing.
+                var handOverToDrag = false
                 while (true) {
                     val event = awaitPointerEvent()
                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    if ((change.position - down.position).getDistance() > slop) {
+                        handOverToDrag = true
+                        break
+                    }
                     change.consume()
-                    if ((change.position - down.position).getDistance() > slop) movedCtl = true
                     if (!change.pressed) {
-                        if (!movedCtl) when {
+                        val quick = change.uptimeMillis - down.uptimeMillis <= CORNER_TAP_MAX_MS
+                        if (quick) when {
                             inUnpin -> if (byId[selPlacement.id] is TileModel.Folder)
                                 onOpenFolder(selPlacement.id)
                             else
@@ -6513,7 +6527,7 @@ private fun Modifier.editDragGesture(
                         break
                     }
                 }
-                return@awaitEachGesture
+                if (!handOverToDrag) return@awaitEachGesture
             }
         }
 
@@ -6573,6 +6587,11 @@ private fun Modifier.editDragGesture(
         // fixed for the rest of the gesture once set.
         var crossPageTriggered = false
         var crossPageDirection = 0
+        // Which screen edge the FINGER is resting in (-1 left, 1 right, 0 none) and since when. The tile's own
+        // position doesn't count: a small tile in the last column already sits near the edge, so judging by it
+        // carried tiles to the next page whenever the finger drifted a little right.
+        var edgeDir = 0
+        var edgeSinceMs = 0L
 
         while (true) {
             val event = awaitPointerEvent()
@@ -6618,12 +6637,12 @@ private fun Modifier.editDragGesture(
                 if (!crossPageTriggered && crossPageEdgeZonePx > 0f &&
                     startId != null && parseFolderChildId(startId) == null
                 ) {
-                    val dragCentreX = (pos - grab).x + dragHalf.x
-                    val dir = when {
-                        dragCentreX < crossPageEdgeZonePx -> -1
-                        dragCentreX > widthPx - crossPageEdgeZonePx -> 1
-                        else -> 0
+                    val fingerDir = edgeDirectionOf(pos.x, widthPx, crossPageEdgeZonePx)
+                    if (fingerDir != edgeDir) {
+                        edgeDir = fingerDir
+                        edgeSinceMs = change.uptimeMillis
                     }
+                    val dir = if (carriesToNextPage(fingerDir, edgeSinceMs, change.uptimeMillis, CROSS_PAGE_DWELL_MS)) fingerDir else 0
                     if (dir != 0) {
                         crossPageTriggered = true
                         crossPageDirection = dir

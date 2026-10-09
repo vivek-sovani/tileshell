@@ -11751,3 +11751,16 @@ update and not a login, OTP or verification code is a deal (`dealOf`); the same 
 kept 14 days, at most 60, in `files/shopping_deals.txt` (on the phone only, not in backups, cleared by the
 settings' "clear history"). Not deals: apps that are not shops (Prime Video, Amazon Music, a bank's offer
 naming Ajio) and mail (newsletters would flood it). Tapping a deal opens the store's app.
+
+## Tile drag: edge carry by finger with a short rest; corner buttons only for quick taps (2026-10-09)
+
+**Carry to the next page.** It used to fire once, instantly, when the dragged tile's centre first came within
+32dp of the screen edge ("no dwell"). With the grid's 9dp side margin a small tile in the last column has its
+centre only ~22dp inside that line, so placing one there often carried it away. Now the *finger* must be in a
+20dp edge band and stay 350ms (a deliberate carry is a hold at the edge; an aim at the last column is not
+one). The commit still waits for release, as before.
+
+**Corner buttons.** A selected tile's unpin / colour / resize corners (30dp) consumed any press in them, so on a
+small tile most presses were buttons, and a press that moved did nothing at all. Zones are now at most 27% of the
+tile's shorter side, count as a button only for a tap released within 300ms, and a press that moves is handed
+to the ordinary drag (the tile lifts).
