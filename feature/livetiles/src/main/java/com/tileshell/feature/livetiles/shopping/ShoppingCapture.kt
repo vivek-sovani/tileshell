@@ -6,6 +6,46 @@ import android.service.notification.StatusBarNotification
 import com.tileshell.feature.livetiles.PeopleCategory
 import com.tileshell.feature.livetiles.peopleCategoryFor
 
+/** Where a notification's shopping meaning comes from: the store, whether it is food, and whether the title is the item. */
+internal class ShoppingSource(val merchant: String, val food: Boolean, val titleIsItem: Boolean)
+
+private val SMS_SHOPPING_APPS = setOf(
+    "com.google.android.apps.messaging", "com.samsung.android.messaging", "com.android.mms",
+    "com.miui.mms", "com.oneplus.mms", "com.truecaller",
+)
+
+/**
+ * Whether a notification can be about shopping at all, and for which store: it comes from a shopping, food or courier
+ * app, or it is an SMS, email or chat that names a known store (a chat only when the store is who it is with). Pure.
+ */
+internal fun shoppingSourceOf(packageName: String, appLabel: String, title: String, text: String): ShoppingSource? {
+    val appKinds = shoppingAppKinds(packageName, appLabel)
+    if (appKinds.isNotEmpty()) {
+        // A shopping app: the store is the app (its known name when it has one).
+        val store = storeIn(appLabel)
+        return ShoppingSource(store?.name ?: appLabel, ShoppingAppKind.FOOD in appKinds, titleIsItem = true)
+    }
+    val category = com.tileshell.feature.livetiles.peopleCategoryFor(packageName)
+    val isSms = packageName in SMS_SHOPPING_APPS
+    val isMail = category == com.tileshell.feature.livetiles.PeopleCategory.MAIL
+    val isChat = category == com.tileshell.feature.livetiles.PeopleCategory.CHAT
+    if (!isSms && !isMail && !isChat) return null
+    // An SMS or an email counts only when it names a store the hub knows; a chat only when the store is who it is with.
+    val store = storeIn(if (isChat) title else "$title $text") ?: return null
+    return ShoppingSource(store.name, store.kind == ShoppingAppKind.FOOD, titleIsItem = false)
+}
+
+/**
+ * True when the shopping hub takes this notification (an order update or a deal), so the people hub leaves it out and it
+ * isn't shown in both. False when reading order messages is off. Pure apart from the cached setting.
+ */
+fun shoppingClaims(packageName: String, title: String, text: String, time: Long = 0L): Boolean {
+    if (!ShoppingPrefs.readOrderMessagesCached()) return false
+    val source = shoppingSourceOf(packageName, "", title, text) ?: return false
+    return parseOrderMessage(title, text, packageName, source.merchant, source.food, time, source.titleIsItem) != null ||
+        dealOf(title, text, packageName, source.merchant, source.food, time) != null
+}
+
 /**
  * Reads order updates ("out for delivery", "delivered") from new notifications as they arrive: those of
  * shopping, food and courier apps (the store is the app), and those of the SMS app and mail apps when they
@@ -17,11 +57,6 @@ object ShoppingCapture {
     private val seen = object : LinkedHashMap<String, Unit>(64, 0.75f, false) {
         override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Unit>?) = size > 200
     }
-
-    private val SMS_APPS = setOf(
-        "com.google.android.apps.messaging", "com.samsung.android.messaging", "com.android.mms",
-        "com.miui.mms", "com.oneplus.mms", "com.truecaller",
-    )
 
     fun onPosted(context: Context, sbn: StatusBarNotification) {
         if (sbn.packageName == context.packageName) return
@@ -37,29 +72,10 @@ object ShoppingCapture {
             ?.toString().orEmpty()
         if (title.isEmpty() && text.isEmpty()) return
 
-        val appLabel = appLabel(context, sbn.packageName)
-        val appKinds = shoppingAppKinds(sbn.packageName, appLabel)
-        val merchant: String
-        val food: Boolean
-        var titleIsItem = true
-        if (appKinds.isNotEmpty()) {
-            // A shopping app: the store is the app (its known name when it has one).
-            val store = storeIn(appLabel)
-            merchant = store?.name ?: appLabel
-            food = ShoppingAppKind.FOOD in appKinds
-        } else {
-            val isSms = sbn.packageName in SMS_APPS
-            val category = peopleCategoryFor(sbn.packageName)
-            val isMail = category == PeopleCategory.MAIL
-            // Stores message from business chats too ("Amazon India" on WhatsApp): the chat's own name must be the store.
-            val isChat = category == PeopleCategory.CHAT
-            if (!isSms && !isMail && !isChat) return
-            // An SMS or an email counts only when it names a store the hub knows; a chat only when the store is who it is with.
-            val store = storeIn(if (isChat) title else "$title $text") ?: return
-            titleIsItem = false
-            merchant = store.name
-            food = store.kind == ShoppingAppKind.FOOD
-        }
+        val source = shoppingSourceOf(sbn.packageName, appLabel(context, sbn.packageName), title, text) ?: return
+        val merchant = source.merchant
+        val food = source.food
+        val titleIsItem = source.titleIsItem
         val time = sbn.postTime.takeIf { it > 0 } ?: System.currentTimeMillis()
         val seenKey = "${sbn.key}|${text.hashCode()}"
         synchronized(seen) {

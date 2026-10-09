@@ -236,6 +236,18 @@ class ShoppingParserTest {
     }
 
     @Test
+    fun `a store's chat or deal is claimed by shopping, a friend's chat is not`() {
+        // A business chat from a store, an order update and a promotion: shopping's, so people leaves them out.
+        assertEquals(true, shoppingClaims("com.whatsapp", "AJIO", "Your order has been shipped. Order ID: 12345-678"))
+        assertEquals(true, shoppingClaims("com.whatsapp", "AJIO", "Flat 50% off on all styles, today only!"))
+        // A friend, or a store chat that is neither an order nor a deal, stays in people.
+        assertEquals(false, shoppingClaims("com.whatsapp", "Anand", "Flat 50% off at ajio, check it out"))
+        assertEquals(false, shoppingClaims("com.whatsapp", "AJIO", "Your OTP for login is 482910"))
+        // An app that is not a chat, SMS, mail or shopping app is never claimed.
+        assertEquals(false, shoppingClaims("com.example.notes", "AJIO", "Flat 50% off on all styles"))
+    }
+
+    @Test
     fun `deals merge newest first, dedupe and expire`() {
         val day = 24L * 60 * 60 * 1000
         fun deal(t: String, time: Long) = dealOf(t, "x", "p", "Amazon", false, time)!!

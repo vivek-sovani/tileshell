@@ -417,15 +417,19 @@ fun recentActivity(
             }
         }
         .flatMap { (packageName, preview, kind) ->
-            peopleItems(preview).flatMap { item -> rowsFor(packageName, item, kind) }
+            peopleItems(packageName, preview).flatMap { item -> rowsFor(packageName, item, kind) }
         }
         .sortedByDescending { it.postTime }
         .take(limit)
 
 /** A people app's pending notifications minus bank/card money messages
  * (see [isBankMessage]), which go to the Money hub instead. */
-private fun peopleItems(preview: ConversationPreview): List<ConversationItem> =
-    preview.items.filterNot { isBankMessage(it.sender, it.snippet) }
+private fun peopleItems(packageName: String, preview: ConversationPreview): List<ConversationItem> =
+    preview.items.filterNot {
+        isBankMessage(it.sender, it.snippet) ||
+            // A store's order update or deal belongs to the shopping hub, not here as well.
+            com.tileshell.feature.livetiles.shopping.shoppingClaims(packageName, it.sender, it.fullText.ifBlank { it.snippet }, it.postTime)
+    }
 
 /**
  * The app filter chips on "what's new": every people app that has pending
@@ -438,7 +442,7 @@ fun whatsNewApps(snapshot: NotificationSnapshot): List<Pair<String, Int>> =
         .filter { (packageName, count) -> count > 0 && peopleCategoryFor(packageName) != null }
         .map { (packageName, count) ->
             // Bank messages aren't listed, so they don't count either.
-            val bank = snapshot.conversations[packageName]?.let { it.items.size - peopleItems(it).size } ?: 0
+            val bank = snapshot.conversations[packageName]?.let { it.items.size - peopleItems(packageName, it).size } ?: 0
             packageName to (count - bank)
         }
         .filter { it.second > 0 }

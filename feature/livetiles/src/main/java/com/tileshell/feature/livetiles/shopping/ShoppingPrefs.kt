@@ -25,6 +25,9 @@ object ShoppingPrefs {
         return _settings.asStateFlow()
     }
 
+    /** The reading switch from the cache, true until it has been read (the default). */
+    fun readOrderMessagesCached(): Boolean = _settings.value?.readOrderMessages ?: true
+
     fun current(context: Context): ShoppingSettings = _settings.value ?: read(context).also { _settings.value = it }
 
     /** Re-reads the stored values (after a backup restore wrote them). */
