@@ -314,6 +314,7 @@ class MainActivity : ComponentActivity() {
             "guide" -> startViewModel.openPersonalizeGuide()
             "backup" -> startViewModel.openBackup()
             "backupfile" -> startViewModel.openBackup(com.tileshell.feature.personalize.BackupSection.FILE)
+            "backupreset" -> startViewModel.openBackup(com.tileshell.feature.personalize.BackupSection.RESET)
         }
     }
 

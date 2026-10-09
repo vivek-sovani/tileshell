@@ -45,7 +45,7 @@ import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 
-/** The two backup screens, opened from their own rows in personalize (reset has no screen: its row starts the setup). */
+/** The three backup screens, opened from their own rows in personalize. */
 enum class BackupSection(val title: String, val description: String) {
     SNAPSHOTS(
         "snapshots",
@@ -55,10 +55,14 @@ enum class BackupSection(val title: String, val description: String) {
         "backup file",
         "everything in one file you keep: your layout, settings, notes, tasks and music favourites. use it to move to a new phone or as a safety copy.",
     ),
+    RESET(
+        "reset start layout",
+        "sets start up again from the first step: style, colour and apps. your snapshots and backup files stay as they are.",
+    ),
 }
 
 /**
- * One backup screen ([section]): snapshots on this phone, or the backup file. Opened from its own row in
+ * One backup screen ([section]): snapshots on this phone, the backup file, or reset. Opened from its own row in
  * personalize → backups, snapshots & reset (personalize → backups, snapshots & reset): layout history,
  * auto-save + frequency, save-now, and file export/import. Pulled out of the main
  * [PersonalizeSheet] — which was growing too long — the same way [AboutSheet] and
@@ -75,6 +79,7 @@ fun BackupRestoreSheet(
     onSaveSnapshot: () -> Unit,
     onExportBackup: () -> Unit,
     onRestoreBackup: () -> Unit,
+    onResetLayout: () -> Unit,
     autoBackupEnabled: Boolean,
     autoBackupIntervalHours: Int,
     onAutoBackupEnabled: (Boolean) -> Unit,
@@ -234,6 +239,10 @@ fun BackupRestoreSheet(
                         fontSize = 12.sp,
                         lineHeight = 17.sp,
                     )
+                    }
+
+                    if (section == BackupSection.RESET) {
+                    WallpaperNavRow("reset start layout", "reset ›", accent, tokens, onResetLayout)
                     }
                 }
             }

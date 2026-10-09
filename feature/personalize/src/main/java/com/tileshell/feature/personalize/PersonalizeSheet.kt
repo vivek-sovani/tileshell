@@ -293,7 +293,6 @@ fun PersonalizeSheet(
     edgeStripEnabled: Boolean,
     onEdgeStrip: () -> Unit,
     onOpenBackup: (BackupSection) -> Unit,
-    onResetLayout: () -> Unit,
     /** Opens the contacts/calendar/location/physical-activity permissions sub-sheet. */
     onPermissions: () -> Unit,
     /** Opens the news-region picker sub-sheet. */
@@ -1478,17 +1477,16 @@ fun PersonalizeSheet(
                         }
                         // ---- backup & restore ----
                         SettingGroup(label = "backups, snapshots & reset", tokens.fgDim) {
-                            // Each row says what it is; snapshots and backup file open their own screens.
+                            // Each row says what it is and opens its own screen.
                             listOf(
-                                Triple<BackupSection?, String, String>(BackupSection.SNAPSHOTS, "snapshots", "restore points of your layout, kept on this phone"),
-                                Triple<BackupSection?, String, String>(BackupSection.FILE, "backup file", "everything in one file, for a new phone or a safety copy"),
-                                // No screen of its own: it starts the setup, which has its own cancel and confirm.
-                                Triple<BackupSection?, String, String>(null, "reset start layout", "set start up again from the first step"),
+                                Triple(BackupSection.SNAPSHOTS, "snapshots", "restore points of your layout, kept on this phone"),
+                                Triple(BackupSection.FILE, "backup file", "everything in one file, for a new phone or a safety copy"),
+                                Triple(BackupSection.RESET, "reset start layout", "set start up again from the first step"),
                             ).forEach { (backupSection, title, description) ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable { if (backupSection != null) onOpenBackup(backupSection) else onResetLayout() }
+                                        .clickable { onOpenBackup(backupSection) }
                                         .padding(vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
