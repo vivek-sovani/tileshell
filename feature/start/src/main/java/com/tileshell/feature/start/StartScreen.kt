@@ -7784,7 +7784,10 @@ private fun StaticTileGlyph(
         "apps" -> "app"
         else -> tile.iconKey
     }
-    val useAppIcon = !TileIcons.hasIcon(effectiveIconKey)
+    // The store tile shows the real app's own icon (the Play Store's), not the
+    // category bag, which looked the same as the shopping hub's (user-reported).
+    val useAppIcon = !TileIcons.hasIcon(effectiveIconKey) ||
+        (tile.iconKey == "store" && tile.packageName.isNotBlank())
     val composeShape = if (homeStyle == HomeStyle.ICONS) iconShape.toComposeShape() else null
     // Decode at (roughly) the actual dp this glyph will render at — mirrors
     // the size TileIconContent below picks by tile.size — rather than a
@@ -8138,7 +8141,7 @@ private fun FolderChildIcon(
     val useAppIcon = child != null && if (homeStyle == HomeStyle.ICONS) {
         child.packageName.isNotBlank()
     } else {
-        !TileIcons.hasIcon(child.iconKey)
+        !TileIcons.hasIcon(child.iconKey) || (child.iconKey == "store" && child.packageName.isNotBlank())
     }
 
     if (child == null) return

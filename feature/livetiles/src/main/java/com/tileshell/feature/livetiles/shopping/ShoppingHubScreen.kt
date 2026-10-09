@@ -210,6 +210,7 @@ private fun ArrivingPage(tokens: ColorTokens, accent: Color, reading: Boolean, r
     val access = rememberNotificationAccess()
     val apps = com.tileshell.feature.livetiles.shopping.rememberShoppingApps().orEmpty()
     var filter by remember { mutableStateOf<String?>(null) }
+    var expandedKey by remember { mutableStateOf<String?>(null) }
     val arriving = remember(orders) { arrivingOrders(orders) }
     val shown = remember(arriving, filter) {
         when (filter) {
@@ -244,7 +245,17 @@ private fun ArrivingPage(tokens: ColorTokens, accent: Color, reading: Boolean, r
             }
         }
         items(shown, key = { it.key }) { o ->
-            OrderCard(o, apps, o.key in revealed, { onReveal(o.key) }, { ShoppingStore.remove(context, o.key) }, tokens, accent)
+            OrderCard(
+                o, apps, o.key in revealed, { onReveal(o.key) },
+                expanded = expandedKey == o.key,
+                onToggle = { expandedKey = if (expandedKey == o.key) null else o.key },
+                onRemove = {
+                    if (expandedKey == o.key) expandedKey = null
+                    ShoppingStore.remove(context, o.key)
+                },
+                tokens = tokens,
+                accent = accent,
+            )
         }
     }
 }
@@ -255,6 +266,8 @@ private fun OrderCard(
     apps: List<ShoppingApp>,
     otpShown: Boolean,
     onReveal: () -> Unit,
+    expanded: Boolean,
+    onToggle: () -> Unit,
     onRemove: () -> Unit,
     tokens: ColorTokens,
     accent: Color,
@@ -262,38 +275,71 @@ private fun OrderCard(
     val context = LocalContext.current
     val bar = if (o.food) FoodOrange else ShopBlue
     val app = remember(apps, o.merchant) { appForMerchant(apps, o.merchant) }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(IntrinsicSize.Min)
-            .padding(vertical = 8.dp)
-            .clickable(enabled = app != null) { app?.let { openApp(context, it.packageName) } },
-    ) {
-        Box(modifier = Modifier.width(3.dp).fillMaxHeight().background(bar))
-        Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
-            Text(o.title, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, maxLines = 2, overflow = TextOverflow.Ellipsis)
-            Text(
-                listOfNotNull(o.merchant, o.status.label, o.eta).joinToString(" · "),
-                color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-            )
-            Row(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                for (step in 0..3) {
-                    Box(modifier = Modifier.weight(1f).height(3.dp).background(if (o.status.step >= step) bar else tokens.sheetLine))
+    val open = { app?.let { openApp(context, it.packageName) }; Unit }
+    // The message itself, when it says more than the item's name.
+    val message = o.message.takeUnless { it.isBlank() || it.equals(o.title, ignoreCase = true) }.orEmpty()
+    // Like a deal or a "what's new" row: tap opens the store's app, the arrow expands the whole message, a sideways
+    // swipe (or "dismiss") removes the order.
+    SwipeToDismissRow(tokens = tokens, onDismiss = onRemove) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
+            Column(modifier = Modifier.fillMaxWidth().background(if (expanded) tokens.fg.copy(alpha = 0.06f) else Color.Transparent)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min)
+                        .clickable(enabled = app != null, interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = { open() })
+                        .padding(vertical = 10.dp, horizontal = if (expanded) 8.dp else 0.dp),
+                ) {
+                    Box(modifier = Modifier.width(3.dp).fillMaxHeight().background(bar))
+                    Column(modifier = Modifier.weight(1f).padding(start = 10.dp)) {
+                        Text(o.title, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, maxLines = if (expanded) 8 else 2, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            listOfNotNull(o.merchant, o.status.label, o.eta).joinToString(" · "),
+                            color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                        if (expanded && message.isNotEmpty()) {
+                            Text(message, color = tokens.fgDim, fontSize = 13.sp, maxLines = 30, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                        }
+                        Row(modifier = Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                            for (step in 0..3) {
+                                Box(modifier = Modifier.weight(1f).height(3.dp).background(if (o.status.step >= step) bar else tokens.sheetLine))
+                            }
+                        }
+                        if (o.otp != null) {
+                            Text(
+                                if (otpShown) "delivery otp ${o.otp}" else "delivery otp ●●●●  tap to show",
+                                color = tokens.fg, fontSize = 12.sp,
+                                modifier = Modifier
+                                    .padding(top = 6.dp)
+                                    .border(0.5.dp, tokens.fg)
+                                    .clickable(enabled = !otpShown, onClick = onReveal)
+                                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                            )
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onToggle),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        androidx.compose.material3.Icon(
+                            com.tileshell.core.design.TileIcons["chevron"],
+                            contentDescription = if (expanded) "collapse" else "expand",
+                            tint = tokens.fgDim,
+                            modifier = Modifier.size(16.dp).graphicsLayer { rotationZ = if (expanded) -90f else 90f },
+                        )
+                    }
+                }
+                if (expanded) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = Modifier.padding(start = 8.dp, end = 8.dp, bottom = 10.dp)) {
+                        if (app != null) RowAction("open in ${app.label.lowercase()}", accent, { open() })
+                        RowAction("dismiss", accent, onRemove)
+                    }
                 }
             }
-            if (o.otp != null) {
-                Text(
-                    if (otpShown) "delivery otp ${o.otp}" else "delivery otp ●●●●  tap to show",
-                    color = tokens.fg, fontSize = 12.sp,
-                    modifier = Modifier
-                        .padding(top = 6.dp)
-                        .border(0.5.dp, tokens.fg)
-                        .clickable(enabled = !otpShown, onClick = onReveal)
-                        .padding(horizontal = 8.dp, vertical = 2.dp),
-                )
-            }
         }
-        Text("✕", color = tokens.fgDim, fontSize = 16.sp, modifier = Modifier.clickable(onClick = onRemove).padding(start = 8.dp, top = 2.dp, bottom = 8.dp))
     }
 }
 
