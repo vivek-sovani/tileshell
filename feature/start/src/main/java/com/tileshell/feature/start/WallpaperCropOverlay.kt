@@ -226,23 +226,30 @@ fun WallpaperCropOverlay(
                     text = "cancel",
                     color = Color.White.copy(alpha = 0.65f),
                     fontSize = 15.sp,
+                    maxLines = 1,
+                    softWrap = false,
                     modifier = Modifier.clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
                         onClick = onCancel,
                     ),
                 )
-                Spacer(Modifier.weight(1f))
+                // The hint is the one that gives way on a narrow window (a half-width panel, a big font):
+                // it wraps to two lines, while the two buttons keep their own width and never wrap.
                 Text(
                     text = if (image == null) "loading…" else "drag to position · pinch to zoom",
                     color = Color.White.copy(alpha = 0.45f),
                     fontSize = 13.sp,
+                    textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                    maxLines = 2,
+                    modifier = Modifier.weight(1f).padding(horizontal = 12.dp),
                 )
-                Spacer(Modifier.weight(1f))
                 Text(
                     text = "use this",
                     color = if (image != null) Color.White else Color.White.copy(alpha = 0.4f),
                     fontSize = 15.sp,
+                    maxLines = 1,
+                    softWrap = false,
                     modifier = Modifier.clickable(
                         enabled = image != null,
                         interactionSource = remember { MutableInteractionSource() },
