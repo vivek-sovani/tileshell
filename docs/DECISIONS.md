@@ -11770,3 +11770,13 @@ drag, which broke resizing: the bottom-right corner is owned by `tileStretchGest
 resize drag also picked the tile up. The resize corner is back to its full 30dp and a press that moves from it
 is left to the stretch gesture; only the unpin and colour corners hand a moving press to the tile drag, a moved
 press never counts as a tap, and `change.isConsumed` is respected.
+
+## "Bar above" edit controls as an A/B option (2026-10-09)
+
+User-requested comparison of two control schemes for a selected tile: corner buttons (original) vs a bar above
+it. `TileControlStyle` is a setting (default corners). In bar mode the unpin / colour corners and the
+tap-to-resize corner do not exist; size is a bar button (tap cycles, as the corner tap did); the bottom-right
+corner stays the resize drag. The bar's taps are handled in `editDragGesture`, not as child buttons, because that
+gesture reads every touch on the grid (a child button would also let the grid select the tile under the bar).
+Bar and gesture share `controlBarRect`, so what is drawn is what is tapped. Not built: a dot outside the tile for
+the resize drag (it would sit beyond the tile's own gesture bounds).

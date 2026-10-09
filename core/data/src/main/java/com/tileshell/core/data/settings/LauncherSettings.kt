@@ -54,6 +54,13 @@ enum class IconShape { CIRCLE, SQUIRCLE, ROUNDED, SQUARE, ORIGINAL }
  */
 enum class TilePackMode { DENSE, STICKY, FREE }
 
+/**
+ * Where a selected tile's unpin / colour / size buttons live in edit mode: [CORNERS] (on the tile's own corners, the
+ * original) or [BAR] (a small bar above the tile, so the whole tile is free to grab; resize is still the corner drag).
+ * Offered as a choice to compare the two.
+ */
+enum class TileControlStyle { CORNERS, BAR }
+
 /** True for either mode that renders from a tile's anchored `gridSlot` (i.e. not [TilePackMode.DENSE]). */
 val TilePackMode.isAnchored: Boolean get() = this != TilePackMode.DENSE
 
@@ -267,6 +274,8 @@ data class LauncherSettings(
      * something, at which point gaps start being preserved rather than repacked.
      */
     val tilePackMode: TilePackMode = TilePackMode.STICKY,
+    /** Corner buttons on the selected tile, or a bar above it (see [TileControlStyle]). */
+    val tileControlStyle: TileControlStyle = TileControlStyle.CORNERS,
     /** Which cell renderer the Start grid uses — WP tiles, or Android-style icons. */
     val homeStyle: HomeStyle = HomeStyle.TILES,
     /** Icon mask applied in ICONS home style; unused in TILES. */
@@ -402,6 +411,7 @@ object SettingsCodec {
         append("fontStyle=").append(settings.fontStyle.name).append('\n')
         append("columns=").append(settings.columns).append('\n')
         append("tilePackMode=").append(settings.tilePackMode.name).append('\n')
+        append("tileControlStyle=").append(settings.tileControlStyle.name).append('\n')
         append("homeStyle=").append(settings.homeStyle.name).append('\n')
         append("iconShape=").append(settings.iconShape.name).append('\n')
         append("themedIcons=").append(settings.themedIcons).append('\n')
@@ -460,6 +470,7 @@ object SettingsCodec {
         var fontStyle = d.fontStyle
         var columns = d.columns
         var tilePackMode = d.tilePackMode
+        var tileControlStyle = d.tileControlStyle
         var homeStyle = d.homeStyle
         var iconShape = d.iconShape
         var themedIcons = d.themedIcons
@@ -530,6 +541,7 @@ object SettingsCodec {
                     columns = it.coerceIn(LauncherSettings.MIN_COLUMNS, LauncherSettings.MAX_COLUMNS)
                 }
                 "tilePackMode" -> TilePackMode.entries.find { it.name == value }?.let { tilePackMode = it }
+                "tileControlStyle" -> TileControlStyle.entries.find { it.name == value }?.let { tileControlStyle = it }
                 "homeStyle" -> HomeStyle.entries.find { it.name == value }?.let { homeStyle = it }
                 "iconShape" -> IconShape.entries.find { it.name == value }?.let { iconShape = it }
                 "themedIcons" -> themedIcons = value.toBooleanStrictOrNull() ?: themedIcons
@@ -599,6 +611,7 @@ object SettingsCodec {
             fontStyle = fontStyle,
             columns = columns,
             tilePackMode = tilePackMode,
+            tileControlStyle = tileControlStyle,
             homeStyle = homeStyle,
             iconShape = iconShape,
             themedIcons = themedIcons,
