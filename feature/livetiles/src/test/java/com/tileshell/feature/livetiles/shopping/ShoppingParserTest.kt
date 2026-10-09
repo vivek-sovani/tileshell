@@ -26,6 +26,18 @@ class ShoppingParserTest {
     }
 
     @Test
+    fun `a store's business chat message is read`() {
+        val u = parse(
+            "Amazon India",
+            "Arriving today between 08:00 AM and 12:00 PM: Your Amazon package \uD83D\uDCE6 with 2 item(s) is out for delivery with our delivery agent.\n\nOrder ID: 407-2341856-1256365",
+            titleIsItem = false,
+        )
+        assertEquals(OrderStatus.OUT_FOR_DELIVERY, u?.status)
+        assertEquals("407-2341856-1256365", u?.ref)
+        assertEquals("2 items", u?.title)
+    }
+
+    @Test
     fun `amazon style order placed messages are read`() {
         val ordered = parse("Ordered: Sony WH-1000XM5 Wireless Headphones", "Arriving tomorrow")
         assertEquals(OrderStatus.PLACED, ordered?.status)

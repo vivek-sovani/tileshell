@@ -109,11 +109,15 @@ internal fun titleOf(title: String, text: String, merchant: String, titleIsItem:
     ORDER_FOR.find(full)?.groupValues?.get(1)?.let { return clip(it) }
     LABEL_THEN_ITEM.find(full)?.groupValues?.get(1)?.let { return clip(it) }
     ORDER_NAMED.find(full)?.groupValues?.get(1)?.let { return clip(it) }
+    PACKAGE_OF.find(full)?.groupValues?.get(1)?.let { return if (it == "1") "1 item" else "$it items" }
     if (!titleIsItem) return null
     val t = title.trim()
     if (t.length >= 3 && !SENDER_CODE.matches(t) && !GENERIC_TITLE.containsMatchIn(t) && !t.equals(merchant, ignoreCase = true) && !t.all { it.isDigit() }) return clip(t)
     return null
 }
+
+/** "your Amazon package 📦 with 2 item(s)": no item name, but how many. */
+private val PACKAGE_OF = Regex("""(?i)(?:package|parcel|shipment)\W{0,4}(?:with|of|containing)\s+(\d{1,2})\s+item""")
 
 private fun clip(s: String): String = s.trim().trim('.', ',', '!', ':', '-', ' ').take(60)
 

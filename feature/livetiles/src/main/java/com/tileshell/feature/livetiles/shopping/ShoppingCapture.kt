@@ -9,7 +9,7 @@ import com.tileshell.feature.livetiles.peopleCategoryFor
 /**
  * Reads order updates ("out for delivery", "delivered") from new notifications as they arrive: those of
  * shopping, food and courier apps (the store is the app), and those of the SMS app and mail apps when they
- * name a store they know. No SMS permission, no history: only what arrives after install, only while
+ * name a store they know, and chat apps (WhatsApp) when the chat is with a store's business account. No SMS permission, no history: only what arrives after install, only while
  * "read order messages" is on, and everything stays on this phone ([ShoppingStore]).
  */
 object ShoppingCapture {
@@ -49,10 +49,13 @@ object ShoppingCapture {
             food = ShoppingAppKind.FOOD in appKinds
         } else {
             val isSms = sbn.packageName in SMS_APPS
-            val isMail = peopleCategoryFor(sbn.packageName) == PeopleCategory.MAIL
-            if (!isSms && !isMail) return
-            // An SMS or an email counts only when it names a store the hub knows.
-            val store = storeIn("$title $text") ?: return
+            val category = peopleCategoryFor(sbn.packageName)
+            val isMail = category == PeopleCategory.MAIL
+            // Stores message from business chats too ("Amazon India" on WhatsApp): the chat's own name must be the store.
+            val isChat = category == PeopleCategory.CHAT
+            if (!isSms && !isMail && !isChat) return
+            // An SMS or an email counts only when it names a store the hub knows; a chat only when the store is who it is with.
+            val store = storeIn(if (isChat) title else "$title $text") ?: return
             titleIsItem = false
             merchant = store.name
             food = store.kind == ShoppingAppKind.FOOD
