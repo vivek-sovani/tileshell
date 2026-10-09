@@ -41,7 +41,7 @@ internal fun shoppingSourceOf(packageName: String, appLabel: String, title: Stri
  */
 fun shoppingClaims(packageName: String, title: String, text: String, time: Long = 0L): Boolean {
     if (!ShoppingPrefs.readOrderMessagesCached()) return false
-    val source = shoppingSourceOf(packageName, "", title, text) ?: return false
+    val source = shoppingSourceOf(packageName, ShoppingCapture.cachedLabel(packageName), title, text) ?: return false
     return parseOrderMessage(title, text, packageName, source.merchant, source.food, time, source.titleIsItem) != null ||
         dealOf(title, text, packageName, source.merchant, source.food, time) != null
 }
@@ -94,6 +94,9 @@ object ShoppingCapture {
     // Labels by package: this runs for every notification of every app, on the listener's thread, and a
     // PackageManager lookup per post adds up. A label changes only on an app update, which restarts the process anyway.
     private val labels = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** An app's label once a notification of it has been read, else blank: lets the people hub recognise apps known only by name. */
+    internal fun cachedLabel(packageName: String): String = labels[packageName].orEmpty()
 
     private fun appLabel(context: Context, packageName: String): String = labels.getOrPut(packageName) {
         runCatching {
