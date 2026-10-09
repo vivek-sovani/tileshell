@@ -37,6 +37,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -3010,6 +3011,14 @@ private fun StartPage(
     var colorPickerFor by remember { mutableStateOf<String?>(null) }
     // The size picker (edit-mode size button, bottom-right): lists every size; dragging that corner still resizes.
     var sizePickerFor by remember { mutableStateOf<String?>(null) }
+    // The size picked in the picker but not applied yet (null = the tile's own size): shown live on the tile itself.
+    var sizeCandidate by remember { mutableStateOf<TileSize?>(null) }
+    LaunchedEffect(editMode) {
+        if (!editMode) {
+            sizePickerFor = null
+            sizeCandidate = null
+        }
+    }
     // Folder id pending confirmation for "remove folder & tiles" (a bulk,
     // multi-tile unpin — worth a confirm, unlike "unfold folder" which loses
     // nothing) — set once the picker's own button is tapped, shown after the
@@ -4465,27 +4474,55 @@ private fun StartPage(
             )
         }
 
-        // Size picker (edit-mode size button → every size, pick one).
+        // Size picker (edit-mode size button): tap or drag on a small grid to where the tile should end; the tile on
+        // Start shows that size live (the same preview the corner drag uses); apply keeps it, cancel puts it back.
         sizePickerFor?.let { pickId ->
             val model = augmentedById[pickId]
             val childRef = folderChildRef(pickId)
+            // Whatever ends the picker, the live preview on the tile goes with it.
+            DisposableEffect(pickId) {
+                onDispose {
+                    resizingId = null
+                    resizePreviewSize = null
+                }
+            }
             if (model == null) {
                 sizePickerFor = null
+                sizeCandidate = null
             } else {
                 val tall = AppCategories.requiresTallTile((model as? TileModel.App)?.iconKey)
-                TileSizePicker(
+                val allowed = TileSize.entries.filter { it.cols <= columns && (!tall || it.rows >= 2) }
+                val candidate = sizeCandidate ?: model.size
+                LaunchedEffect(pickId, candidate) {
+                    if (candidate != model.size) {
+                        resizingId = pickId
+                        resizePreviewSize = candidate
+                    } else {
+                        resizingId = null
+                        resizePreviewSize = null
+                    }
+                }
+                val close = {
+                    sizePickerFor = null
+                    sizeCandidate = null
+                }
+                TileSizeCellPicker(
                     current = model.size,
-                    sizes = TileSize.entries.filter { it.cols <= columns && (!tall || it.rows >= 2) }.sortedWith(compareBy({ it.cols * it.rows }, { it.rows })),
+                    candidate = candidate,
+                    allowed = allowed,
                     accent = accent,
-                    onPick = { picked ->
-                        when {
-                            childRef != null -> onResizeFolderChildTo(childRef.first, childRef.second, picked)
-                            model is TileModel.Folder && model.isStack -> onResizeStack(model.id, picked)
-                            else -> onResizeTo(model.id, picked)
+                    onCandidate = { sizeCandidate = it },
+                    onApply = {
+                        if (candidate != model.size) {
+                            when {
+                                childRef != null -> onResizeFolderChildTo(childRef.first, childRef.second, candidate)
+                                model is TileModel.Folder && model.isStack -> onResizeStack(model.id, candidate)
+                                else -> onResizeTo(model.id, candidate)
+                            }
                         }
-                        sizePickerFor = null
+                        close()
                     },
-                    onDismiss = { sizePickerFor = null },
+                    onCancel = close,
                 )
             }
         }
@@ -4535,22 +4572,25 @@ private fun StartPage(
  * not another colour choice.
  */
 /**
- * The size picker: every size a tile can take, drawn as its own shape in grid units (so a wide tile looks wide), with
- * its dimensions; the current one is ringed. Tapping one applies it. Opened by the size button on a selected tile.
+ * The size picker: a [SIZE_PICKER_CELLS]-square grid where the tile's size is the rectangle from the top-left cell
+ * to the cell you tap or drag to (see [sizeForCell]); cells that aren't a size are dimmed. The chosen rectangle is
+ * filled, the tile's current size outlined, and the tile on Start shows the chosen size live while this is open.
+ * There is no dimming scrim, so Start stays visible; a tap outside cancels.
  */
 @Composable
-private fun BoxScope.TileSizePicker(
+private fun BoxScope.TileSizeCellPicker(
     current: TileSize,
-    sizes: List<TileSize>,
+    candidate: TileSize,
+    allowed: List<TileSize>,
     accent: Color,
-    onPick: (TileSize) -> Unit,
-    onDismiss: () -> Unit,
+    onCandidate: (TileSize) -> Unit,
+    onApply: () -> Unit,
+    onCancel: () -> Unit,
 ) {
     Box(
         modifier = Modifier
             .matchParentSize()
-            .background(Color.Black.copy(alpha = 0.5f))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onCancel),
     )
     Column(
         modifier = Modifier
@@ -4559,47 +4599,87 @@ private fun BoxScope.TileSizePicker(
             .background(Color(0xFF1A1A1F))
             .navigationBarsPadding()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
-            .padding(20.dp),
+            .padding(16.dp),
     ) {
-        Text("tile size", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-        Spacer(Modifier.height(4.dp))
-        Text("pick a size. you can also drag the corner to resize.", color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp)
-        Spacer(Modifier.height(14.dp))
-        androidx.compose.foundation.layout.FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            sizes.forEach { size ->
-                val selected = size == current
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .width(72.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { onPick(size) }
-                        .padding(vertical = 6.dp),
-                ) {
-                    // A fixed 56dp cell holds the shape, drawn to scale (4 units across the cell).
-                    Box(modifier = Modifier.size(56.dp), contentAlignment = Alignment.Center) {
-                        Box(
-                            modifier = Modifier
-                                .width((size.cols * 13).dp)
-                                .height((size.rows * 13).dp)
-                                .background(accent, RoundedCornerShape(2.dp))
-                                .border(
-                                    width = if (selected) 2.dp else 0.dp,
-                                    color = if (selected) Color.White else Color.Transparent,
-                                    shape = RoundedCornerShape(2.dp),
-                                ),
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            val cellDp = 44.dp
+            val density = LocalDensity.current
+            val cellPx = with(density) { cellDp.toPx() }
+            val latestAllowed by rememberUpdatedState(allowed)
+            val latestOnCandidate by rememberUpdatedState(onCandidate)
+            Canvas(
+                modifier = Modifier
+                    .size(cellDp * SIZE_PICKER_CELLS)
+                    .pointerInput(cellPx) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown(requireUnconsumed = false)
+                            fun choose(x: Float, y: Float) {
+                                val (c, r) = cellAtPoint(x, y, cellPx)
+                                sizeForCell(c, r, latestAllowed)?.let { latestOnCandidate(it) }
+                            }
+                            choose(down.position.x, down.position.y)
+                            down.consume()
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                if (!change.pressed) break
+                                choose(change.position.x, change.position.y)
+                                change.consume()
+                            }
+                        }
+                    },
+            ) {
+                val inset = 2.dp.toPx()
+                for (c in 0 until SIZE_PICKER_CELLS) {
+                    for (r in 0 until SIZE_PICKER_CELLS) {
+                        val offered = sizeForCell(c, r, allowed) != null
+                        val inCandidate = c < candidate.cols && r < candidate.rows
+                        val color = when {
+                            inCandidate -> accent
+                            offered -> Color.White.copy(alpha = 0.22f)
+                            else -> Color.White.copy(alpha = 0.07f)
+                        }
+                        drawRect(
+                            color = color,
+                            topLeft = androidx.compose.ui.geometry.Offset(c * cellPx + inset, r * cellPx + inset),
+                            size = androidx.compose.ui.geometry.Size(cellPx - 2 * inset, cellPx - 2 * inset),
                         )
                     }
+                }
+                // The tile's own size now, outlined, so the change reads against it.
+                drawRect(
+                    color = Color.White,
+                    topLeft = androidx.compose.ui.geometry.Offset(inset / 2, inset / 2),
+                    size = androidx.compose.ui.geometry.Size(current.cols * cellPx - inset, current.rows * cellPx - inset),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()),
+                )
+            }
+            Spacer(Modifier.width(18.dp))
+            Column(modifier = Modifier.weight(1f).height(cellDp * SIZE_PICKER_CELLS), verticalArrangement = Arrangement.SpaceBetween) {
+                Column {
+                    Text(sizeLabel(candidate), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Light)
+                    Spacer(Modifier.height(6.dp))
                     Text(
-                        "${size.cols}×${size.rows}",
-                        color = if (selected) Color.White else Color.White.copy(alpha = 0.8f),
+                        "tap or drag to where the tile should end. the tile above shows it. white outline: its size now.",
+                        color = Color.White.copy(alpha = 0.6f),
                         fontSize = 12.sp,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                        lineHeight = 16.sp,
                     )
-                    Text(size.pickerName(), color = Color.White.copy(alpha = 0.5f), fontSize = 10.sp, maxLines = 1)
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "cancel",
+                        color = Color.White.copy(alpha = 0.7f),
+                        fontSize = 15.sp,
+                        modifier = Modifier.clickable(onClick = onCancel).padding(vertical = 8.dp),
+                    )
+                    Text(
+                        "apply",
+                        color = if (candidate != current) accent else Color.White.copy(alpha = 0.35f),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable(enabled = candidate != current, onClick = onApply).padding(vertical = 8.dp),
+                    )
                 }
             }
         }
