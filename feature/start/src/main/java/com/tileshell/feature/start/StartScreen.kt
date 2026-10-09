@@ -38,6 +38,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -3014,6 +3015,12 @@ private fun StartPage(
     var sizePickerFor by remember { mutableStateOf<String?>(null) }
     // The size picked in the picker but not applied yet (null = the tile's own size): shown live on the tile itself.
     var sizeCandidate by remember { mutableStateOf<TileSize?>(null) }
+    // Where the tile being sized and the picker panel are on screen (root px), so the page can scroll to keep the
+    // tile (at its previewed size) above the panel instead of under it.
+    var sizeTileTop by remember { mutableStateOf(Float.NaN) }
+    var sizeTileBottom by remember { mutableStateOf(Float.NaN) }
+    var sizePanelTop by remember { mutableStateOf(Float.NaN) }
+    var sizePanelHeightPx by remember { mutableStateOf(0) }
     LaunchedEffect(editMode) {
         if (!editMode) {
             sizePickerFor = null
@@ -3749,7 +3756,7 @@ private fun StartPage(
                 postProcessKey = folderChildOrder.toList(),
                 modifier = Modifier.fillMaxWidth().then(editDrag),
             ) { spec, slot, sizePx ->
-                val model = augmentedById[spec.id] ?: return@DenseTileGrid
+                val baseModel = augmentedById[spec.id] ?: return@DenseTileGrid
                 val dragging = spec.id == draggingId
                 val resizing = spec.id == resizingId
                 val slotState = animateIntOffsetAsState(slot, label = "slot")
@@ -3764,6 +3771,13 @@ private fun StartPage(
                     resizePreviewSize?.let { resizeGeom.sizePx(TilePlacement("_resize_preview", it, 0, 0)) }
                 } else {
                     null
+                }
+                // While a size is being previewed (the corner drag or the size picker) the tile is drawn AS that size, so
+                // it shows the face it will really have (a wide tile's layout, not the old one stretched).
+                val model = if (resizing && resizePreviewSize != null && resizePreviewSize != baseModel.size) {
+                    baseModel.withSize(resizePreviewSize!!)
+                } else {
+                    baseModel
                 }
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.tileshell.feature.livetiles.LocalNotificationMuted provides (model.id in mutedNotificationTiles),
@@ -3790,6 +3804,17 @@ private fun StartPage(
                         .size(
                             with(density) { (livePreviewSizePx?.width ?: sizePx.width).toDp() },
                             with(density) { (livePreviewSizePx?.height ?: sizePx.height).toDp() },
+                        )
+                        .then(
+                            if (sizePickerFor == model.id) {
+                                Modifier.onGloballyPositioned { c ->
+                                    val at = c.positionInRoot()
+                                    sizeTileTop = at.y
+                                    sizeTileBottom = at.y + c.size.height
+                                }
+                            } else {
+                                Modifier
+                            },
                         ),
                 ) {
                     // Per-tile accent (FR-7): a saved override (palette id or exact
@@ -4166,7 +4191,7 @@ private fun StartPage(
             }
             // FR-1 bottom breathing room (prototype home-scroll padding-bottom:74px;
             // grows to clear the edit bar while editing, like .home-scroll padding).
-            Spacer(Modifier.height(if (editMode) 130.dp else 74.dp))
+            Spacer(Modifier.height(if (editMode) 130.dp + (if (sizePickerFor != null) with(density) { sizePanelHeightPx.toDp() } else 0.dp) else 74.dp))
         } // end per-page Column(verticalScroll)
         } // end per-page Box(translationX)
         } // end key(block.sectionId ?: "__unsectioned__") [outer]
@@ -4500,6 +4525,10 @@ private fun StartPage(
                 onDispose {
                     resizingId = null
                     resizePreviewSize = null
+                    sizeTileTop = Float.NaN
+                    sizeTileBottom = Float.NaN
+                    sizePanelTop = Float.NaN
+                    sizePanelHeightPx = 0
                 }
             }
             if (model == null) {
@@ -4518,11 +4547,27 @@ private fun StartPage(
                         resizePreviewSize = null
                     }
                 }
+                // Keep the tile (at the size being previewed) above the panel: scroll the page up by however much of
+                // it the panel covers, but never so far that the tile's top leaves the screen.
+                LaunchedEffect(sizeTileTop, sizeTileBottom, sizePanelTop) {
+                    if (sizeTileBottom.isNaN() || sizePanelTop.isNaN()) return@LaunchedEffect
+                    val margin = with(density) { 12.dp.toPx() }
+                    val overlap = sizeTileBottom + margin - sizePanelTop
+                    if (overlap > 1f) {
+                        val room = sizeTileTop - statusBarTopPx - margin
+                        val delta = overlap.coerceAtMost(room.coerceAtLeast(0f))
+                        if (delta > 1f) activeScrollState.animateScrollBy(delta)
+                    }
+                }
                 val close = {
                     sizePickerFor = null
                     sizeCandidate = null
                 }
                 TileSizeCellPicker(
+                    onPanelBounds = { top, height ->
+                        sizePanelTop = top
+                        sizePanelHeightPx = height
+                    },
                     current = model.size,
                     candidate = candidate,
                     allowed = allowed,
@@ -4602,6 +4647,7 @@ private fun BoxScope.TileSizeCellPicker(
     onCandidate: (TileSize) -> Unit,
     onApply: () -> Unit,
     onCancel: () -> Unit,
+    onPanelBounds: (top: Float, heightPx: Int) -> Unit = { _, _ -> },
 ) {
     Box(
         modifier = Modifier
@@ -4614,6 +4660,7 @@ private fun BoxScope.TileSizeCellPicker(
         modifier = Modifier
             .align(Alignment.BottomCenter)
             .fillMaxWidth()
+            .onGloballyPositioned { c -> onPanelBounds(c.positionInRoot().y, c.size.height) }
             .background(Color(0xFF1A1A1F))
             .navigationBarsPadding()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
@@ -9668,4 +9715,10 @@ private fun LiveFaceScale(size: TileSize, iconKey: String?, content: @Composable
         androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(d.density * k, d.fontScale),
         com.tileshell.feature.livetiles.LocalLiveFaceScale provides k,
     ) { content() }
+}
+
+/** The same tile at another size, for previewing a resize before it is applied. */
+private fun TileModel.withSize(size: TileSize): TileModel = when (this) {
+    is TileModel.App -> copy(size = size)
+    is TileModel.Folder -> copy(size = size)
 }
