@@ -255,3 +255,44 @@ fun arrivingOrders(orders: List<Order>): List<Order> =
 
 /** Orders that have ended (delivered, cancelled, returned), newest first. */
 fun pastOrders(orders: List<Order>): List<Order> = orders.filter { it.status.closed }.sortedByDescending { it.updated }
+
+// --- deals ----------------------------------------------------------------------------
+
+/** One promotional message from a store (its app, an SMS or a business chat), kept in the hub's deals page. */
+data class Deal(
+    val key: String,
+    val merchant: String,
+    val title: String,
+    val text: String,
+    val sourcePackage: String,
+    val food: Boolean,
+    val time: Long,
+)
+
+private val NOT_A_DEAL = Regex("""\botp\b|one[- ]time (?:password|pin|code)|verification code|security code|password|log ?in|sign ?in|\bcvv\b""")
+
+const val KEEP_DEALS_MS = 14 * DAY_MS
+const val MAX_DEALS = 60
+
+/**
+ * A store's non-order message ("8 PM deals are live now!", "Flat 20% off on shoes") as a [Deal], or null when it
+ * is empty, a login or verification code, or the same text as its own title. Order updates are never deals: the
+ * caller tries [parseOrderMessage] first. Pure.
+ */
+fun dealOf(title: String, text: String, sourcePackage: String, merchant: String, food: Boolean, time: Long): Deal? {
+    val t = title.trim()
+    val body = text.trim()
+    if (t.isEmpty() && body.isEmpty()) return null
+    if (NOT_A_DEAL.containsMatchIn("$t $body".lowercase())) return null
+    val shownTitle = t.ifEmpty { body }
+    val shownText = if (t.isEmpty() || body.equals(t, ignoreCase = true)) "" else body
+    val key = "${merchant.lowercase()}|${(shownTitle + shownText).lowercase().filter { it.isLetterOrDigit() }.hashCode()}"
+    return Deal(key, merchant, shownTitle.take(120), shownText.take(400), sourcePackage, food, time)
+}
+
+/** Adds [d] (a repeat of the same message only refreshes its time), newest first, within [KEEP_DEALS_MS] and [MAX_DEALS]. Pure. */
+fun mergeDeal(deals: List<Deal>, d: Deal, now: Long = d.time): List<Deal> =
+    (listOf(d) + deals.filter { it.key != d.key })
+        .filter { now - it.time <= KEEP_DEALS_MS }
+        .sortedByDescending { it.time }
+        .take(MAX_DEALS)

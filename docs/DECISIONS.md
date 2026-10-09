@@ -11736,3 +11736,18 @@ time. A rule and an accent "NEXT ALARM" caption now separate them.
 
 **World clock.** User chose a 24-hour disc over the strip: the light half (6 am to 6 pm) at the
 top, a hand at the local time, noon straight up.
+
+## Shopping hub: store chats and a deals page (2026-10-09)
+
+**Chats.** A phone check showed Amazon's order update arriving as a WhatsApp message from the business
+account "Amazon India", which the hub ignored (it read only shopping apps, SMS and mail). Chat apps now
+count when the *chat's own name* is a known store, so a friend mentioning Amazon never does. The text
+"package with 2 item(s)" gives the order the title "2 items".
+
+**Deals.** User-requested: a store's promotions ("8 PM Deals are live now!", Samsung Shop's festive deals)
+go to a new "deals" page (arriving, deals, past, apps), from the same sources as orders: a shopping or food
+app's own notifications, an SMS, or a business chat. Anything such a source sends that is not an order
+update and not a login, OTP or verification code is a deal (`dealOf`); the same text twice shows once;
+kept 14 days, at most 60, in `files/shopping_deals.txt` (on the phone only, not in backups, cleared by the
+settings' "clear history"). Not deals: apps that are not shops (Prime Video, Amazon Music, a bank's offer
+naming Ajio) and mail (newsletters would flood it). Tapping a deal opens the store's app.

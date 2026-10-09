@@ -71,7 +71,7 @@ picked — no personal data.
 
 ### Shopping orders
 The shopping hub reads order updates ("out for delivery", "delivered", delivery OTPs) from the notifications of your
-shopping, food and courier apps, and from SMS and email notifications that name a store, as they arrive; it needs no
+shopping, food and courier apps, and from SMS and email notifications that name a store, and from business chats (such as WhatsApp) with a store, as they arrive; the same stores' promotional notifications are kept as "deals" for up to 14 days; it needs no
 SMS permission and cannot read old messages. Orders are kept on the phone only (for up to 90 days), are not uploaded
 and are not in exported backups. Delivery OTPs stay hidden until you unlock with your fingerprint, face or screen lock
 (when set). You can turn reading off or clear the history in the hub's settings.

@@ -14,9 +14,14 @@ import java.io.File
  */
 object ShoppingStore {
     private const val FILE = "shopping_log.txt"
+    private const val DEALS_FILE = "shopping_deals.txt"
 
     private val _orders = MutableStateFlow<List<Order>>(emptyList())
     val orders: StateFlow<List<Order>> = _orders.asStateFlow()
+
+    private val _deals = MutableStateFlow<List<Deal>>(emptyList())
+    /** Promotional messages from stores, newest first (the hub's deals page). */
+    val deals: StateFlow<List<Deal>> = _deals.asStateFlow()
 
     @Volatile private var loaded = false
     private val thread by lazy { HandlerThread("shopping-store").apply { start() } }
@@ -33,6 +38,40 @@ object ShoppingStore {
             _orders.value = lines.mapNotNull(ShoppingCodec::decode)
                 .filter { now - it.updated <= (if (it.status.closed) KEEP_CLOSED_MS else KEEP_OPEN_MS) }
                 .sortedByDescending { it.updated }
+            val dealLines = runCatching { File(app.filesDir, DEALS_FILE).readLines() }.getOrDefault(emptyList())
+            _deals.value = dealLines.mapNotNull(DealCodec::decode)
+                .filter { now - it.time <= KEEP_DEALS_MS }
+                .sortedByDescending { it.time }
+                .take(MAX_DEALS)
+        }
+    }
+
+    /** Adds a store's promotional message. */
+    fun addDeal(context: Context, d: Deal) {
+        ensureLoaded(context)
+        val app = context.applicationContext
+        handler.post {
+            val next = mergeDeal(_deals.value, d)
+            if (next == _deals.value) return@post
+            _deals.value = next
+            writeLines(app, DEALS_FILE, next.joinToString("\n", transform = DealCodec::encode))
+        }
+    }
+
+    fun removeDeal(context: Context, key: String) {
+        val app = context.applicationContext
+        handler.post {
+            val next = _deals.value.filterNot { it.key == key }
+            _deals.value = next
+            writeLines(app, DEALS_FILE, next.joinToString("\n", transform = DealCodec::encode))
+        }
+    }
+
+    fun clearDeals(context: Context) {
+        val app = context.applicationContext
+        handler.post {
+            _deals.value = emptyList()
+            runCatching { File(app.filesDir, DEALS_FILE).delete() }
         }
     }
 
@@ -62,15 +101,20 @@ object ShoppingStore {
         val app = context.applicationContext
         handler.post {
             _orders.value = emptyList()
+            _deals.value = emptyList()
             runCatching { File(app.filesDir, FILE).delete() }
+            runCatching { File(app.filesDir, DEALS_FILE).delete() }
         }
     }
 
-    private fun write(context: Context, list: List<Order>) {
+    private fun write(context: Context, list: List<Order>) =
+        writeLines(context, FILE, list.joinToString("\n", transform = ShoppingCodec::encode))
+
+    private fun writeLines(context: Context, name: String, text: String) {
         runCatching {
-            val file = File(context.filesDir, FILE)
-            val tmp = File(context.filesDir, "$FILE.tmp")
-            tmp.writeText(list.joinToString("\n", transform = ShoppingCodec::encode))
+            val file = File(context.filesDir, name)
+            val tmp = File(context.filesDir, "$name.tmp")
+            tmp.writeText(text)
             tmp.renameTo(file)
         }
     }
@@ -98,5 +142,17 @@ object ShoppingCodec {
             firstSeen = f[8].toLongOrNull() ?: return null,
             updated = f[9].toLongOrNull() ?: return null,
         )
+    }
+}
+
+/** One [Deal] per line, tab-separated. Pure, unit-tested. */
+object DealCodec {
+    fun encode(d: Deal): String = listOf(d.key, d.merchant, d.title, d.text, d.sourcePackage, if (d.food) "f" else "", d.time.toString())
+        .joinToString("\t") { it.replace('\t', ' ').replace('\n', ' ') }
+
+    fun decode(line: String): Deal? {
+        val f = line.split("\t")
+        if (f.size < 7) return null
+        return Deal(f[0], f[1], f[2], f[3], f[4], f[5] == "f", f[6].toLongOrNull() ?: return null)
     }
 }

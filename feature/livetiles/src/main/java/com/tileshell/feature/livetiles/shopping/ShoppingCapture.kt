@@ -66,8 +66,13 @@ object ShoppingCapture {
             if (seen.containsKey(seenKey)) return
             seen[seenKey] = Unit
         }
-        val update = parseOrderMessage(title, text, sbn.packageName, merchant, food, time, titleIsItem) ?: return
-        ShoppingStore.update(context, update)
+        val update = parseOrderMessage(title, text, sbn.packageName, merchant, food, time, titleIsItem)
+        if (update != null) {
+            ShoppingStore.update(context, update)
+        } else {
+            // Not an order update: a store's own promotion (its app, an SMS, a business chat) goes to the deals page.
+            dealOf(title, text, sbn.packageName, merchant, food, time)?.let { ShoppingStore.addDeal(context, it) }
+        }
     }
 
     // Labels by package: this runs for every notification of every app, on the listener's thread, and a

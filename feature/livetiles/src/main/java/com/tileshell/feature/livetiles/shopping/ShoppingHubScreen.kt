@@ -71,7 +71,8 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-private val SHOPPING_PIVOTS = listOf("arriving", "past", "apps")
+private val SHOPPING_PIVOTS = listOf("arriving", "deals", "past", "apps")
+private const val APPS_PAGE = 3
 private val ShopBlue = Color(0xFF2B78E4)
 private val FoodOrange = Color(0xFFE5641E)
 private val Closed = Color(0xFFE5645A)
@@ -116,7 +117,7 @@ fun ShoppingHubScreen(
 
     val pagerState = rememberPagerState(pageCount = { SHOPPING_PIVOTS.size })
     var appsEditing by remember { mutableStateOf(false) }
-    LaunchedEffect(pagerState.currentPage) { if (pagerState.currentPage != 2) appsEditing = false }
+    LaunchedEffect(pagerState.currentPage) { if (pagerState.currentPage != APPS_PAGE) appsEditing = false }
 
     // Showing a delivery OTP asks for the fingerprint, face or screen lock first (when that is set).
     var pendingKey by remember { mutableStateOf<String?>(null) }
@@ -166,7 +167,8 @@ fun ShoppingHubScreen(
                 ) { page ->
                     when (page) {
                         0 -> ArrivingPage(tokens, accent, settings?.readOrderMessages ?: true, revealed, reveal)
-                        1 -> PastPage(tokens, accent)
+                        1 -> DealsPage(tokens, accent, settings?.readOrderMessages ?: true)
+                        2 -> PastPage(tokens, accent)
                         else -> ShoppingAppsPage(tokens, accent, appsEditing)
                     }
                 }
@@ -176,7 +178,7 @@ fun ShoppingHubScreen(
                 tokens = tokens,
                 actions = buildList {
                     add(HubAppBarAction("back", "back") { if (settingsOpen) settingsOpen = false else onDismiss() })
-                    if (!settingsOpen && pagerState.currentPage == 2) {
+                    if (!settingsOpen && pagerState.currentPage == APPS_PAGE) {
                         add(HubAppBarAction(if (appsEditing) "check" else "edit", "edit apps", if (appsEditing) "done" else "edit apps") { appsEditing = !appsEditing })
                     } else {
                         add(HubAppBarAction("settings", "shopping settings", "settings") { settingsOpen = !settingsOpen })
@@ -289,6 +291,54 @@ private fun OrderCard(
             }
         }
         Text("✕", color = tokens.fgDim, fontSize = 16.sp, modifier = Modifier.clickable(onClick = onRemove).padding(start = 8.dp, top = 2.dp, bottom = 8.dp))
+    }
+}
+
+// --- deals ------------------------------------------------------------------------
+
+@Composable
+private fun DealsPage(tokens: ColorTokens, accent: Color, reading: Boolean) {
+    val context = LocalContext.current
+    val deals by ShoppingStore.deals.collectAsStateWithLifecycle()
+    val apps = com.tileshell.feature.livetiles.shopping.rememberShoppingApps().orEmpty()
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
+        item(key = "note") {
+            Text(
+                if (reading) "offers from your shopping apps, store texts and business chats. last 2 weeks, kept on this phone."
+                else "reading order messages is off. turn it on in settings to collect deals.",
+                color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(bottom = 4.dp),
+            )
+        }
+        if (deals.isEmpty()) {
+            item(key = "empty") {
+                Text("no deals yet. offers appear here as their notifications arrive.", color = tokens.fgDim, fontSize = 15.sp, modifier = Modifier.padding(vertical = 12.dp))
+            }
+        }
+        items(deals, key = { it.key }) { d ->
+            val app = appForMerchant(apps, d.merchant)
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
+                Row(
+                    modifier = Modifier.fillMaxWidth().clickable(enabled = app != null) { app?.let { openApp(context, it.packageName) } }.padding(vertical = 10.dp),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(d.title, color = tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Light, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                        if (d.text.isNotEmpty()) Text(d.text, color = tokens.fgDim, fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            "${d.merchant} · ${dayLabel(d.time)} · " + SimpleDateFormat("h:mm a", Locale.ENGLISH).format(Date(d.time)).lowercase(),
+                            color = if (d.food) FoodOrange else ShopBlue, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 3.dp),
+                        )
+                    }
+                    Text("✕", color = tokens.fgDim, fontSize = 16.sp, modifier = Modifier.clickable { ShoppingStore.removeDeal(context, d.key) }.padding(start = 10.dp, top = 2.dp, bottom = 8.dp))
+                }
+            }
+        }
+        if (deals.isNotEmpty()) {
+            item(key = "clear") {
+                Text("clear all deals", color = accent, fontSize = 14.sp, modifier = Modifier.clickable { ShoppingStore.clearDeals(context) }.padding(vertical = 12.dp))
+            }
+        }
     }
 }
 

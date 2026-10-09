@@ -220,4 +220,52 @@ class ShoppingParserTest {
         assertEquals(listOf("a", "c"), appsOnTile(apps, setOf("c", "a")).map { it.packageName })
         assertEquals(listOf("a", "b", "c"), appsOnTile(apps, setOf("gone")).map { it.packageName })
     }
+
+    @Test
+    fun `store promotions become deals and codes do not`() {
+        val d = dealOf("8 PM Deals are live now!", "Unmissable deals from 8 PM to Midnight!", "in.amazon.mShop.android.shopping", "Amazon", false, 5_000L)
+        assertEquals("8 PM Deals are live now!", d?.title)
+        assertEquals("Unmissable deals from 8 PM to Midnight!", d?.text)
+        assertNull(parse("8 PM Deals are live now!", "Unmissable deals from 8 PM to Midnight!"))
+        assertNull(dealOf("Amazon", "Your OTP for login is 482910", "p", "Amazon", false, 1L))
+        assertNull(dealOf("", "  ", "p", "Amazon", false, 1L))
+        // A message that only repeats its title shows once.
+        assertEquals("", dealOf("Flat 20% off", "flat 20% off", "p", "Myntra", false, 1L)?.text)
+        // No title: the text is the headline.
+        assertEquals("Sale ends tonight", dealOf("", "Sale ends tonight", "p", "Myntra", false, 1L)?.title)
+    }
+
+    @Test
+    fun `deals merge newest first, dedupe and expire`() {
+        val day = 24L * 60 * 60 * 1000
+        fun deal(t: String, time: Long) = dealOf(t, "x", "p", "Amazon", false, time)!!
+        val a = deal("a", 1_000L)
+        val b = deal("b", 2_000L)
+        var list = mergeDeal(mergeDeal(emptyList(), a), b)
+        assertEquals(listOf("b", "a"), list.map { it.title })
+        // The same message again moves to the front once, not twice.
+        list = mergeDeal(list, deal("a", 3_000L))
+        assertEquals(listOf("a", "b"), list.map { it.title })
+        assertEquals(3_000L, list.first().time)
+        // Old ones drop.
+        list = mergeDeal(list, deal("c", 3_000L + 15 * day))
+        assertEquals(listOf("c"), list.map { it.title })
+        // Capped.
+        var many = emptyList<Deal>()
+        for (i in 0 until 70) many = mergeDeal(many, deal("d$i", 10_000L + i))
+        assertEquals(MAX_DEALS, many.size)
+        assertEquals("d69", many.first().title)
+    }
+
+    @Test
+    fun `deal codec round trips`() {
+        val d = dealOf("Big\ttitle", "line one\nline two", "pkg", "Zomato", true, 42L)!!
+        val back = DealCodec.decode(DealCodec.encode(d))
+        assertEquals(d.key, back?.key)
+        assertEquals("Big title", back?.title)
+        assertEquals("line one line two", back?.text)
+        assertTrue(back?.food == true)
+        assertEquals(42L, back?.time)
+        assertNull(DealCodec.decode("too\tfew"))
+    }
 }
