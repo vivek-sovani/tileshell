@@ -3769,7 +3769,22 @@ private fun StartPage(
                 ) {
                 Box(
                     modifier = Modifier
-                        .offset { if (dragging) dragOffset.value else slotState.value }
+                        .offset {
+                            if (dragging) {
+                                dragOffset.value
+                            } else {
+                                val at = slotState.value
+                                // A resize preview wider than the room to the right shifts left to fit, as the real
+                                // resize does, instead of running off the screen.
+                                val previewCols = if (resizing) resizePreviewSize?.cols else null
+                                if (previewCols != null) {
+                                    val maxX = (resizeGeom.side + (columns - previewCols) * resizeGeom.step).roundToInt().coerceAtLeast(0)
+                                    if (at.x > maxX) IntOffset(maxX, at.y) else at
+                                } else {
+                                    at
+                                }
+                            }
+                        }
                         .zIndex(if (dragging || resizing) 10f else 0f)
                         .size(
                             with(density) { (livePreviewSizePx?.width ?: sizePx.width).toDp() },
@@ -4622,9 +4637,11 @@ private fun BoxScope.TileSizeCellPicker(
                             while (true) {
                                 val event = awaitPointerEvent()
                                 val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                // The release is consumed too, or the grid underneath reads it as a tap on empty
+                                // space and leaves edit mode (which closed the picker before anything was chosen).
+                                change.consume()
                                 if (!change.pressed) break
                                 choose(change.position.x, change.position.y)
-                                change.consume()
                             }
                         }
                     },
@@ -4636,8 +4653,8 @@ private fun BoxScope.TileSizeCellPicker(
                         val inCandidate = c < candidate.cols && r < candidate.rows
                         val color = when {
                             inCandidate -> accent
-                            offered -> Color.White.copy(alpha = 0.22f)
-                            else -> Color.White.copy(alpha = 0.07f)
+                            offered -> Color.White.copy(alpha = 0.28f)
+                            else -> Color.White.copy(alpha = 0.04f)
                         }
                         drawRect(
                             color = color,
@@ -4666,20 +4683,31 @@ private fun BoxScope.TileSizeCellPicker(
                         lineHeight = 16.sp,
                     )
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        "cancel",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 15.sp,
-                        modifier = Modifier.clickable(onClick = onCancel).padding(vertical = 8.dp),
-                    )
-                    Text(
-                        "apply",
-                        color = if (candidate != current) accent else Color.White.copy(alpha = 0.35f),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clickable(enabled = candidate != current, onClick = onApply).padding(vertical = 8.dp),
-                    )
+                // Two real buttons, so "apply" is always visible (dimmed until a different size is chosen).
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                            .clickable(onClick = onCancel)
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("cancel", color = Color.White, fontSize = 14.sp)
+                    }
+                    val changed = candidate != current
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (changed) accent else accent.copy(alpha = 0.35f))
+                            .clickable(enabled = changed, onClick = onApply)
+                            .padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text("apply", color = Color.White.copy(alpha = if (changed) 1f else 0.7f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
         }
