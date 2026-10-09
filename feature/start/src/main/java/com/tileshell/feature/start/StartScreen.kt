@@ -3021,6 +3021,17 @@ private fun StartPage(
     var sizeTileBottom by remember { mutableStateOf(Float.NaN) }
     var sizePanelTop by remember { mutableStateOf(Float.NaN) }
     var sizePanelHeightPx by remember { mutableStateOf(0) }
+    // After "apply" the preview stays up for a moment, until the real resize has landed, so the tile doesn't flash back
+    // to its old size first.
+    var sizeApplyHold by remember { mutableStateOf(false) }
+    LaunchedEffect(sizeApplyHold) {
+        if (sizeApplyHold) {
+            kotlinx.coroutines.delay(500)
+            resizingId = null
+            resizePreviewSize = null
+            sizeApplyHold = false
+        }
+    }
     LaunchedEffect(editMode) {
         if (!editMode) {
             sizePickerFor = null
@@ -4523,8 +4534,10 @@ private fun StartPage(
             // Whatever ends the picker, the live preview on the tile goes with it.
             DisposableEffect(pickId) {
                 onDispose {
-                    resizingId = null
-                    resizePreviewSize = null
+                    if (!sizeApplyHold) {
+                        resizingId = null
+                        resizePreviewSize = null
+                    }
                     sizeTileTop = Float.NaN
                     sizeTileBottom = Float.NaN
                     sizePanelTop = Float.NaN
@@ -4575,6 +4588,7 @@ private fun StartPage(
                     onCandidate = { sizeCandidate = it },
                     onApply = {
                         if (candidate != model.size) {
+                            sizeApplyHold = true
                             when {
                                 childRef != null -> onResizeFolderChildTo(childRef.first, childRef.second, candidate)
                                 model is TileModel.Folder && model.isStack -> onResizeStack(model.id, candidate)
@@ -4664,7 +4678,7 @@ private fun BoxScope.TileSizeCellPicker(
             .background(Color(0xFF1A1A1F))
             .navigationBarsPadding()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             val cellDp = 34.dp
@@ -4753,7 +4767,8 @@ private fun BoxScope.TileSizeCellPicker(
                     .heightIn(min = 44.dp)
                     .clip(RoundedCornerShape(6.dp))
                     .background(if (changed) accent else accent.copy(alpha = 0.4f))
-                    .clickable(enabled = changed, onClick = onApply),
+                    // Always responds: with nothing changed it just closes the picker.
+                    .clickable(onClick = onApply),
                 contentAlignment = Alignment.Center,
             ) {
                 Text("apply", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
