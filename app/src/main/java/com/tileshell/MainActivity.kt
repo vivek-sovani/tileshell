@@ -226,6 +226,8 @@ class MainActivity : ComponentActivity() {
             "health" -> startViewModel.openHealthHub()
             // A running timer's notification or alarm icon.
             "clock" -> startViewModel.openClockHub()
+            // The quick settings panel's "personalize" tile.
+            PersonalizeTileService.OPEN_PERSONALIZE -> startViewModel.openPersonalize()
         }
         intent.removeExtra(com.tileshell.feature.livetiles.widget.EXTRA_OPEN_HUB)
     }
