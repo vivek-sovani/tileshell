@@ -203,6 +203,7 @@ import com.tileshell.core.data.settings.WallpaperSyncTarget
 import com.tileshell.core.data.settings.isAnchored
 import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.design.DarkColorTokens
+import com.tileshell.core.design.CornerArcGlyph
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LIGHT_BACKGROUND_LUMINANCE_THRESHOLD
 import com.tileshell.core.design.LocalAccent
@@ -5972,13 +5973,18 @@ internal fun BoxScope.TileControls(
         description = if (isFolder) "open folder" else "unpin",
         modifier = Modifier.align(Alignment.TopStart),
     )
-    // The size button: a white ring like the colour dot, holding a small and a big square. A tap opens the size
-    // picker; dragging it resizes (see tileStretchGesture).
+    // The drag-to-resize handle (the corner arc) around the size button: both stay visible, and the same
+    // corner does both: a tap on the button opens the size picker, dragging resizes (see tileStretchGesture).
+    CornerArcGlyph(
+        tint = LocalTileFaceColor.current,
+        modifier = Modifier.align(Alignment.BottomEnd).padding(2.dp).size(30.dp),
+    )
+    // The size button: a white ring like the colour dot, holding a small and a big square.
     Box(
         modifier = Modifier
             .align(Alignment.BottomEnd)
-            .padding(6.dp)
-            .size(22.dp)
+            .padding(8.dp)
+            .size(20.dp)
             .clip(CircleShape)
             .background(Color.White),
         contentAlignment = Alignment.Center,
