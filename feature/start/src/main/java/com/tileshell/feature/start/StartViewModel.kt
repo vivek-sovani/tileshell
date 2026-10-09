@@ -247,6 +247,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private val _backupOpen = MutableStateFlow(false)
     val backupOpen: StateFlow<Boolean> = _backupOpen.asStateFlow()
 
+    /** Which backup screen is (or was last) open: snapshots, the backup file, or reset. */
+    private val _backupSection = MutableStateFlow(com.tileshell.feature.personalize.BackupSection.SNAPSHOTS)
+    val backupSection: StateFlow<com.tileshell.feature.personalize.BackupSection> = _backupSection.asStateFlow()
+
     /**
      * The weather hub full-screen page (Start's weather tile → hub, replacing the
      * old "open a google.com search" fallback). Null = closed; a non-null
@@ -1013,7 +1017,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun closeHistory() { _historyOpen.value = false }
 
     /** Open the backup & restore sheet (personalize → backups, snapshots & reset). */
-    fun openBackup() { _backupOpen.value = true }
+    fun openBackup(section: com.tileshell.feature.personalize.BackupSection = com.tileshell.feature.personalize.BackupSection.SNAPSHOTS) {
+        _backupSection.value = section
+        _backupOpen.value = true
+    }
 
     /** Close the backup & restore sheet. */
     fun closeBackup() { _backupOpen.value = false }

@@ -9332,7 +9332,7 @@ private fun PersonalizeSheetLayer(
         onHiddenApps = viewModel::openHiddenApps,
         edgeStripEnabled = settings.edgeStripEnabled,
         onEdgeStrip = viewModel::openEdgeStrip,
-        onBackupRestore = viewModel::openBackup,
+        onOpenBackup = viewModel::openBackup,
         onPermissions = viewModel::openPermissions,
         onNewsRegion = viewModel::openNewsRegion,
         newsRegionCount = 1 + SELECTABLE_COUNTRIES.size,
@@ -9357,7 +9357,9 @@ private fun BackupSheetLayer(
     onChooseExportFolder: () -> Unit,
 ) {
     val autoExport by viewModel.autoExport.collectAsStateWithLifecycle()
+    val section by viewModel.backupSection.collectAsStateWithLifecycle()
     BackupRestoreSheet(
+        section = section,
         visible = visible,
         dark = dark,
         accentId = accentId,

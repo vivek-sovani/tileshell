@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -44,8 +45,25 @@ import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 
+/** The three backup screens, opened from their own rows in personalize. */
+enum class BackupSection(val title: String, val description: String) {
+    SNAPSHOTS(
+        "snapshots",
+        "quick restore points of your start layout and settings, kept on this phone. they won't help if you lose or change the phone: use a backup file for that.",
+    ),
+    FILE(
+        "backup file",
+        "everything in one file you keep: your layout, settings, notes, tasks and music favourites. use it to move to a new phone or as a safety copy.",
+    ),
+    RESET(
+        "reset start layout",
+        "sets start up again from the first step: style, colour and apps. your snapshots and backup files stay as they are.",
+    ),
+}
+
 /**
- * The backup & restore sub-sheet (personalize → backups, snapshots & reset): layout history,
+ * One backup screen ([section]): snapshots on this phone, the backup file, or reset. Opened from its own row in
+ * personalize → backups, snapshots & reset (personalize → backups, snapshots & reset): layout history,
  * auto-save + frequency, save-now, and file export/import. Pulled out of the main
  * [PersonalizeSheet] — which was growing too long — the same way [AboutSheet] and
  * [LayoutHistorySheet] already stand on their own.
@@ -55,6 +73,7 @@ fun BackupRestoreSheet(
     visible: Boolean,
     dark: Boolean,
     accentId: String,
+    section: BackupSection,
     onDismiss: () -> Unit,
     onOpenHistory: () -> Unit,
     onSaveSnapshot: () -> Unit,
@@ -100,7 +119,7 @@ fun BackupRestoreSheet(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .fillMaxHeight(0.8f)
+                    .wrapContentHeight()
                     .graphicsLayer { translationY = size.height * (1f - progress) }
                     .background(tokens.sheet, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                     .clickable(
@@ -123,20 +142,23 @@ fun BackupRestoreSheet(
                 )
 
                 Text(
-                    text = "backups, snapshots & reset",
+                    text = section.title,
                     color = tokens.fg,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Medium,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                 )
+                Text(
+                    text = section.description,
+                    color = tokens.fgDim,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 10.dp),
+                )
 
                 Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    BackupGroupHeader(
-                        title = "snapshots on this phone",
-                        description = "quick restore points of your start layout and settings. they stay on this phone, so they won't help if you lose or change the phone: use a backup file for that.",
-                        tokens = tokens, accent = accent, first = true,
-                    )
 
+                    if (section == BackupSection.SNAPSHOTS) {
                     // Auto-save: description reflects current state so the toggle is self-explanatory
                     val intervalLabel = when {
                         autoBackupIntervalHours <= 6 -> "every 6h"
@@ -194,12 +216,10 @@ fun BackupRestoreSheet(
 
                     WallpaperNavRow("save a snapshot now", "save ›", accent, tokens, onSaveSnapshot)
                     WallpaperNavRow("restore a previous layout", "view ›", accent, tokens, onOpenHistory)
+                    }
 
-                    BackupGroupHeader(
-                        title = "backup file",
-                        description = "everything in one file you keep: your layout, settings, notes, tasks and music favourites. use it to move to a new phone or as a safety copy.",
-                        tokens = tokens, accent = accent,
-                    )
+                    if (section == BackupSection.FILE) {
+
                     WallpaperNavRow("export a backup file", "save ›", accent, tokens, onExportBackup)
                     WallpaperNavRow("restore from a backup file", "open ›", accent, tokens, onRestoreBackup)
                     AutoExportSection(
@@ -219,40 +239,14 @@ fun BackupRestoreSheet(
                         fontSize = 12.sp,
                         lineHeight = 17.sp,
                     )
+                    }
 
-                    BackupGroupHeader(
-                        title = "reset",
-                        description = "starts over. this doesn't touch your snapshots or backup files.",
-                        tokens = tokens, accent = accent,
-                    )
+                    if (section == BackupSection.RESET) {
                     WallpaperNavRow("reset start layout", "reset ›", accent, tokens, onResetLayout)
-                    Text(
-                        text = "sets up start again from the first step: style, colour and apps.",
-                        color = tokens.fgDim,
-                        fontSize = 12.sp,
-                        lineHeight = 17.sp,
-                    )
+                    }
                 }
             }
         }
-    }
-}
-
-/** A titled group of the backup screen: what it is, in plain words, above its rows. */
-@Composable
-private fun BackupGroupHeader(
-    title: String,
-    description: String,
-    tokens: com.tileshell.core.design.ColorTokens,
-    accent: Color,
-    first: Boolean = false,
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = if (first) 4.dp else 22.dp, bottom = 6.dp)) {
-        if (!first) {
-            HorizontalDivider(color = tokens.fgDim.copy(alpha = 0.15f), modifier = Modifier.padding(bottom = 14.dp))
-        }
-        Text(text = title, color = accent, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-        Text(text = description, color = tokens.fgDim, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 2.dp))
     }
 }
 

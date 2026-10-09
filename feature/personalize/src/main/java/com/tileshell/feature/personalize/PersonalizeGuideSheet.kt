@@ -354,7 +354,7 @@ fun PersonalizeGuideSheet(
                             accent = accent,
                             tokens = tokens,
                             items = listOf(
-                                "personalize · backups, snapshots & reset opens one screen with three groups: snapshots, backup file and reset",
+                                "personalize · backups, snapshots & reset has three rows, each opening its own screen: snapshots, backup file and reset start layout",
                                 "snapshots on this phone: turn on automatic snapshots, save one now, or restore a previous layout — they stay on this phone, so use a backup file for a new one",
                                 "backup file: export everything (layout, settings, notes, tasks, music favourites) to one file — save it to google drive for your next phone — or restore from one",
                                 "reset start layout, in its own section at the bottom, runs the setup again from the first step",

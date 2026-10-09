@@ -292,7 +292,7 @@ fun PersonalizeSheet(
     onHiddenApps: () -> Unit,
     edgeStripEnabled: Boolean,
     onEdgeStrip: () -> Unit,
-    onBackupRestore: () -> Unit,
+    onOpenBackup: (BackupSection) -> Unit,
     /** Opens the contacts/calendar/location/physical-activity permissions sub-sheet. */
     onPermissions: () -> Unit,
     /** Opens the news-region picker sub-sheet. */
@@ -1477,16 +1477,16 @@ fun PersonalizeSheet(
                         }
                         // ---- backup & restore ----
                         SettingGroup(label = "backups, snapshots & reset", tokens.fgDim) {
-                            // Each row says what it is; all three open the same screen, which has them as its three groups.
+                            // Each row says what it is and opens its own screen.
                             listOf(
-                                "snapshots" to "restore points of your layout, kept on this phone",
-                                "backup file" to "everything in one file, for a new phone or a safety copy",
-                                "reset start layout" to "set start up again from the first step",
-                            ).forEach { (title, description) ->
+                                Triple(BackupSection.SNAPSHOTS, "snapshots", "restore points of your layout, kept on this phone"),
+                                Triple(BackupSection.FILE, "backup file", "everything in one file, for a new phone or a safety copy"),
+                                Triple(BackupSection.RESET, "reset start layout", "set start up again from the first step"),
+                            ).forEach { (backupSection, title, description) ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable(onClick = onBackupRestore)
+                                        .clickable { onOpenBackup(backupSection) }
                                         .padding(vertical = 6.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
