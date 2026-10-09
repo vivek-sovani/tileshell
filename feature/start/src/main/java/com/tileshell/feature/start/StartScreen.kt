@@ -6066,9 +6066,11 @@ private fun FolderNameEditor(initial: String, onCommit: (String) -> Unit) {
 }
 
 /**
- * The prototype `.badge`: a rounded count pill in the tile's top-right corner.
- * White on dark themes, inverted on light (`#screen.light .badge`). Shrinks on
- * small tiles. Counts over 99 read "99+" so the pill keeps its shape.
+ * The count badge in the tile's top-right corner, drawn like Windows Phone's:
+ * a dark circle with a light ring and number on dark themes, inverted on light
+ * (user-requested to match the app list's tile badge, replacing the prototype's
+ * solid `.badge` pill). Shrinks on small tiles. Counts over 99 read "99+" so
+ * the shape holds.
  */
 @Composable
 internal fun NotificationBadge(
@@ -6085,8 +6087,8 @@ internal fun NotificationBadge(
     // original fixed 18dp/22dp look exactly as before.
     sizeOverride: Dp? = null,
 ) {
-    val bg = if (dark) Color.White else Color(0xFF111111)
-    val fg = if (dark) Color(0xFF111111) else Color.White
+    val bg = if (dark) Color(0xFF111111) else Color.White
+    val fg = if (dark) Color.White else Color(0xFF111111)
     val diameter = sizeOverride ?: if (small) 18.dp else 22.dp
     val inset = sizeOverride?.let { it * 0.25f } ?: if (small) 5.dp else 8.dp
     val fontSize = sizeOverride?.let { (it.value * 0.5f).sp } ?: if (small) 11.sp else 13.sp
@@ -6096,6 +6098,7 @@ internal fun NotificationBadge(
             .defaultMinSize(minWidth = diameter, minHeight = diameter)
             .height(diameter)
             .background(bg, CircleShape)
+            .border(if (small) 1.5.dp else 2.dp, fg, CircleShape)
             .padding(horizontal = 5.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -6116,13 +6119,14 @@ internal fun NotificationBadge(
  */
 @Composable
 internal fun FolderChildBadge(count: Int, dark: Boolean, modifier: Modifier = Modifier) {
-    val bg = if (dark) Color.White else Color(0xFF111111)
-    val fg = if (dark) Color(0xFF111111) else Color.White
+    val bg = if (dark) Color(0xFF111111) else Color.White
+    val fg = if (dark) Color.White else Color(0xFF111111)
     Box(
         modifier = modifier
             .padding(top = 1.dp, end = 1.dp)
             .defaultMinSize(minWidth = 12.dp, minHeight = 12.dp)
             .background(bg, CircleShape)
+            .border(1.dp, fg, CircleShape)
             .padding(horizontal = 2.dp),
         contentAlignment = Alignment.Center,
     ) {
