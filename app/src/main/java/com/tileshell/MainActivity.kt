@@ -313,6 +313,7 @@ class MainActivity : ComponentActivity() {
             "about" -> startViewModel.openAbout()
             "guide" -> startViewModel.openPersonalizeGuide()
             "backup" -> startViewModel.openBackup()
+            "setup" -> startViewModel.openResetSetup()
             "backupfile" -> startViewModel.openBackup(com.tileshell.feature.personalize.BackupSection.FILE)
             "backupreset" -> startViewModel.openBackup(com.tileshell.feature.personalize.BackupSection.RESET)
         }

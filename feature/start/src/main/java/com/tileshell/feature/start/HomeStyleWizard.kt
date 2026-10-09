@@ -8,6 +8,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.layout.width
@@ -211,6 +213,8 @@ private fun HomeStyleWizardScreen(
             .navigationBarsPadding()
             .padding(horizontal = 24.dp, vertical = 32.dp),
     ) {
+        // Everything but the skip / cancel link scrolls, so a big system font can't push the options off the screen.
+        Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
         Text(
             text = if (reset) "reset start layout · step 1 of 2" else "step 1 of 2",
             color = Color.White.copy(alpha = 0.6f),
@@ -260,7 +264,7 @@ private fun HomeStyleWizardScreen(
             }
         }
 
-        Spacer(Modifier.weight(1f))
+        }
 
         Text(
             text = if (reset) "cancel" else "skip for now",
@@ -302,7 +306,11 @@ private fun HomeStyleOption(
                 .padding(16.dp),
             contentAlignment = Alignment.Center,
         ) {
-            preview()
+            // The preview is a fixed-size drawing of tiles and icons: a big system font would only clip its labels.
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            androidx.compose.runtime.CompositionLocalProvider(
+                androidx.compose.ui.platform.LocalDensity provides androidx.compose.ui.unit.Density(density.density, fontScale = 1f),
+            ) { preview() }
         }
     }
 }
@@ -400,7 +408,11 @@ internal fun StartSetupWizard(
 }
 
 @Composable
-private fun WizardFrame(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+private fun WizardFrame(
+    // Pinned under the scrolling content, so the button that moves you on is always reachable.
+    bottom: (@Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit)? = null,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -408,8 +420,14 @@ private fun WizardFrame(content: @Composable androidx.compose.foundation.layout.
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(horizontal = 24.dp, vertical = 32.dp),
-        content = content,
-    )
+    ) {
+        if (bottom == null) {
+            content()
+        } else {
+            Column(modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()), content = content)
+            bottom()
+        }
+    }
 }
 
 @Composable
@@ -475,7 +493,31 @@ private fun SetupChoiceScreen(
     onBack: () -> Unit,
     onNext: () -> Unit,
     keepsPinned: Boolean = false,
-) = WizardFrame {
+) = WizardFrame(bottom = {
+        if (reset && !custom) {
+            Text(
+                if (keepsPinned) {
+                    "start is laid out again with your apps added after the hubs. your current layout is saved to layout history."
+                } else {
+                    "this replaces your current start. save a snapshot first if you may want it back."
+                },
+                color = WizardDim,
+                fontSize = 13.sp,
+            )
+            Spacer(Modifier.height(12.dp))
+        }
+        WizardButton(
+            text = when {
+                custom -> "next"
+                keepsPinned -> "set up start"
+                reset -> "reset"
+                else -> "start"
+            },
+            // Red only when it replaces Start; keeping the apps there isn't a reset.
+            color = if (reset && !custom && !keepsPinned) ResetRed else accent,
+            onClick = onNext,
+        )
+}) {
     WizardBackRow(onBack)
     Text(if (reset) "reset start layout · step 2 of 2" else "step 2 of 2", color = Color.White.copy(alpha = 0.6f), fontSize = 13.sp)
     Spacer(Modifier.height(6.dp))
@@ -553,30 +595,6 @@ private fun SetupChoiceScreen(
         }
     }
 
-    Spacer(Modifier.weight(1f))
-    if (reset && !custom) {
-        Text(
-            if (keepsPinned) {
-                "start is laid out again with your apps added after the hubs. your current layout is saved to layout history."
-            } else {
-                "this replaces your current start. save a snapshot first if you may want it back."
-            },
-            color = WizardDim,
-            fontSize = 13.sp,
-        )
-        Spacer(Modifier.height(12.dp))
-    }
-    WizardButton(
-        text = when {
-            custom -> "next"
-            keepsPinned -> "set up start"
-            reset -> "reset"
-            else -> "start"
-        },
-        // Red only when it replaces Start; keeping the apps there isn't a reset.
-        color = if (reset && !custom && !keepsPinned) ResetRed else accent,
-        onClick = onNext,
-    )
 }
 
 @Composable

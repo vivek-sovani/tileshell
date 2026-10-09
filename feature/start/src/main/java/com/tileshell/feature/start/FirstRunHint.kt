@@ -8,10 +8,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -68,10 +70,13 @@ fun FirstRunHint(accentId: String, modifier: Modifier = Modifier) {
         ) {
             Column(
                 modifier = Modifier
+                    .statusBarsPadding()
                     .navigationBarsPadding()
                     .padding(horizontal = 18.dp, vertical = 24.dp)
                     .fillMaxWidth()
                     .background(Color(0xFF1B1B22), RoundedCornerShape(10.dp))
+                    // Scrolls when a big system font makes the card taller than the screen.
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
                     .padding(horizontal = 18.dp, vertical = 18.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
