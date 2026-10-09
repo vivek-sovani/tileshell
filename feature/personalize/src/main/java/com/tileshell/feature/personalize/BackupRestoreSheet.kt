@@ -100,7 +100,7 @@ fun BackupRestoreSheet(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .fillMaxHeight(0.62f)
+                    .fillMaxHeight(0.8f)
                     .graphicsLayer { translationY = size.height * (1f - progress) }
                     .background(tokens.sheet, RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp))
                     .clickable(
@@ -131,7 +131,11 @@ fun BackupRestoreSheet(
                 )
 
                 Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-                    WallpaperNavRow("layout history", "view ›", accent, tokens, onOpenHistory)
+                    BackupGroupHeader(
+                        title = "snapshots on this phone",
+                        description = "quick restore points of your start layout and settings. they stay on this phone, so they won't help if you lose or change the phone: use a backup file for that.",
+                        tokens = tokens, accent = accent, first = true,
+                    )
 
                     // Auto-save: description reflects current state so the toggle is self-explanatory
                     val intervalLabel = when {
@@ -144,9 +148,9 @@ fun BackupRestoreSheet(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "auto-save", color = tokens.fg, fontSize = 14.sp)
+                            Text(text = "automatic snapshots", color = tokens.fg, fontSize = 14.sp)
                             Text(
-                                text = if (autoBackupEnabled) "saves automatically · $intervalLabel" else "off",
+                                text = if (autoBackupEnabled) "a snapshot is taken $intervalLabel" else "off",
                                 color = tokens.fgDim,
                                 fontSize = 12.sp,
                             )
@@ -188,30 +192,16 @@ fun BackupRestoreSheet(
                         }
                     }
 
-                    WallpaperNavRow("save now", "save ›", accent, tokens, onSaveSnapshot)
+                    WallpaperNavRow("save a snapshot now", "save ›", accent, tokens, onSaveSnapshot)
+                    WallpaperNavRow("restore a previous layout", "view ›", accent, tokens, onOpenHistory)
 
-                    // — file transfer divider —
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        HorizontalDivider(
-                            modifier = Modifier.weight(1f),
-                            color = tokens.fgDim.copy(alpha = 0.15f),
-                        )
-                        Text(
-                            text = "  file transfer  ",
-                            color = tokens.fgDim.copy(alpha = 0.5f),
-                            fontSize = 11.sp,
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.weight(1f),
-                            color = tokens.fgDim.copy(alpha = 0.15f),
-                        )
-                    }
-
-                    WallpaperNavRow("export layout", "save ›", accent, tokens, onExportBackup)
-                    WallpaperNavRow("restore from file", "open ›", accent, tokens, onRestoreBackup)
+                    BackupGroupHeader(
+                        title = "backup file",
+                        description = "everything in one file you keep: your layout, settings, notes, tasks and music favourites. use it to move to a new phone or as a safety copy.",
+                        tokens = tokens, accent = accent,
+                    )
+                    WallpaperNavRow("export a backup file", "save ›", accent, tokens, onExportBackup)
+                    WallpaperNavRow("restore from a backup file", "open ›", accent, tokens, onRestoreBackup)
                     AutoExportSection(
                         state = autoExport,
                         accent = accent,
@@ -230,25 +220,11 @@ fun BackupRestoreSheet(
                         lineHeight = 17.sp,
                     )
 
-                    // — reset divider —
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 18.dp, bottom = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        HorizontalDivider(
-                            modifier = Modifier.weight(1f),
-                            color = tokens.fgDim.copy(alpha = 0.15f),
-                        )
-                        Text(
-                            text = "  reset  ",
-                            color = tokens.fgDim.copy(alpha = 0.5f),
-                            fontSize = 11.sp,
-                        )
-                        HorizontalDivider(
-                            modifier = Modifier.weight(1f),
-                            color = tokens.fgDim.copy(alpha = 0.15f),
-                        )
-                    }
+                    BackupGroupHeader(
+                        title = "reset",
+                        description = "starts over. this doesn't touch your snapshots or backup files.",
+                        tokens = tokens, accent = accent,
+                    )
                     WallpaperNavRow("reset start layout", "reset ›", accent, tokens, onResetLayout)
                     Text(
                         text = "sets up start again from the first step: style, colour and apps.",
@@ -259,6 +235,24 @@ fun BackupRestoreSheet(
                 }
             }
         }
+    }
+}
+
+/** A titled group of the backup screen: what it is, in plain words, above its rows. */
+@Composable
+private fun BackupGroupHeader(
+    title: String,
+    description: String,
+    tokens: com.tileshell.core.design.ColorTokens,
+    accent: Color,
+    first: Boolean = false,
+) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = if (first) 4.dp else 22.dp, bottom = 6.dp)) {
+        if (!first) {
+            HorizontalDivider(color = tokens.fgDim.copy(alpha = 0.15f), modifier = Modifier.padding(bottom = 14.dp))
+        }
+        Text(text = title, color = accent, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(text = description, color = tokens.fgDim, fontSize = 12.sp, lineHeight = 17.sp, modifier = Modifier.padding(top = 2.dp))
     }
 }
 

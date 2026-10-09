@@ -485,13 +485,13 @@ fun AboutSheet(
                             accent = accent,
                             tokens = tokens,
                             items = listOf(
-                                "auto-save your layout on a schedule — every 6h, 12h, or daily",
-                                "layout history — browse and restore up to 10 past layouts with a visual preview",
-                                "save a snapshot manually any time from personalize",
-                                "export your layout, settings, notes, tasks and music favourites to a file",
+                                "automatic snapshots of your layout and settings on a schedule — every 6h, 12h, or daily",
+                                "restore a previous layout — browse up to 10 snapshots with a visual preview; snapshots stay on this phone",
+                                "save a snapshot yourself any time",
+                                "backup file — export your layout, settings, notes, tasks and music favourites to one file you keep, for a new phone or as a safety copy",
                                 "auto-export to a folder: pick a folder once (google drive works) and a dated backup is saved there daily or weekly; the newest 5 are kept",
                                 "save that exported file to google drive so it's there on your next device",
-                                "restore from a file to bring a layout back, on this device or a new one",
+                                "restore from a backup file to bring everything back, on this phone or a new one",
                                 "reset start layout runs the setup again from the first step — style, theme, colour, and apps",
                             ),
                         )

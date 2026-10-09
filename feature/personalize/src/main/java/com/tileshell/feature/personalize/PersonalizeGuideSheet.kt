@@ -355,8 +355,8 @@ fun PersonalizeGuideSheet(
                             tokens = tokens,
                             items = listOf(
                                 "personalize · backup, restore & reset · manage backups",
-                                "turn on auto-save, browse layout history, or save a snapshot now",
-                                "export to a file (save it to google drive for your next phone), or restore from one",
+                                "snapshots on this phone: turn on automatic snapshots, save one now, or restore a previous layout — they stay on this phone, so use a backup file for a new one",
+                                "backup file: export everything (layout, settings, notes, tasks, music favourites) to one file — save it to google drive for your next phone — or restore from one",
                                 "reset start layout, in its own section at the bottom, runs the setup again from the first step",
                             ),
                         )

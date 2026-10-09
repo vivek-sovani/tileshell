@@ -1487,7 +1487,7 @@ fun PersonalizeSheet(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(text = "manage backups", color = tokens.fg, fontSize = 14.sp)
                                     Text(
-                                        text = "layout history, auto-save, export, restore & reset",
+                                        text = "snapshots on this phone, backup files and reset",
                                         color = tokens.fgDim,
                                         fontSize = 12.sp,
                                     )

@@ -312,6 +312,7 @@ class MainActivity : ComponentActivity() {
             "panchang" -> startViewModel.openPanchang()
             "about" -> startViewModel.openAbout()
             "guide" -> startViewModel.openPersonalizeGuide()
+            "backup" -> startViewModel.openBackup()
         }
     }
 
