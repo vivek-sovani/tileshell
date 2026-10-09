@@ -38,6 +38,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -4607,6 +4608,8 @@ private fun BoxScope.TileSizeCellPicker(
             .matchParentSize()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onCancel),
     )
+    // Kept small so the tile being sized stays on screen above it: a compact grid, a short label beside it, and the
+    // two buttons in a full-width row below (a narrow side column squeezed their text out on a big display scale).
     Column(
         modifier = Modifier
             .align(Alignment.BottomCenter)
@@ -4614,10 +4617,10 @@ private fun BoxScope.TileSizeCellPicker(
             .background(Color(0xFF1A1A1F))
             .navigationBarsPadding()
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            val cellDp = 44.dp
+            val cellDp = 34.dp
             val density = LocalDensity.current
             val cellPx = with(density) { cellDp.toPx() }
             val latestAllowed by rememberUpdatedState(allowed)
@@ -4646,7 +4649,7 @@ private fun BoxScope.TileSizeCellPicker(
                         }
                     },
             ) {
-                val inset = 2.dp.toPx()
+                val inset = 1.5.dp.toPx()
                 for (c in 0 until SIZE_PICKER_CELLS) {
                     for (r in 0 until SIZE_PICKER_CELLS) {
                         val offered = sizeForCell(c, r, allowed) != null
@@ -4671,44 +4674,42 @@ private fun BoxScope.TileSizeCellPicker(
                     style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.dp.toPx()),
                 )
             }
-            Spacer(Modifier.width(18.dp))
-            Column(modifier = Modifier.weight(1f).height(cellDp * SIZE_PICKER_CELLS), verticalArrangement = Arrangement.SpaceBetween) {
-                Column {
-                    Text(sizeLabel(candidate), color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Light)
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "tap or drag to where the tile should end. the tile above shows it. white outline: its size now.",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 12.sp,
-                        lineHeight = 16.sp,
-                    )
-                }
-                // Two real buttons, so "apply" is always visible (dimmed until a different size is chosen).
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .border(1.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-                            .clickable(onClick = onCancel)
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("cancel", color = Color.White, fontSize = 14.sp)
-                    }
-                    val changed = candidate != current
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (changed) accent else accent.copy(alpha = 0.35f))
-                            .clickable(enabled = changed, onClick = onApply)
-                            .padding(vertical = 10.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text("apply", color = Color.White.copy(alpha = if (changed) 1f else 0.7f), fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
+            Spacer(Modifier.width(16.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(sizeLabel(candidate), color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Light, maxLines = 2)
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "tap or drag to the corner cell. outline: size now.",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 12.sp,
+                    lineHeight = 15.sp,
+                )
+            }
+        }
+        Spacer(Modifier.height(12.dp))
+        val changed = candidate != current
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 44.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .border(1.dp, Color.White.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                    .clickable(onClick = onCancel),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("cancel", color = Color.White, fontSize = 15.sp, maxLines = 1, softWrap = false)
+            }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .heightIn(min = 44.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(if (changed) accent else accent.copy(alpha = 0.4f))
+                    .clickable(enabled = changed, onClick = onApply),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("apply", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, softWrap = false)
             }
         }
     }
