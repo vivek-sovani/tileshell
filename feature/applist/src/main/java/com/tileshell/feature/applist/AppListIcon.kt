@@ -81,6 +81,8 @@ internal data class MaskableAppIcon(
     val isAdaptive: Boolean,
     val plateColor: Color?,
     val monochromeBitmap: ImageBitmap,
+    /** The icon's dominant colour — the tile plate under "tile colour from app icon". */
+    val dominantColor: Color? = null,
 )
 
 @Composable
@@ -103,12 +105,14 @@ internal fun rememberMaskableAppIcon(packageName: String, activityName: String):
                         ?: drawable.toBitmap(width = 96, height = 96)
                     ).asImageBitmap()
                 val rawBitmap = if (isAdaptive) unmaskedIconBitmap(drawable) else osBitmap
+                val dominant = dominantColor(osBitmap)
                 return MaskableAppIcon(
                     osBitmap,
                     rawBitmap,
                     isAdaptive,
-                    if (isAdaptive) null else dominantColor(osBitmap),
+                    if (isAdaptive) null else dominant,
                     monochromeIconBitmap(drawable, rawBitmap),
+                    mostCommonHueColor(osBitmap) ?: dominant,
                 )
             }
             // An app shortcut publishes its own icon and has no resolvable
@@ -198,6 +202,37 @@ private fun IconShape.toShape(): Shape? = when (this) {
     IconShape.ORIGINAL -> null
 }
 
+/**
+ * The icon's most common saturated hue (24 hue buckets weighted by saturation),
+ * averaged within that bucket. A plain average turns a multi-colour logo
+ * (Gmail, Chrome) into mud; a tile plate wants one clean colour. Null when
+ * there's no saturated pixel (grey icons) — the caller falls back to [dominantColor].
+ */
+private fun mostCommonHueColor(bitmap: ImageBitmap): Color? {
+    val w = bitmap.width
+    val h = bitmap.height
+    if (w == 0 || h == 0) return null
+    val px = IntArray(w * h)
+    runCatching { bitmap.asAndroidBitmap().getPixels(px, 0, w, 0, 0, w, h) }.getOrElse { return null }
+    val weight = DoubleArray(24)
+    val sr = DoubleArray(24); val sg = DoubleArray(24); val sb = DoubleArray(24)
+    val hsv = FloatArray(3)
+    for (p in px) {
+        if ((p ushr 24 and 0xff) < 128) continue
+        android.graphics.Color.colorToHSV(p, hsv)
+        if (hsv[1] < 0.35f || hsv[2] < 0.25f) continue
+        val bucket = (hsv[0] / 15f).toInt().coerceIn(0, 23)
+        val wt = hsv[1].toDouble() * hsv[2]
+        weight[bucket] += wt
+        sr[bucket] += (p ushr 16 and 0xff) * wt
+        sg[bucket] += (p ushr 8 and 0xff) * wt
+        sb[bucket] += (p and 0xff) * wt
+    }
+    val best = weight.indices.maxByOrNull { weight[it] } ?: return null
+    if (weight[best] <= 0.0) return null
+    return Color((sr[best] / weight[best]).toInt(), (sg[best] / weight[best]).toInt(), (sb[best] / weight[best]).toInt())
+}
+
 /** Saturation-weighted average colour, falling back to a plain average — same
  *  algorithm as `:feature:start`'s `dominantIconColor`. */
 private fun dominantColor(bitmap: ImageBitmap): Color? {
@@ -251,6 +286,7 @@ internal fun MaskedAppIcon(
     monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
     modifier: Modifier = Modifier,
     glyphScale: Float = 1f,
+    plateColor: Color? = null,
 ) {
     if (themedIcons) {
         val mono = loaded.monochromeBitmap
@@ -267,15 +303,16 @@ internal fun MaskedAppIcon(
         // direct user request each round — rounded is the final, deliberate
         // choice.
         val plateShape = shape.toShape() ?: RoundedCornerShape(percent = 30)
+        val plate = plateColor ?: accent
         Box(
-            modifier = modifier.size(size).clip(plateShape).background(accent),
+            modifier = modifier.size(size).clip(plateShape).background(plate),
             contentAlignment = Alignment.Center,
         ) {
             Image(
                 bitmap = mono,
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                colorFilter = ColorFilter.tint(Glass.faceTextColor(isLightBackground(accent))),
+                colorFilter = ColorFilter.tint(Glass.faceTextColor(isLightBackground(plate))),
                 // Full size, not shrunk further: a monochrome layer is itself
                 // an AdaptiveIconDrawable layer, so it already carries the
                 // same built-in safe-zone inset as the real full-colour icon

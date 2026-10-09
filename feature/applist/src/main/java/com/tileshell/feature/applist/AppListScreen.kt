@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.displayCutoutPadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -82,6 +83,7 @@ import com.tileshell.core.data.settings.AppListStyle
 import com.tileshell.core.data.settings.HomeStyle
 import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.MonochromeIconTint
+import com.tileshell.core.data.settings.TileColorSource
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LocalAccent
 import com.tileshell.core.design.LocalColorTokens
@@ -225,6 +227,7 @@ fun AppListScreen(
                                 iconShape = settings.iconShape,
                                 themedIcons = settings.themedIcons,
                                 appListStyle = settings.appListStyle,
+                                tileColorSource = settings.tileColorSource,
                                 monochromeIconTint = settings.monochromeIconTint,
                                 siblings = siblingsByPackage[app.packageName].orEmpty(),
                                 pinnedActivityKeys = pinnedActivityKeys,
@@ -270,6 +273,7 @@ fun AppListScreen(
                             iconShape = settings.iconShape,
                             themedIcons = settings.themedIcons,
                             appListStyle = settings.appListStyle,
+                            tileColorSource = settings.tileColorSource,
                             monochromeIconTint = settings.monochromeIconTint,
                             onHide = { viewModel.hide(app) },
                             siblings = siblingsByPackage[app.packageName].orEmpty(),
@@ -394,6 +398,7 @@ private fun AppRow(
     themedIcons: Boolean = false,
     monochromeIconTint: MonochromeIconTint = MonochromeIconTint.ACCENT,
     appListStyle: AppListStyle = AppListStyle.ICONS,
+    tileColorSource: TileColorSource = TileColorSource.GLOBAL_ACCENT,
     siblings: List<AppEntry> = emptyList(),
     pinnedActivityKeys: Set<String> = emptySet(),
     onPinSibling: (AppEntry) -> Unit = {},
@@ -492,6 +497,7 @@ private fun AppRow(
                             monochromeIconTint = if (themedIcons) monochromeIconTint else MonochromeIconTint.ACCENT,
                             // Adaptive icons carry a safe-zone margin; the plate is the whole tile.
                             glyphScale = 1.35f,
+                            plateColor = if (tileColorSource == TileColorSource.APP_ICON) icon.dominantColor else null,
                         )
                     } else {
                         MaskedAppIcon(
@@ -515,12 +521,33 @@ private fun AppRow(
                     // A pending notification on an app not pinned to Start has no
                     // tile to badge, so it gets one here instead (mirrors the Start
                     // tile's NotificationBadge).
+                    val tokens = LocalColorTokens.current
+                    if (appListStyle == AppListStyle.TILES) {
+                        // Windows Phone badge: an outlined circle straddling the
+                        // tile's top-right corner, number in the foreground colour.
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 9.dp, y = (-9).dp)
+                                .size(22.dp)
+                                .background(tokens.bg, CircleShape)
+                                .border(2.dp, tokens.fg, CircleShape),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Text(
+                                text = if (badgeCount > 9) "9+" else badgeCount.toString(),
+                                color = tokens.fg,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                    } else {
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
                             .size(16.dp)
                             .background(LocalAccent.current, CircleShape)
-                            .border(1.dp, LocalColorTokens.current.bg, CircleShape),
+                            .border(1.dp, tokens.bg, CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
@@ -529,6 +556,7 @@ private fun AppRow(
                             fontSize = 9.sp,
                             fontWeight = FontWeight.Bold,
                         )
+                    }
                     }
                 }
             }
