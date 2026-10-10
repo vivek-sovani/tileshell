@@ -14,6 +14,16 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import android.widget.Toast
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.navigationBars
@@ -57,6 +67,9 @@ import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
+import com.tileshell.feature.livetiles.ConversationItem
+import com.tileshell.feature.livetiles.NotificationCenter
+import com.tileshell.feature.livetiles.QuickAction
 import kotlin.math.roundToInt
 
 private val MINI_TILE = 54.dp
@@ -66,7 +79,7 @@ private val MINI_GAP = 3.dp
  * One mini-tile of the cluster: a Windows Phone-style action square next to the pressed tile. [shortcut] (an app's
  * own launcher shortcut, drawn with its own icon) or [icon] (a monoline glyph) is shown over [label].
  */
-private class QuickAction(
+private class MiniAction(
     val key: String,
     val label: String,
     val icon: ImageVector? = null,
@@ -107,39 +120,78 @@ internal fun TileQuickMenuLayer(
         value = if (packageName.isBlank()) emptyList() else viewModel.appShortcuts(packageName).take(2)
     }
     val expandedFolderId by viewModel.expandedFolderId.collectAsState()
+    // Buttons the app itself put on its pending notifications (reply, mark read, archive), pressed on its behalf.
+    val snapshot by NotificationCenter.snapshot.collectAsState()
+    val items = if (packageName.isBlank()) emptyList() else snapshot.conversationFor(packageName)?.items.orEmpty()
+    var replying by remember(req.tileId) { mutableStateOf<ConversationItem?>(null) }
+    val accentForReply = TileAccents.forId(accentId)
+    replying?.let { item ->
+        ReplyBar(
+            sender = item.sender.ifBlank { "someone" },
+            accent = accentForReply,
+            onSend = { text ->
+                viewModel.closeTileMenu()
+                if (!NotificationCenter.performQuickAction(context, item.notificationKey, QuickAction.REPLY, text)) {
+                    Toast.makeText(context, "couldn't send — open the app to reply", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onDismiss = { replying = null },
+        )
+        return
+    }
     val actions = buildList {
+        fun itemFor(action: QuickAction) = items.firstOrNull { action in it.quickActions }
+        itemFor(QuickAction.REPLY)?.let { item ->
+            add(MiniAction("reply", "reply", TileIcons["messages"]) { replying = item })
+        }
+        itemFor(QuickAction.MARK_READ)?.let { item ->
+            add(MiniAction("read", "mark read", TileIcons["check"]) {
+                viewModel.closeTileMenu()
+                if (!NotificationCenter.performQuickAction(context, item.notificationKey, QuickAction.MARK_READ)) {
+                    Toast.makeText(context, "couldn't mark as read — open the app", Toast.LENGTH_SHORT).show()
+                }
+            })
+        }
+        itemFor(QuickAction.ARCHIVE)?.let { item ->
+            add(MiniAction("archive", "archive", TileIcons["download"]) {
+                viewModel.closeTileMenu()
+                if (!NotificationCenter.performQuickAction(context, item.notificationKey, QuickAction.ARCHIVE)) {
+                    Toast.makeText(context, "couldn't archive — open the app", Toast.LENGTH_SHORT).show()
+                }
+            })
+        }
         if (tile is TileModel.Folder) {
             val open = expandedFolderId == tile.id
             val noun = if (tile.isStack) "stack" else "folder"
-            add(QuickAction("folder", if (open) "close $noun" else "open $noun", TileIcons[if (tile.isStack) "stack" else "folder"]) {
+            add(MiniAction("folder", if (open) "close $noun" else "open $noun", TileIcons[if (tile.isStack) "stack" else "folder"]) {
                 viewModel.closeTileMenu()
                 viewModel.toggleFolder(tile.id)
             })
         }
         shortcuts.forEach { entry ->
             add(
-                QuickAction("shortcut:${entry.activityName}", entry.label, shortcut = entry) {
+                MiniAction("shortcut:${entry.activityName}", entry.label, shortcut = entry) {
                     viewModel.closeTileMenu()
                     AppLauncher.launch(context, entry.packageName, entry.activityName)
                 },
             )
         }
         if (!lockLayout) {
-            add(QuickAction("size", "size", TileIcons["widgets"]) {
+            add(MiniAction("size", "size", TileIcons["widgets"]) {
                 viewModel.closeTileMenu()
                 viewModel.requestTilePicker(TilePickerRequest(req.tileId, TilePickerKind.SIZE))
             })
-            add(QuickAction("colour", "colour", TileIcons["palette"]) {
+            add(MiniAction("colour", "colour", TileIcons["palette"]) {
                 viewModel.closeTileMenu()
                 viewModel.requestTilePicker(TilePickerRequest(req.tileId, TilePickerKind.COLOR))
             })
-            add(QuickAction("edit", "edit", TileIcons["edit"]) {
+            add(MiniAction("edit", "edit", TileIcons["edit"]) {
                 viewModel.closeTileMenu()
                 viewModel.enterTileEdit(req.tileId)
             })
         }
         if (packageName.isNotBlank()) {
-            add(QuickAction("info", "app info", TileIcons["settings"]) {
+            add(MiniAction("info", "app info", TileIcons["settings"]) {
                 viewModel.closeTileMenu()
                 runCatching {
                     context.startActivity(
@@ -152,18 +204,18 @@ internal fun TileQuickMenuLayer(
         if (!lockLayout) {
             if (tile is TileModel.Folder) {
                 // Every app in the folder goes back to Start as its own tile; nothing is lost.
-                add(QuickAction("ungroup", "ungroup", TileIcons["unpin"]) {
+                add(MiniAction("ungroup", "ungroup", TileIcons["unpin"]) {
                     viewModel.closeTileMenu()
                     viewModel.unfoldFolder(tile.id)
                 })
             } else if (childRef != null) {
                 // The app leaves the folder and goes back to Start as its own tile.
-                add(QuickAction("take out", "take out", TileIcons["unpin"]) {
+                add(MiniAction("take out", "take out", TileIcons["unpin"]) {
                     viewModel.closeTileMenu()
                     viewModel.removeFolderChild(childRef.first, childRef.second)
                 })
             } else {
-                add(QuickAction("unpin", "unpin", TileIcons["unpin"]) {
+                add(MiniAction("unpin", "unpin", TileIcons["unpin"]) {
                     viewModel.closeTileMenu()
                     viewModel.unpin(req.tileId)
                 })
@@ -185,7 +237,7 @@ internal fun TileQuickMenuLayer(
 }
 
 @Composable
-private fun TileQuickMenu(bounds: Rect, actions: List<QuickAction>, accent: Color, onDismiss: () -> Unit) {
+private fun TileQuickMenu(bounds: Rect, actions: List<MiniAction>, accent: Color, onDismiss: () -> Unit) {
     var shown by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { shown = true }
     val progress by animateFloatAsState(if (shown) 1f else 0f, tween(160), label = "tileMenu")
@@ -234,7 +286,7 @@ private fun TileQuickMenu(bounds: Rect, actions: List<QuickAction>, accent: Colo
 }
 
 @Composable
-private fun MiniTile(action: QuickAction, accent: Color, modifier: Modifier) {
+private fun MiniTile(action: MiniAction, accent: Color, modifier: Modifier) {
     val context = LocalContext.current
     val shortcutIcon by produceState<Drawable?>(null, action.key) {
         value = action.shortcut?.let { shortcutIconDrawable(context, it.packageName, it.activityName) }
@@ -266,6 +318,53 @@ private fun MiniTile(action: QuickAction, accent: Color, modifier: Modifier) {
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(start = 2.dp, end = 2.dp, top = 3.dp),
             )
+        }
+    }
+}
+
+/** A one-line reply box over the dimmed Start: the sender, a text field and a send button. */
+@Composable
+private fun ReplyBar(sender: String, accent: Color, onSend: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf("") }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    BackHandler(onBack = onDismiss)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0x99000000))
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
+    ) {
+        Row(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .background(Color(0xFF1C1C21))
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp)
+                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("reply to $sender", color = Color(0xB3FFFFFF), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                BasicTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
+                    cursorBrush = SolidColor(accent),
+                    modifier = Modifier.fillMaxWidth().focusRequester(focus).padding(vertical = 8.dp),
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(if (text.isBlank()) accent.copy(alpha = 0.4f) else accent)
+                    .clickable(enabled = text.isNotBlank()) { onSend(text.trim()) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("send", color = Color.White, fontSize = 12.sp)
+            }
         }
     }
 }

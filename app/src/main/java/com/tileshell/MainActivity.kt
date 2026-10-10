@@ -257,6 +257,12 @@ class MainActivity : ComponentActivity() {
                     com.tileshell.feature.livetiles.NotificationItem(
                         packageName = gmail, title = who, text = text, isClearable = true,
                         isGroupSummary = false, postTime = now - minutesAgo * 60_000, notificationKey = "demo-mail-$i",
+                        // `debug.demo_actions` adds the reply / mark read / archive buttons real mail notifications carry.
+                        quickActions = if (intent.getBooleanExtra("debug.demo_actions", false)) {
+                            com.tileshell.feature.livetiles.QuickAction.entries.toSet()
+                        } else {
+                            emptySet()
+                        },
                     )
                 },
             )
