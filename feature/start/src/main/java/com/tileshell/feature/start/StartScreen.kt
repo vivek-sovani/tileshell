@@ -4769,16 +4769,45 @@ private fun StartPage(
  * not another colour choice.
  */
 /**
- * 0 → 1 over a short ease-out when a tile's size / settings panel first appears, so it fades and settles in
- * (a few dp of slide, a fading dim) instead of popping up.
+ * The enter / exit animation of a tile's size or settings panel: [value] eases 0 → 1 when the panel first appears, and
+ * [wrap] makes any of its closing actions fade it out (180ms) before the action runs, so it does not vanish at once.
  */
+private class PanelAnim(
+    private val progress: androidx.compose.animation.core.Animatable<Float, androidx.compose.animation.core.AnimationVector1D>,
+    private val scope: kotlinx.coroutines.CoroutineScope,
+) {
+    private var closing = false
+    val value: Float get() = progress.value
+
+    fun wrap(action: () -> Unit): () -> Unit = {
+        if (!closing) {
+            closing = true
+            scope.launch {
+                progress.animateTo(0f, androidx.compose.animation.core.tween(180, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                action()
+            }
+        }
+    }
+
+    fun <T> wrap1(action: (T) -> Unit): (T) -> Unit = { v ->
+        if (!closing) {
+            closing = true
+            scope.launch {
+                progress.animateTo(0f, androidx.compose.animation.core.tween(180, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+                action(v)
+            }
+        }
+    }
+}
+
 @Composable
-private fun rememberPanelEnter(): Float {
+private fun rememberPanelAnim(): PanelAnim {
     val progress = remember { androidx.compose.animation.core.Animatable(0f) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) {
         progress.animateTo(1f, androidx.compose.animation.core.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing))
     }
-    return progress.value
+    return remember { PanelAnim(progress, scope) }
 }
 
 /**
@@ -4801,7 +4830,10 @@ private fun BoxScope.TileSizeCellPicker(
     tileBottom: Float = Float.NaN,
     onPanelBounds: (top: Float, heightPx: Int) -> Unit = { _, _ -> },
 ) {
-    val enter = rememberPanelEnter()
+    val anim = rememberPanelAnim()
+    val enter = anim.value
+    val onApply = anim.wrap(onApply)
+    val onCancel = anim.wrap(onCancel)
     var originY by remember { mutableStateOf(0f) }
     var panelHeight by remember { mutableStateOf(0) }
     val density = LocalDensity.current
@@ -4993,7 +5025,15 @@ private fun BoxScope.TileColorPicker(
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val enter = rememberPanelEnter()
+    val anim = rememberPanelAnim()
+    val enter = anim.value
+    val onDismiss = anim.wrap(onDismiss)
+    val onPick = anim.wrap1(onPick)
+    val onToggleStack = anim.wrap(onToggleStack)
+    val onUnfoldFolder = anim.wrap(onUnfoldFolder)
+    val onRemoveFolderAndTiles = anim.wrap(onRemoveFolderAndTiles)
+    val onToggleIconDisplay = anim.wrap(onToggleIconDisplay)
+    val onAssignSection = anim.wrap1(onAssignSection)
     val exactHex = suggestedExact?.let { "#%06X".format(it.toArgb() and 0xFFFFFF) }
     var originX by remember { mutableStateOf(0f) }
     var originY by remember { mutableStateOf(0f) }
