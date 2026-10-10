@@ -769,6 +769,19 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** The tile whose quick-action cluster is open, with its on-screen bounds; null when closed. */
     val tileMenu: StateFlow<TileMenuRequest?> = _tileMenu.asStateFlow()
 
+    private val _tilePicker = MutableStateFlow<TilePickerRequest?>(null)
+
+    /** A tile's colour or size picker asked for from its quick-action cluster; `StartPage` opens it and clears this. */
+    val tilePicker: StateFlow<TilePickerRequest?> = _tilePicker.asStateFlow()
+
+    fun requestTilePicker(request: TilePickerRequest) {
+        _tilePicker.value = request
+    }
+
+    fun clearTilePicker() {
+        _tilePicker.value = null
+    }
+
     fun openTileMenu(request: TileMenuRequest) {
         _tileMenu.value = request
     }
@@ -3044,3 +3057,8 @@ data class WeatherHubTarget(val location: WeatherTile.Location?)
 
 /** A tile's quick-action cluster request: which tile, and its bounds in the root coordinate space (px). */
 data class TileMenuRequest(val tileId: String, val left: Float, val top: Float, val right: Float, val bottom: Float)
+
+enum class TilePickerKind { COLOR, SIZE }
+
+/** Which picker to open for which tile (see [StartViewModel.tilePicker]). */
+data class TilePickerRequest(val tileId: String, val kind: TilePickerKind)

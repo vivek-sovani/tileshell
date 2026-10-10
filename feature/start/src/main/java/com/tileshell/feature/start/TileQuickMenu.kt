@@ -76,7 +76,7 @@ private class QuickAction(
 
 /**
  * The quick-action cluster that opens on a long press of a Start tile: the app's own shortcuts (compose, search, …,
- * up to three), then customize (enter edit mode with this tile selected), app info and unpin, as small accent tiles
+ * up to two), then size and colour (their pickers open directly), edit (edit mode with this tile selected), app info and unpin, as small accent tiles
  * beside the tile while the rest of Start dims. Its own composable (not inline in `StartScreen`) because that layout
  * lambda is near the register limit.
  */
@@ -98,7 +98,7 @@ internal fun TileQuickMenuLayer(
     BackHandler { viewModel.closeTileMenu() }
     val context = LocalContext.current
     val shortcuts by produceState(emptyList<AppEntry>(), tile.packageName) {
-        value = if (tile.packageName.isBlank()) emptyList() else viewModel.appShortcuts(tile.packageName).take(3)
+        value = if (tile.packageName.isBlank()) emptyList() else viewModel.appShortcuts(tile.packageName).take(2)
     }
     val actions = buildList {
         shortcuts.forEach { entry ->
@@ -110,7 +110,15 @@ internal fun TileQuickMenuLayer(
             )
         }
         if (!lockLayout) {
-            add(QuickAction("customize", "customize", TileIcons["edit"]) {
+            add(QuickAction("size", "size", TileIcons["widgets"]) {
+                viewModel.closeTileMenu()
+                viewModel.requestTilePicker(TilePickerRequest(tile.id, TilePickerKind.SIZE))
+            })
+            add(QuickAction("colour", "colour", TileIcons["palette"]) {
+                viewModel.closeTileMenu()
+                viewModel.requestTilePicker(TilePickerRequest(tile.id, TilePickerKind.COLOR))
+            })
+            add(QuickAction("edit", "edit", TileIcons["edit"]) {
                 viewModel.closeTileMenu()
                 viewModel.enterEdit(tile.id)
             })

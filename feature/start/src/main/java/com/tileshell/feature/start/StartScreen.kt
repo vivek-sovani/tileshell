@@ -1666,6 +1666,8 @@ fun StartScreen(
                     },
                     // In-edit tap on another tile switches the selection (no
                     // long-press haptic — it's a light tap, not a fresh lift).
+                    tilePickerRequests = viewModel.tilePicker,
+                    onTilePickerHandled = viewModel::clearTilePicker,
                     onOpenTileMenu = { tile, bounds ->
                         // Only a top-level app tile gets the cluster (a folder, a widget stack and an inline-expanded
                         // folder child keep long-press-to-edit).
@@ -2939,6 +2941,9 @@ private fun StartPage(
     // Long press on a tile: true when the tile's quick-action cluster opened (given the tile's bounds in the
     // root), false to fall back to entering edit mode as before.
     onOpenTileMenu: (TileModel, androidx.compose.ui.geometry.Rect) -> Boolean,
+    // A colour or size picker asked for from a tile's quick-action cluster (outside edit mode).
+    tilePickerRequests: kotlinx.coroutines.flow.StateFlow<TilePickerRequest?>,
+    onTilePickerHandled: () -> Unit,
     onSelectTile: (String) -> Unit,
     onExitEdit: () -> Unit,
     onReorder: (List<String>) -> Unit,
@@ -3071,6 +3076,18 @@ private fun StartPage(
             sizePickerFor = null
             sizeCandidate = null
         }
+    }
+    val pickerRequest by tilePickerRequests.collectAsState()
+    LaunchedEffect(pickerRequest) {
+        val request = pickerRequest ?: return@LaunchedEffect
+        when (request.kind) {
+            TilePickerKind.COLOR -> colorPickerFor = request.tileId
+            TilePickerKind.SIZE -> {
+                sizeCandidate = null
+                sizePickerFor = request.tileId
+            }
+        }
+        onTilePickerHandled()
     }
     // Folder id pending confirmation for "remove folder & tiles" (a bulk,
     // multi-tile unpin — worth a confirm, unlike "unfold folder" which loses
@@ -4252,7 +4269,7 @@ private fun StartPage(
             }
             // FR-1 bottom breathing room (prototype home-scroll padding-bottom:74px;
             // grows to clear the edit bar while editing, like .home-scroll padding).
-            Spacer(Modifier.height(if (editMode) 130.dp + (if (sizePickerFor != null) with(density) { sizePanelHeightPx.toDp() } else 0.dp) else 74.dp))
+            Spacer(Modifier.height(if (editMode || sizePickerFor != null) 130.dp + (if (sizePickerFor != null) with(density) { sizePanelHeightPx.toDp() } else 0.dp) else 74.dp))
         } // end per-page Column(verticalScroll)
         } // end per-page Box(translationX)
         } // end key(block.sectionId ?: "__unsectioned__") [outer]
