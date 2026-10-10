@@ -308,7 +308,8 @@ fun AboutSheet(
                                 "hindu panchang — tithi as a big number with paksha, vara, masa, and sunrise/sunset plus moonrise/moonset, fitted to every tile size",
                                 "panchang highlights the day in an amber strip on the tile and widget: sankashti (angaraki on a tuesday, with moonrise), ekadashi by name — smarta and vaishnava when they fall on different days — mahashivaratri, and any tithi you pick",
                                 "panchang shows hindu festivals and solar and lunar eclipses (grahan), with sparsha and moksha times for where you are, or 'not visible here'",
-                                "tap the panchang tile or widget for the panchang sheet, all in devanagari: today, this month and this year, with important days, festivals and grahan in separate sections, and a page to choose what's highlighted",
+                                "tap the panchang tile or widget for the panchang sheet: today, this month and this year, with important days, festivals and grahan in separate sections, and a page to choose what's highlighted",
+                                "panchang speaks english, hindi, marathi, gujarati, tamil, malayalam, kannada or telugu — you pick the language when you add a panchang tile or widget (and can change it in the panchang's settings); names, numerals and the festivals of that language's region follow it, e.g. pongal and thai poosam in tamil, onam and vishu in malayalam, ugadi in kannada and telugu",
                                 "what's new and people's apps pin as their own tiles",
                             ),
                         )

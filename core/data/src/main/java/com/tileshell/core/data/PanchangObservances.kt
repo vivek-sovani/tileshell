@@ -24,17 +24,10 @@ data class TithiHighlight(
     val month: String? = null,
     val at: ObserveAt = ObserveAt.SUNRISE,
     val defaultOn: Boolean = false,
-)
-
-/** A Hindu festival on a fixed lunar date (amanta month). */
-data class Festival(
-    val name: String,
-    val english: String,
-    val month: String,
-    val paksha: Paksha,
-    val tithi: Int,
-    val at: ObserveAt = ObserveAt.SUNRISE,
-)
+) {
+    /** The highlight's name in [language] (Marathi's is [name]). */
+    fun nameIn(language: PanchangLanguage): String = PanchangObservanceNames.highlight(id, language) ?: name
+}
 
 /** One highlight, festival or grahan falling on a day. [detail] carries a grahan's times. */
 data class Observance(
@@ -54,6 +47,8 @@ data class ObservanceSettings(
     val festivals: Boolean = true,
     val customTithis: Set<String> = emptySet(),
     val grahan: Boolean = true,
+    /** The language names are written in, and (with it) which region's festivals show. */
+    val language: PanchangLanguage = PanchangLanguage.DEFAULT,
 )
 
 /**
@@ -75,66 +70,12 @@ object PanchangObservances {
         TithiHighlight("mahashivaratri", "महाशिवरात्री", "mahashivaratri", Paksha.KRISHNA, 14, month = "magha", at = ObserveAt.MIDNIGHT, defaultOn = true),
     )
 
-    val FESTIVALS: List<Festival> = listOf(
-        Festival("गुढीपाडवा", "gudi padwa", "chaitra", Paksha.SHUKLA, 1),
-        Festival("राम नवमी", "ram navami", "chaitra", Paksha.SHUKLA, 9, ObserveAt.NOON),
-        Festival("हनुमान जयंती", "hanuman jayanti", "chaitra", Paksha.SHUKLA, 15),
-        Festival("अक्षय तृतीया", "akshaya tritiya", "vaishakha", Paksha.SHUKLA, 3),
-        Festival("वटपौर्णिमा", "vat purnima", "jyeshtha", Paksha.SHUKLA, 15),
-        Festival("आषाढी एकादशी", "ashadhi ekadashi", "ashadha", Paksha.SHUKLA, 11),
-        Festival("गुरुपौर्णिमा", "guru purnima", "ashadha", Paksha.SHUKLA, 15),
-        Festival("नागपंचमी", "nag panchami", "shravana", Paksha.SHUKLA, 5),
-        Festival("रक्षाबंधन", "raksha bandhan", "shravana", Paksha.SHUKLA, 15),
-        Festival("श्रीकृष्ण जन्माष्टमी", "janmashtami", "shravana", Paksha.KRISHNA, 8, ObserveAt.MIDNIGHT),
-        Festival("गणेश चतुर्थी", "ganesh chaturthi", "bhadrapada", Paksha.SHUKLA, 4, ObserveAt.NOON),
-        Festival("अनंत चतुर्दशी", "anant chaturdashi", "bhadrapada", Paksha.SHUKLA, 14),
-        Festival("घटस्थापना", "ghatasthapana · navratri", "ashwin", Paksha.SHUKLA, 1),
-        Festival("दसरा", "dussehra", "ashwin", Paksha.SHUKLA, 10, ObserveAt.AFTERNOON),
-        Festival("कोजागिरी पौर्णिमा", "kojagiri purnima", "ashwin", Paksha.SHUKLA, 15, ObserveAt.MIDNIGHT),
-        Festival("धनत्रयोदशी", "dhanteras", "ashwin", Paksha.KRISHNA, 13, ObserveAt.EVENING),
-        Festival("नरक चतुर्दशी", "narak chaturdashi", "ashwin", Paksha.KRISHNA, 14),
-        Festival("लक्ष्मीपूजन", "lakshmi pujan · diwali", "ashwin", Paksha.KRISHNA, 15, ObserveAt.EVENING),
-        Festival("बलिप्रतिपदा", "diwali padwa", "kartika", Paksha.SHUKLA, 1),
-        Festival("भाऊबीज", "bhaubeej", "kartika", Paksha.SHUKLA, 2),
-        Festival("कार्तिकी एकादशी", "kartiki ekadashi", "kartika", Paksha.SHUKLA, 11),
-        Festival("तुळशी विवाह", "tulsi vivah", "kartika", Paksha.SHUKLA, 12),
-        Festival("त्रिपुरारी पौर्णिमा", "tripurari purnima", "kartika", Paksha.SHUKLA, 15),
-        Festival("दत्त जयंती", "datta jayanti", "margashirsha", Paksha.SHUKLA, 15, ObserveAt.EVENING),
-        Festival("वसंत पंचमी", "vasant panchami", "magha", Paksha.SHUKLA, 5),
-        Festival("होळी", "holi", "phalguna", Paksha.SHUKLA, 15, ObserveAt.EVENING),
-        Festival("धूलिवंदन", "dhulivandan", "phalguna", Paksha.KRISHNA, 1),
-        Festival("रंगपंचमी", "rang panchami", "phalguna", Paksha.KRISHNA, 5),
-    )
+    /** Every festival of every region (see [PanchangFestivals]). */
+    val FESTIVALS: List<Festival> get() = PanchangFestivals.ALL
 
-    /** Each month's two ekadashis by name (amanta month; shukla, krishna). */
-    private val EKADASHI_NAMES = mapOf(
-        "chaitra" to ("कामदा" to "वरूथिनी"), "vaishakha" to ("मोहिनी" to "अपरा"),
-        "jyeshtha" to ("निर्जला" to "योगिनी"), "ashadha" to ("देवशयनी" to "कामिका"),
-        "shravana" to ("पुत्रदा" to "अजा"), "bhadrapada" to ("परिवर्तिनी" to "इंदिरा"),
-        "ashwin" to ("पाशांकुशा" to "रमा"), "kartika" to ("प्रबोधिनी" to "उत्पत्ती"),
-        "margashirsha" to ("मोक्षदा" to "सफला"), "pausha" to ("पुत्रदा" to "षट्तिला"),
-        "magha" to ("जया" to "विजया"), "phalguna" to ("आमलकी" to "पापमोचनी"),
-    )
-    private val EKADASHI_ENGLISH = mapOf(
-        "कामदा" to "kamada", "वरूथिनी" to "varuthini", "मोहिनी" to "mohini", "अपरा" to "apara",
-        "निर्जला" to "nirjala", "योगिनी" to "yogini", "देवशयनी" to "devshayani", "कामिका" to "kamika",
-        "पुत्रदा" to "putrada", "अजा" to "aja", "परिवर्तिनी" to "parivartini", "इंदिरा" to "indira",
-        "पाशांकुशा" to "papankusha", "रमा" to "rama", "प्रबोधिनी" to "prabodhini", "उत्पत्ती" to "utpatti",
-        "मोक्षदा" to "mokshada", "सफला" to "saphala", "षट्तिला" to "shattila", "जया" to "jaya",
-        "विजया" to "vijaya", "आमलकी" to "amalaki", "पापमोचनी" to "papmochani", "पद्मिनी" to "padmini", "परमा" to "parama",
-    )
-
-    /** "कामिका एकादशी": the ekadashi's own name for its month (adhik: पद्मिनी / परमा). */
-    internal fun ekadashiName(month: String, adhik: Boolean, paksha: Paksha): Pair<String, String> {
-        val name = if (adhik) {
-            if (paksha == Paksha.SHUKLA) "पद्मिनी" else "परमा"
-        } else {
-            EKADASHI_NAMES[month]?.let { if (paksha == Paksha.SHUKLA) it.first else it.second }
-        } ?: return "एकादशी" to "ekadashi"
-        return "$name एकादशी" to "${EKADASHI_ENGLISH[name] ?: name} ekadashi"
-    }
-
-    private val SANKRANTI = Observance("makar-sankranti", "मकर संक्रांती", "makar sankranti", festival = true)
+    /** "कामिका एकादशी" in [language]; (adhik: पद्मिनी / परमा). Returns the localized and the English name. */
+    internal fun ekadashiName(month: String, adhik: Boolean, paksha: Paksha, language: PanchangLanguage = PanchangLanguage.MARATHI): Pair<String, String> =
+        PanchangObservanceNames.ekadashi(language, month, adhik, paksha) to PanchangObservanceNames.ekadashi(PanchangLanguage.ENGLISH, month, adhik, paksha)
 
     /** A custom tithi key: "s9" (shukla navami), "k4", or "b11" (both pakshas). */
     fun customKey(paksha: Paksha?, tithi: Int): String = when (paksha) {
@@ -153,20 +94,9 @@ object PanchangObservances {
         }
     }
 
-    /** "नवमी" plus its paksha, for a custom tithi. */
-    fun customName(paksha: Paksha?, tithi: Int): Pair<String, String> {
-        val info = tithiInfo(if (paksha == Paksha.KRISHNA) 15 + tithi - 1 else tithi - 1)
-        val dev = PanchangDevanagari.tithiName(if (paksha == null && tithi == 15) "purnima" else info.name)
-        val eng = if (paksha == null && tithi == 15) "purnima / amavasya" else info.name
-        val devName = if (paksha == null && tithi == 15) "पूर्णिमा / अमावस्या" else dev
-        return when (paksha) {
-            Paksha.SHUKLA -> "शुक्ल $devName" to "shukla $eng"
-            Paksha.KRISHNA -> "कृष्ण $devName" to "krishna $eng"
-            null -> devName to eng
-        }
-    }
-
-    private fun tithiInfo(index: Int): TithiInfo = HinduPanchang.tithiFromElongation(index * 12.0 + 6.0)
+    /** "शुक्ल नवमी" plus its English form, for a custom tithi, in [language]. */
+    fun customName(paksha: Paksha?, tithi: Int, language: PanchangLanguage = PanchangLanguage.MARATHI): Pair<String, String> =
+        PanchangObservanceNames.customTithi(language, paksha, tithi) to PanchangObservanceNames.customTithi(PanchangLanguage.ENGLISH, paksha, tithi)
 
     /**
      * Everything [settings] highlights on the calendar day (in [zone])
@@ -191,44 +121,43 @@ object PanchangObservances {
             return months.getOrPut(time) { HinduPanchang.lunarMonthAt(time) }
         }
 
+        val language = settings.language
         val out = mutableListOf<Observance>()
-        if ("ekadashi" in settings.highlights) ekadashiOn(day, zone)?.let { out += it }
+        if ("ekadashi" in settings.highlights) ekadashiOn(day, zone, language)?.let { out += it }
         HIGHLIGHTS.filter { it.id in settings.highlights && it.id != "ekadashi" }.forEach { h ->
             val month = monthOf(h.at, h.paksha, h.tithi) ?: return@forEach
             if (h.month == null || (month.first == h.month && !month.second)) {
                 out += when (h.id) {
                     // Sankashti on a Tuesday (मंगळवार) is Angaraki.
                     "sankashti" -> if (Calendar.getInstance(zone).apply { timeInMillis = day }.get(Calendar.DAY_OF_WEEK) == Calendar.TUESDAY) {
-                        Observance(h.id, "अंगारकी संकष्टी चतुर्थी", "angaraki sankashti chaturthi", festival = false)
+                        Observance(h.id, PanchangObservanceNames.angaraki(language), "angaraki sankashti chaturthi", festival = false)
                     } else {
-                        Observance(h.id, h.name, h.english, festival = false)
+                        Observance(h.id, h.nameIn(language), h.english, festival = false)
                     }
-                    else -> Observance(h.id, h.name, h.english, festival = false)
+                    else -> Observance(h.id, h.nameIn(language), h.english, festival = false)
                 }
             }
         }
         settings.customTithis.sorted().forEach { key ->
             val (paksha, tithi) = parseCustomKey(key) ?: return@forEach
             if (matchTime(ownedAt(ObserveAt.SUNRISE), paksha, tithi) != null) {
-                val (dev, eng) = customName(paksha, tithi)
-                if (out.none { it.name == dev }) out += Observance("custom-$key", dev, eng, festival = false)
+                val (local, eng) = customName(paksha, tithi, language)
+                if (out.none { it.name == local }) out += Observance("custom-$key", local, eng, festival = false)
             }
         }
         if (settings.festivals) {
-            FESTIVALS.forEach { f ->
-                val (name, adhik) = monthOf(f.at, f.paksha, f.tithi) ?: return@forEach
-                if (name == f.month && !adhik) out += Observance("festival-${f.english}", f.name, f.english, festival = true)
+            PanchangFestivals.forLanguage(language).forEach { f ->
+                if (festivalFalls(f, day, zone, ::monthOf)) {
+                    out += Observance("festival-${f.english}", f.nameIn(language), f.english, festival = true)
+                }
             }
-            val sunStart = HinduPanchang.sunSiderealAt(day)
-            val sunEnd = HinduPanchang.sunSiderealAt(day + DAY)
-            if (sunStart < 270.0 && sunEnd >= 270.0) out += SANKRANTI
         }
         if (settings.grahan && location != null) {
             // A visible grahan belongs to the local day it's seen on; one not
             // seen here, to the day of its greatest phase.
             Eclipses.between(day - DAY, day + 2 * DAY, location.first, location.second).forEach { e ->
                 val anchor = e.visibleStart ?: e.maxMillis
-                if (anchor >= day && anchor < addDays(day, 1, zone)) out += grahanObservance(e)
+                if (anchor >= day && anchor < addDays(day, 1, zone)) out += grahanObservance(e, language)
             }
         }
         // A festival that is itself the highlighted tithi ("kartiki ekadashi")
@@ -242,6 +171,44 @@ object PanchangObservances {
             .sortedWith(compareByDescending<Observance> { it.grahan && it.visibleHere }.thenByDescending { it.festival })
     }
 
+    /** Whether festival [f] is on the calendar day [day] — see [FestivalRule]. */
+    private fun festivalFalls(
+        f: Festival,
+        day: Long,
+        zone: TimeZone,
+        monthOf: (ObserveAt, Paksha?, Int) -> Pair<String, Boolean>?,
+    ): Boolean = when (val rule = f.rule) {
+        is FestivalRule.Lunar -> monthOf(f.at, rule.paksha, rule.tithi)?.let { (name, adhik) -> name == rule.month && !adhik } ?: false
+        is FestivalRule.Ingress -> crosses(HinduPanchang.sunSiderealAt(day), HinduPanchang.sunSiderealAt(addDays(day, 1, zone)), rule.longitude)
+        is FestivalRule.StarInSolarMonth -> starDay(day, zone, rule)
+    }
+
+    /** Whether the Sun's longitude went from [start] up through [target] (degrees, wrapping at 360) by [end]. */
+    internal fun crosses(start: Double, end: Double, target: Double): Boolean {
+        val span = (end - start + 360.0) % 360.0
+        val offset = (target - start + 360.0) % 360.0
+        return offset > 0.0 && offset <= span
+    }
+
+    /**
+     * The first day in a solar month on which the Moon is in the festival's nakshatra at sunrise (or skips over it
+     * between two sunrises); the nakshatra comes round every 27.3 days, so a 30-day month can have it twice and only
+     * the first counts.
+     */
+    private fun starDay(day: Long, zone: TimeZone, rule: FestivalRule.StarInSolarMonth): Boolean {
+        val sunrise = day + 6 * HOUR
+        val sun = HinduPanchang.sunSiderealAt(sunrise)
+        if (((sun - rule.solarStart + 360.0) % 360.0) >= 30.0) return false
+        val yesterday = HinduPanchang.nakshatraIndexAt(addDays(day, -1, zone) + 6 * HOUR)
+        val today = HinduPanchang.nakshatraIndexAt(sunrise)
+        val advance = (today - yesterday + 27) % 27
+        val owned = advance > 0 && (rule.nakshatra - yesterday + 27) % 27 in 1..advance
+        if (!owned) return false
+        // The first in the month: a sidereal month earlier the Sun was still in the previous sign.
+        val before = HinduPanchang.sunSiderealAt(sunrise - (27.32 * DAY).toLong())
+        return ((before - rule.solarStart + 360.0) % 360.0) >= 30.0
+    }
+
     /**
      * The ekadashi on [day], if any, for both traditions. Smarta keep the
      * ekadashi prevailing at sunrise (the first day when it spans two
@@ -250,7 +217,7 @@ object PanchangObservances {
      * through the next sunrise. Same day: one entry; different days:
      * "(स्मार्त)" on the first and "(वैष्णव)" on the second.
      */
-    internal fun ekadashiOn(day: Long, zone: TimeZone): Observance? {
+    internal fun ekadashiOn(day: Long, zone: TimeZone, language: PanchangLanguage = PanchangLanguage.MARATHI): Observance? {
         val yesterday = addDays(day, -1, zone)
         val tomorrow = addDays(day, 1, zone)
         val smartaToday = smartaEkadashi(day, zone)
@@ -259,11 +226,11 @@ object PanchangObservances {
             (smartaYesterday != null && vaishnavaMoves(yesterday, day))
         val source = smartaToday ?: smartaYesterday?.takeIf { vaishnavaToday } ?: return null
         val (month, paksha) = source
-        val (dev, eng) = ekadashiName(month.first, month.second, paksha)
+        val (local, eng) = ekadashiName(month.first, month.second, paksha, language)
         return when {
-            smartaToday != null && vaishnavaToday -> Observance("ekadashi", dev, eng, festival = false)
-            smartaToday != null -> Observance("ekadashi", "$dev (स्मार्त)", "$eng (smarta)", festival = false)
-            else -> Observance("ekadashi", "$dev (वैष्णव)", "$eng (vaishnava)", festival = false)
+            smartaToday != null && vaishnavaToday -> Observance("ekadashi", local, eng, festival = false)
+            smartaToday != null -> Observance("ekadashi", "$local ${PanchangObservanceNames.tradition(language, vaishnava = false)}", "$eng (smarta)", festival = false)
+            else -> Observance("ekadashi", "$local ${PanchangObservanceNames.tradition(language, vaishnava = true)}", "$eng (vaishnava)", festival = false)
         }
     }
 
@@ -286,19 +253,12 @@ object PanchangObservances {
     }
 
     /** "खग्रास चंद्रग्रहण" etc., named for how it looks from here when visible. */
-    internal fun grahanObservance(e: Eclipse): Observance {
+    internal fun grahanObservance(e: Eclipse, language: PanchangLanguage = PanchangLanguage.MARATHI): Observance {
         val kind = e.localKind ?: e.kind
-        val prefix = when (kind) {
-            Eclipse.Kind.TOTAL -> "खग्रास"
-            Eclipse.Kind.ANNULAR -> "कंकणाकृती"
-            Eclipse.Kind.HYBRID -> "संकरित"
-            Eclipse.Kind.PARTIAL -> "खंडग्रास"
-        }
-        val body = if (e.solar) "सूर्यग्रहण" else "चंद्रग्रहण"
         val english = "${kind.name.lowercase()} ${if (e.solar) "solar" else "lunar"} eclipse"
         return Observance(
             id = "grahan-${e.maxMillis}",
-            name = "$prefix $body",
+            name = PanchangObservanceNames.grahan(language, kind, e.solar),
             english = english,
             festival = false,
             grahan = true,
@@ -327,7 +287,7 @@ object PanchangObservances {
         return (0 until days).mapNotNull { i ->
             val day = addDays(start, i, zone)
             val next = addDays(day, 1, zone)
-            val grahan = eclipses.filter { (it.visibleStart ?: it.maxMillis).let { a -> a >= day && a < next } }.map(::grahanObservance)
+            val grahan = eclipses.filter { (it.visibleStart ?: it.maxMillis).let { a -> a >= day && a < next } }.map { grahanObservance(it, settings.language) }
             (grahan + on(day, noGrahan, zone, moonriseAfter)).takeIf { it.isNotEmpty() }?.let { day to it }
         }
     }

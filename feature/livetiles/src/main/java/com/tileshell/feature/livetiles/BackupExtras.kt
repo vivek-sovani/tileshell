@@ -23,7 +23,7 @@ object BackupExtras {
     /** Preferences worth carrying over (the rest are caches or per-device state). */
     internal val PREF_KEYS = listOf(
         "money_tile_details", "money_lock", "money_read_bank_messages",
-        "panchang_highlights", "panchang_festivals", "panchang_custom_tithis", "panchang_grahan",
+        "panchang_highlights", "panchang_festivals", "panchang_custom_tithis", "panchang_grahan", "panchang_language", "panchang_language_chosen",
         "productivity_quick_items",
         "hub_apps_people", "hub_apps_money", "hub_apps_productivity",
         "markets_watchlist", "clock_timer_sets", "clock_world_cities", "clock_buzz", "clock_sound", "clock_dim", "markets_tile_symbols", "markets_tile_indices", "sports_fav_sports", "sports_fav_teams", "news_live_chosen", "news_live_custom", "hub_apps_shopping", "shopping_read", "shopping_lock_otp", "shopping_tile_apps", "hub_apps_health", "health_goal", "health_height_cm", "health_tile_apps",

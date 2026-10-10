@@ -68,10 +68,22 @@ class PanchangObservancesTest {
         assertFalse(HinduPanchang.lunarMonthAt(day(2026, 9, 29)).second)
     }
 
-    @Test fun eachFestivalOnceAYear() {
-        val year = PanchangObservances.upcoming(day(2026, 1, 1), 365, ObservanceSettings(highlights = emptySet()), ist, moonrise)
-        val counts = year.flatMap { it.second }.groupingBy { it.english }.eachCount()
-        PanchangObservances.FESTIVALS.forEach { f -> assertEquals(f.english, 1, counts[f.english] ?: 0) }
+    @Test fun eachFestivalOnceAYearInEveryLanguage() {
+        PanchangLanguage.entries.forEach { language ->
+            val settings = ObservanceSettings(highlights = emptySet(), festivals = true, grahan = false, language = language)
+            fun counts(from: Long, days: Int) = PanchangObservances.upcoming(from, days, settings, ist, moonrise)
+                .flatMap { it.second }.groupingBy { it.english }.eachCount()
+            val year = counts(day(2026, 1, 1), 365)
+            // A lunar festival can fall just outside one calendar year (Vaikuntha ekadashi is 30 Dec 2025 and
+            // 19 Jan 2027), so a festival missing from 2026 must show up in the fourteen months around it.
+            val wide = counts(day(2025, 11, 15), 480)
+            PanchangFestivals.forLanguage(language).forEach { f ->
+                val n = year[f.english] ?: 0
+                // A solar month that straddles New Year (Dhanu) can have its star day at both ends of one calendar year.
+                assertTrue("${language.code} ${f.english} x$n", n <= if (f.rule is FestivalRule.Lunar) 1 else 2)
+                if (n == 0) assertTrue("${language.code} ${f.english} never", (wide[f.english] ?: 0) >= 1)
+            }
+        }
     }
 
     @Test fun ekadashiTwiceAMonth() {

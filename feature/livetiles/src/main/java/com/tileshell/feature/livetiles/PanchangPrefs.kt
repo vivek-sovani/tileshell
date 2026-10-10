@@ -4,6 +4,8 @@ import android.content.Context
 import com.tileshell.core.data.MoonTimes
 import com.tileshell.core.data.Observance
 import com.tileshell.core.data.ObservanceSettings
+import com.tileshell.core.data.PanchangLanguage
+import com.tileshell.core.data.PanchangNames
 import com.tileshell.core.data.PanchangObservances
 import com.tileshell.feature.livetiles.widget.CalendarSystemWidgetRefreshWorker
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,6 +22,8 @@ object PanchangPrefs {
     private const val KEY_FESTIVALS = "panchang_festivals"
     private const val KEY_CUSTOM = "panchang_custom_tithis"
     private const val KEY_GRAHAN = "panchang_grahan"
+    private const val KEY_LANGUAGE = "panchang_language"
+    private const val KEY_LANGUAGE_CHOSEN = "panchang_language_chosen"
 
     private val _settings = MutableStateFlow<ObservanceSettings?>(null)
 
@@ -43,10 +47,20 @@ object PanchangPrefs {
             .putBoolean(KEY_FESTIVALS, next.festivals)
             .putStringSet(KEY_CUSTOM, next.customTithis)
             .putBoolean(KEY_GRAHAN, next.grahan)
+            .putString(KEY_LANGUAGE, next.language.code)
             .apply()
         _settings.value = next
         // The widget shows the same strip.
         runCatching { CalendarSystemWidgetRefreshWorker.refreshNow(context.applicationContext) }
+    }
+
+    /** Whether the user has picked a language yet — a panchang tile asks once, when it is added. */
+    fun languageChosen(context: Context): Boolean = prefs(context).getBoolean(KEY_LANGUAGE_CHOSEN, false)
+
+    /** Sets the language everywhere the Panchang shows (tile, month grid, widget, hub). */
+    fun setLanguage(context: Context, language: PanchangLanguage) {
+        update(context) { it.copy(language = language) }
+        prefs(context).edit().putBoolean(KEY_LANGUAGE_CHOSEN, true).apply()
     }
 
     private fun read(context: Context): ObservanceSettings {
@@ -57,6 +71,7 @@ object PanchangPrefs {
             festivals = p.getBoolean(KEY_FESTIVALS, defaults.festivals),
             customTithis = p.getStringSet(KEY_CUSTOM, null)?.toSet() ?: emptySet(),
             grahan = p.getBoolean(KEY_GRAHAN, defaults.grahan),
+            language = PanchangLanguage.fromCode(p.getString(KEY_LANGUAGE, null)),
         )
     }
 
@@ -72,13 +87,13 @@ internal fun moonriseAfter(latitude: Double, longitude: Double): (Long) -> Long?
  * names, and the moonrise time on Sankashti ("संकष्टी चतुर्थी · चंद्रोदय ९:०२").
  * Null when there's nothing. Pure.
  */
-internal fun observanceStripText(all: List<Observance>, sankashtiMoonrise: Long?): String? {
+internal fun observanceStripText(all: List<Observance>, sankashtiMoonrise: Long?, language: PanchangLanguage = PanchangLanguage.MARATHI): String? {
     // A grahan that can't be seen from here isn't worth the tile's space.
     val observances = all.filter { !it.grahan || it.visibleHere }
     if (observances.isEmpty()) return null
     val names = observances.take(2).joinToString(" · ") { it.name }
     val moon = if (observances.any { it.id == "sankashti" } && sankashtiMoonrise != null) {
-        " · चंद्रोदय ${shortDevanagariTime(sankashtiMoonrise)}"
+        " · ${PanchangText.MOONRISE.of(language)} ${shortPanchangTime(sankashtiMoonrise, language)}"
     } else {
         ""
     }
@@ -116,11 +131,12 @@ internal fun eveningMoonrise(nowMillis: Long, latitude: Double, longitude: Doubl
     return MoonTimes.nextMoonriseMoonset(day + 17 * 3_600_000L, latitude, longitude).moonriseMillis
 }
 
-/** "७:४७" — the 12-hour time in Devanagari digits, without the day-part word (evening is implied). */
-internal fun shortDevanagariTime(epochMillis: Long): String {
+/** "७:४७" — the 12-hour time in the language's digits, without the day-part word (evening is implied). */
+internal fun shortPanchangTime(epochMillis: Long, language: PanchangLanguage): String {
     val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
     val hour = (cal.get(java.util.Calendar.HOUR_OF_DAY) % 12).let { if (it == 0) 12 else it }
     val minute = cal.get(java.util.Calendar.MINUTE).toString().padStart(2, '0')
-    return com.tileshell.core.data.PanchangDevanagari.digits(hour) + ":" +
-        minute.map { com.tileshell.core.data.PanchangDevanagari.digits(it - '0') }.joinToString("")
+    return PanchangNames.digits(language, "$hour:$minute")
 }
+
+internal fun shortDevanagariTime(epochMillis: Long): String = shortPanchangTime(epochMillis, PanchangLanguage.MARATHI)

@@ -96,7 +96,7 @@ class VaraForTest {
     fun `PanchangDevanagari shortVara abbreviates every vara key to its short Devanagari form`() {
         assertEquals("रवि", PanchangDevanagari.shortVara("ravivara"))
         assertEquals("सोम", PanchangDevanagari.shortVara("somavara"))
-        assertEquals("मंगल", PanchangDevanagari.shortVara("mangalavara"))
+        assertEquals("मंगळ", PanchangDevanagari.shortVara("mangalavara"))
         assertEquals("बुध", PanchangDevanagari.shortVara("budhavara"))
         assertEquals("गुरु", PanchangDevanagari.shortVara("guruvara"))
         assertEquals("शुक्र", PanchangDevanagari.shortVara("shukravara"))

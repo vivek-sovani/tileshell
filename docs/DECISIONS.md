@@ -11796,3 +11796,7 @@ set (size, colour, edit, app info, unpin; the size and colour pickers open direc
 unpin only. Folders, stacks and expanded folder children are left on long-press-to-edit: their long press already means
 something else (stack: open the folder overlay). The overlay is its own composable (the register limit in StartScreen's
 layout lambda), the dim is one offscreen layer with the pressed tile cut out (BlendMode.Clear) so the tile stays bright.
+
+
+## Panchang in eight languages, regional festivals
+User chose: same lunar panchang translated (no Tamil / Malayalam solar months), one language setting for tile, widget, month grid and hub, festivals follow the language's region. Default stays Marathi so nothing changes for existing tiles; the question is asked once on first add. Names for shared words are transliterated from Devanagari (`IndicTransliterator`; Tamil via a table, others by Unicode block offset, word-final long i shortened in the south); regional names are hand-written. Festival rules: lunar (amanta month, tithi), Sun-sign ingress (Pongal, Vishu…), nakshatra during a solar month (first occurrence only, since a 30-day month can hold the star twice). Tamil / Malayalam use Latin digits. Names are unreviewed by native speakers.

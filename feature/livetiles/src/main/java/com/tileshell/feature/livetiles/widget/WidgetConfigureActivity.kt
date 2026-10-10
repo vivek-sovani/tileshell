@@ -217,6 +217,16 @@ class WidgetConfigureActivity : ComponentActivity() {
         val existingCountdown = WidgetConfigStore.countdown(this, appWidgetId)
 
         setContent {
+            var askLanguage by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+            if (askLanguage) {
+                com.tileshell.feature.livetiles.PanchangLanguageDialog(
+                    dark = true,
+                    accentId = "blue",
+                    current = com.tileshell.core.data.PanchangLanguage.DEFAULT,
+                    onPick = { com.tileshell.feature.livetiles.PanchangPrefs.setLanguage(this, it); askLanguage = false },
+                    onDismiss = { com.tileshell.feature.livetiles.PanchangPrefs.setLanguage(this, com.tileshell.core.data.PanchangLanguage.DEFAULT); askLanguage = false },
+                )
+            }
             ConfigureScreen(
                 requiredStep = requiredStep,
                 existingStock = existingStock,
@@ -224,7 +234,10 @@ class WidgetConfigureActivity : ComponentActivity() {
                 existingSports = existingSports,
                 existingStickyNoteText = existingStickyNoteText,
                 existingCountdown = existingCountdown,
-                onSystemPicked = { systemId -> WidgetConfigStore.setCalendarSystemId(this, appWidgetId, systemId) },
+                onSystemPicked = { systemId ->
+                    WidgetConfigStore.setCalendarSystemId(this, appWidgetId, systemId)
+                    if (systemId == com.tileshell.core.data.HINDU_PANCHANG_ID && !com.tileshell.feature.livetiles.PanchangPrefs.languageChosen(this)) askLanguage = true
+                },
                 onStockPicked = { encoded -> WidgetConfigStore.setStockSelectionEncoded(this, appWidgetId, encoded) },
                 onCommodityPicked = { symbol, name -> WidgetConfigStore.setCommoditySymbol(this, appWidgetId, symbol, name) },
                 onSportsPicked = { encoded -> WidgetConfigStore.setSportsSelectionEncoded(this, appWidgetId, encoded) },

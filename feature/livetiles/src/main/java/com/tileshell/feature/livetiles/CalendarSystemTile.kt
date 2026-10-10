@@ -52,7 +52,8 @@ import androidx.compose.runtime.collectAsState
 import com.tileshell.core.data.PanchangObservances
 import com.tileshell.core.data.HinduPanchang
 import com.tileshell.core.data.Paksha
-import com.tileshell.core.data.PanchangDevanagari
+import com.tileshell.core.data.PanchangLanguage
+import com.tileshell.core.data.PanchangNames
 import com.tileshell.core.data.PanchangInfo
 import com.tileshell.core.data.MoonTimes
 import com.tileshell.core.data.MoonTimesInfo
@@ -243,6 +244,7 @@ fun CalendarSystemTileFace(
         // Highlighted tithis and festivals: recomputed once a day, when the
         // settings change, or when the location resolves (Sankashti uses moonrise).
         val obsSettings by PanchangPrefs.settings(context).collectAsState()
+        val language = obsSettings?.language ?: PanchangLanguage.DEFAULT
         val dayKey = PanchangObservances.startOfDay(nowMillis, java.util.TimeZone.getDefault())
         val strip by produceState<ObservanceStrip?>(initialValue = null, dayKey, obsSettings, location) {
             val settings = obsSettings ?: return@produceState
@@ -250,25 +252,27 @@ fun CalendarSystemTileFace(
                 runCatching {
                     val moon = moonriseAfter(location.first, location.second)
                     val observances = PanchangObservances.on(dayKey, settings, moonriseAfter = moon, location = location)
-                    observanceStripText(observances, eveningMoonrise(dayKey, location.first, location.second))?.let { text ->
+                    observanceStripText(observances, eveningMoonrise(dayKey, location.first, location.second), settings.language)?.let { text ->
                         ObservanceStrip(text, observanceStripTone(observances, HinduPanchang.panchangFor(dayKey).tithi.displayNumber))
                     }
                 }.getOrNull()
             }
         }
-        FlipTile(
-            flipped = flipped,
-            modifier = modifier.fillMaxSize(),
-            front = {
-                ObservanceStripped(strip, size) {
-                    PanchangFace(panchang = panchang, size = size, devanagari = true, hasStrip = strip != null)
-                }
-            },
-            back = {
-                // No strip on the back (user-requested): the front already shows it.
-                PanchangBackFace(panchang = panchang, size = size, sunTimes = sunTimes, moonTimes = moonTimes, nowMillis = nowMillis)
-            },
-        )
+        androidx.compose.runtime.CompositionLocalProvider(LocalPanchangLanguage provides language) {
+            FlipTile(
+                flipped = flipped,
+                modifier = modifier.fillMaxSize(),
+                front = {
+                    ObservanceStripped(strip, size) {
+                        PanchangFace(panchang = panchang, size = size, devanagari = true, hasStrip = strip != null)
+                    }
+                },
+                back = {
+                    // No strip on the back (user-requested): the front already shows it.
+                    PanchangBackFace(panchang = panchang, size = size, sunTimes = sunTimes, moonTimes = moonTimes, nowMillis = nowMillis)
+                },
+            )
+        }
         return
     }
 
@@ -366,26 +370,20 @@ internal fun formatClockTime12(epochMillis: Long): String {
     return "$hour12:${minute.toString().padStart(2, '0')} $suffix"
 }
 
-private val DEVANAGARI_DIGITS = charArrayOf('०', '१', '२', '३', '४', '५', '६', '७', '८', '९')
-
-/** Maps each ASCII digit in [s] to its Devanagari numeral; anything else passes through. */
-private fun toDevanagariDigits(s: String): String = s.map { c ->
-    if (c in '0'..'9') DEVANAGARI_DIGITS[c - '0'] else c
-}.joinToString("")
-
 /**
- * "६:२३ पूर्वाह्न"-style 12-hour clock in Devanagari numerals + the
- * traditional Sanskrit forenoon/afternoon words — for the Panchang back
- * face, which is Devanagari-only (user-requested).
+ * "६:२३ पूर्वाह्न"-style 12-hour clock in the Panchang language's numerals and its own word for forenoon / afternoon
+ * (English keeps "6:23 am"); the Panchang faces' times use it.
  */
-internal fun formatClockTime12Devanagari(epochMillis: Long): String {
+internal fun formatClockTime12Panchang(epochMillis: Long, language: PanchangLanguage): String {
     val cal = java.util.Calendar.getInstance().apply { timeInMillis = epochMillis }
     val hour24 = cal.get(java.util.Calendar.HOUR_OF_DAY)
     val minute = cal.get(java.util.Calendar.MINUTE)
     val hour12 = (hour24 % 12).let { if (it == 0) 12 else it }
-    val suffix = if (hour24 < 12) "पूर्वाह्न" else "अपराह्न"
-    return "${toDevanagariDigits(hour12.toString())}:${toDevanagariDigits(minute.toString().padStart(2, '0'))} $suffix"
+    val time = PanchangNames.digits(language, "$hour12:${minute.toString().padStart(2, '0')}")
+    return "$time ${PanchangNames.amPm(language, hour24 >= 12)}"
 }
+
+internal fun formatClockTime12Devanagari(epochMillis: Long): String = formatClockTime12Panchang(epochMillis, PanchangLanguage.MARATHI)
 
 /**
  * The Hindu Panchang face — a typographic hierarchy (mirrors [ClockFront]'s
@@ -417,24 +415,15 @@ private fun PanchangFace(
     // nakshatra) at full size rather than squeezing in the year too; with a
     // highlight strip, the strip takes the nakshatra's place.
     val compact = !big && !narrow && !short && size.cols <= 2 && size.rows <= 2
-    val pakshaName = if (devanagari) {
-        PanchangDevanagari.paksha(panchang.tithi.paksha)
-    } else if (panchang.tithi.paksha == Paksha.SHUKLA) {
-        "shukla paksha"
-    } else {
-        "krishna paksha"
-    }
-    val vara = if (devanagari) PanchangDevanagari.vara(panchang.vara) else panchang.vara
-    val tithiName = if (devanagari) PanchangDevanagari.tithiName(panchang.tithi.name) else panchang.tithi.name
-    val tithiNumber = PanchangDevanagari.tithiNumber(panchang.tithi)
-    val month = if (devanagari) PanchangDevanagari.month(panchang.month) else panchang.month
-    val nakshatra = if (devanagari) PanchangDevanagari.nakshatra(panchang.nakshatra) else panchang.nakshatra
-    val nakshatraLabel = if (devanagari) "नक्षत्र" else "nakshatra"
-    val yearLabel = if (devanagari) {
-        "शक ${toDevanagariDigits(panchang.shakaSamvat.toString())} · विक्रम ${toDevanagariDigits(panchang.vikramSamvat.toString())}"
-    } else {
-        "shaka ${panchang.shakaSamvat} · vikram ${panchang.vikramSamvat}"
-    }
+    val lang = LocalPanchangLanguage.current
+    val pakshaName = PanchangNames.paksha(lang, panchang.tithi.paksha)
+    val vara = PanchangNames.vara(lang, panchang.vara)
+    val tithiName = PanchangNames.tithiName(lang, panchang.tithi.name)
+    val tithiNumber = PanchangNames.tithiNumber(lang, panchang.tithi)
+    val month = PanchangNames.month(lang, panchang.month)
+    val nakshatra = PanchangNames.nakshatra(lang, panchang.nakshatra)
+    val nakshatraLabel = PanchangText.NAKSHATRA.of(lang)
+    val yearLabel = "${PanchangText.SHAKA.of(lang)} ${PanchangNames.digits(lang, panchang.shakaSamvat)} · ${PanchangText.VIKRAM.of(lang)} ${PanchangNames.digits(lang, panchang.vikramSamvat)}"
     val moonFraction = tithiMoonFraction(panchang.tithi.paksha, panchang.tithi.tithiInPaksha)
     val visualSize = if (short) 34.dp else if (narrow) 40.dp else if (big) 64.dp else if (size.cols >= 4) 44.dp else 34.dp
 
@@ -646,9 +635,10 @@ private fun PanchangBackFace(
     // The "सूर्य"/"चंद्र" labels only where there's room — on a 2-column tile
     // they cost two lines, and the rise/set glyphs already tell sun from moon.
     val labels = !short && !narrow && size.cols >= 3
+    val lang = LocalPanchangLanguage.current
     val sun = @Composable {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            if (labels) PanchangColumnLabel("सूर्य", big)
+            if (labels) PanchangColumnLabel(PanchangText.SUN.of(lang), big)
             sunTimes?.let {
                 PanchangEventRow("sunrise", it.sunriseMillis, iconSize, fontSize, compact = narrow)
                 PanchangEventRow("sunset", it.sunsetMillis, iconSize, fontSize, compact = narrow)
@@ -657,7 +647,7 @@ private fun PanchangBackFace(
     }
     val moon = @Composable {
         Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            if (labels) PanchangColumnLabel("चंद्र", big)
+            if (labels) PanchangColumnLabel(PanchangText.MOON.of(lang), big)
             moonTimes?.moonriseMillis?.let { PanchangEventRow("moonrise", it, iconSize, fontSize, compact = narrow) }
             moonTimes?.moonsetMillis?.let { PanchangEventRow("moonset", it, iconSize, fontSize, compact = narrow) }
         }
@@ -672,7 +662,7 @@ private fun PanchangBackFace(
         horizontalAlignment = if (narrow) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         Text(
-            text = PanchangDevanagari.ayana(panchang.ayana),
+            text = PanchangNames.ayana(lang, panchang.ayana),
             color = FaceText,
             fontSize = if (narrow) 13.sp else if (big) 20.sp else 16.sp,
             fontWeight = FontWeight.Light,
@@ -717,7 +707,8 @@ private fun PanchangColumnLabel(text: String, big: Boolean) {
 /** One "glyph · short weekday · time" line on the Panchang back face. */
 @Composable
 private fun PanchangEventRow(iconKey: String, epochMillis: Long, iconSize: androidx.compose.ui.unit.Dp, fontSize: androidx.compose.ui.unit.TextUnit, compact: Boolean = false) {
-    val vara = PanchangDevanagari.shortVara(HinduPanchang.varaFor(epochMillis))
+    val lang = LocalPanchangLanguage.current
+    val vara = PanchangNames.shortVara(lang, HinduPanchang.varaFor(epochMillis))
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         Icon(
             imageVector = TileIcons[iconKey],
@@ -727,7 +718,13 @@ private fun PanchangEventRow(iconKey: String, epochMillis: Long, iconSize: andro
         )
         Text(
             // One column wide: no weekday, and "पूर्वाह्न / अपराह्न" shortened, so the time is not cut.
-            text = if (compact) formatClockTime12Devanagari(epochMillis).replace("पूर्वाह्न", "पू").replace("अपराह्न", "अ") else "$vara ${formatClockTime12Devanagari(epochMillis)}",
+            text = if (compact) {
+                formatClockTime12Panchang(epochMillis, lang)
+                    .replace(PanchangNames.amPm(lang, false), PanchangText.amPmShort(lang, false))
+                    .replace(PanchangNames.amPm(lang, true), PanchangText.amPmShort(lang, true))
+            } else {
+                "$vara ${formatClockTime12Panchang(epochMillis, lang)}"
+            },
             color = FaceText.copy(alpha = 0.75f),
             fontSize = fontSize,
             maxLines = 1,
@@ -761,13 +758,14 @@ private fun PanchangSmallFace(active: Boolean, modifier: Modifier) {
         }
     }
     val panchang = remember(nowMillis / 60_000L) { HinduPanchang.panchangFor(nowMillis) }
+    val lang = rememberPanchangLanguage()
     Column(
         modifier = modifier.fillMaxSize().padding(4.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = PanchangDevanagari.tithiNumber(panchang.tithi),
+            text = PanchangNames.tithiNumber(lang, panchang.tithi),
             color = FaceText,
             fontSize = 26.sp,
             lineHeight = 28.sp,
@@ -775,7 +773,7 @@ private fun PanchangSmallFace(active: Boolean, modifier: Modifier) {
             maxLines = 1,
         )
         Text(
-            text = PanchangDevanagari.paksha(panchang.tithi.paksha).substringBefore(' '),
+            text = PanchangNames.paksha(lang, panchang.tithi.paksha).substringBefore(' '),
             color = TileAccents.Amber,
             fontSize = 11.sp,
             fontWeight = FontWeight.Medium,
@@ -863,20 +861,21 @@ private fun PanchangMonthBack(panchang: PanchangInfo, sunTimes: SunTimesInfo?, m
 private fun PanchangMonthBackBody(panchang: PanchangInfo, sunTimes: SunTimesInfo?, moonTimes: MoonTimesInfo?, nowMillis: Long) {
     val zone = java.time.ZoneId.systemDefault()
     val today = java.time.Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate()
-    val month by produceState<PanchangMonth?>(initialValue = null, today.year, today.monthValue) {
-        value = withContext(Dispatchers.Default) { panchangMonth(today.year, today.monthValue, zone) }
+    val lang = LocalPanchangLanguage.current
+    val month by produceState<PanchangMonth?>(initialValue = null, today.year, today.monthValue, lang) {
+        value = withContext(Dispatchers.Default) { panchangMonth(today.year, today.monthValue, zone, lang) }
     }
-    val title = today.month.getDisplayName(java.time.format.TextStyle.FULL, Locale.ENGLISH).lowercase(Locale.ENGLISH) + " ${today.year}"
-    // Monday..Sunday headings in Devanagari, read off a known week.
-    val heads = remember {
-        (0L..6L).map { PanchangDevanagari.shortVara(HinduPanchang.varaFor(java.time.LocalDate.of(2024, 1, 1).plusDays(it).atTime(12, 0).atZone(zone).toInstant().toEpochMilli())) }
+    val title = PanchangText.gregorianMonth(lang, today.monthValue - 1) + " " + PanchangNames.digits(lang, today.year)
+    // Monday..Sunday headings in the language, read off a known week.
+    val heads = remember(lang) {
+        (0L..6L).map { PanchangNames.shortVara(lang, HinduPanchang.varaFor(java.time.LocalDate.of(2024, 1, 1).plusDays(it).atTime(12, 0).atZone(zone).toInstant().toEpochMilli())) }
     }
     Column(Modifier.fillMaxSize().padding(8.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(title, color = FaceText, fontSize = 15.sp, fontWeight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
             // The lunar months this month touches, the later one on the same tint as its dates below.
             month?.lunarMonths?.forEachIndexed { i, (name, adhika) ->
-                val word = (if (adhika) "अधिक " else "") + PanchangDevanagari.month(name)
+                val word = (if (adhika) PanchangNames.adhik(lang) + " " else "") + PanchangNames.month(lang, name)
                 Text(
                     word, color = if (i == 0) TileAccents.Amber else FaceText, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1,
                     modifier = Modifier.padding(start = 4.dp).let { if (i > 0) it.background(FaceText.copy(alpha = 0.22f)).padding(horizontal = 4.dp) else it },
@@ -915,7 +914,7 @@ private fun PanchangMonthBackBody(panchang: PanchangInfo, sunTimes: SunTimesInfo
                 times.forEach { (icon, millis) ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
                         Icon(TileIcons[icon], icon, tint = FaceText.copy(alpha = 0.75f), modifier = Modifier.size(11.dp))
-                        Text(formatClockTime12Devanagari(millis), color = FaceText.copy(alpha = 0.75f), fontSize = 9.sp, maxLines = 1, softWrap = false)
+                        Text(formatClockTime12Panchang(millis, lang), color = FaceText.copy(alpha = 0.75f), fontSize = 9.sp, maxLines = 1, softWrap = false)
                     }
                 }
             }

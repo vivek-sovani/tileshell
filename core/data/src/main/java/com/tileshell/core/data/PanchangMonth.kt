@@ -33,7 +33,7 @@ data class PanchangMonth(val year: Int, val month: Int, val firstWeekdayOffset: 
 /** The tithi in force at 6 am local — close enough to sunrise to match a printed panchang. */
 private const val TITHI_HOUR = 6
 
-fun panchangMonth(year: Int, month: Int, zone: ZoneId = ZoneId.systemDefault()): PanchangMonth {
+fun panchangMonth(year: Int, month: Int, zone: ZoneId = ZoneId.systemDefault(), language: PanchangLanguage = PanchangLanguage.MARATHI): PanchangMonth {
     val first = LocalDate.of(year, month, 1)
     val tz = TimeZone.getTimeZone(zone)
     val cells = (1..first.lengthOfMonth()).map { day ->
@@ -46,7 +46,7 @@ fun panchangMonth(year: Int, month: Int, zone: ZoneId = ZoneId.systemDefault()):
             else -> PanchangDayKind.NORMAL
         }
         val (lunar, adhika) = HinduPanchang.lunarMonthAt(millis)
-        PanchangDayCell(day, t.displayNumber, PanchangDevanagari.tithiNumber(t), kind, lunar, adhika)
+        PanchangDayCell(day, t.displayNumber, PanchangNames.tithiNumber(language, t), kind, lunar, adhika)
     }
     return PanchangMonth(year, month, first.dayOfWeek.value - 1, cells)
 }

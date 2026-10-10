@@ -362,8 +362,34 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    private val _panchangLanguageAsk = MutableStateFlow(false)
+
+    /** True while the "panchang language" question is up (a panchang tile is being added for the first time). */
+    val panchangLanguageAsk: StateFlow<Boolean> = _panchangLanguageAsk.asStateFlow()
+    private var afterPanchangLanguage: (() -> Unit)? = null
+
+    /** Runs [then] now, or after the user has picked the panchang's language when none has been chosen yet. */
+    private fun withPanchangLanguage(then: () -> Unit) {
+        if (com.tileshell.feature.livetiles.PanchangPrefs.languageChosen(getApplication())) {
+            then()
+        } else {
+            afterPanchangLanguage = then
+            _panchangLanguageAsk.value = true
+        }
+    }
+
+    /** The answer to the language question; [language] null = leave the default and carry on. */
+    fun answerPanchangLanguage(language: com.tileshell.core.data.PanchangLanguage?) {
+        com.tileshell.feature.livetiles.PanchangPrefs.setLanguage(getApplication(), language ?: com.tileshell.core.data.PanchangLanguage.DEFAULT)
+        _panchangLanguageAsk.value = false
+        afterPanchangLanguage?.invoke()
+        afterPanchangLanguage = null
+    }
+
     /** Pin the panchang hub's tile: the calendar-systems tile with the Hindu panchang chosen. */
-    fun pinPanchangTile(sectionId: String?) {
+    fun pinPanchangTile(sectionId: String?) = withPanchangLanguage { pinPanchangTileNow(sectionId) }
+
+    private fun pinPanchangTileNow(sectionId: String?) {
         viewModelScope.launch(writeContext) {
             val exists = tiles.value.any {
                 it is TileModel.App && it.iconKey == "calsys" && com.tileshell.core.data.CalendarSystemTile.decode(it.activityName) == com.tileshell.core.data.HINDU_PANCHANG_ID
@@ -1289,9 +1315,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Overwrite a "calendar systems" tile's own encoded system selection. */
     fun setCalendarSystem(id: String, systemId: String) {
-        viewModelScope.launch(writeContext) {
-            repository.setTileText(id, CalendarSystemTile.encode(systemId))
+        val write = {
+            viewModelScope.launch(writeContext) {
+                repository.setTileText(id, CalendarSystemTile.encode(systemId))
+            }
+            Unit
         }
+        if (systemId == com.tileshell.core.data.HINDU_PANCHANG_ID) withPanchangLanguage(write) else write()
     }
 
     /**

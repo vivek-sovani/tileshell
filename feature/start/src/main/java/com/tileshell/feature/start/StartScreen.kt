@@ -2190,6 +2190,7 @@ fun StartScreen(
 
         // Long-press quick actions on a tile. Its own composable, like the hubs: this lambda is near the register limit.
         TileQuickMenuLayer(viewModel, tiles, accentId = settings.accentId, dark = dark, lockLayout = settings.lockLayout)
+        PanchangLanguageAskLayer(viewModel, dark = dark, accentId = settings.accentId)
 
 
         // Build a name→packageNames map from the current tile list so CategoryFolderSheet
@@ -10060,4 +10061,19 @@ private fun LiveFaceScale(size: TileSize, iconKey: String?, content: @Composable
 private fun TileModel.withSize(size: TileSize): TileModel = when (this) {
     is TileModel.App -> copy(size = size)
     is TileModel.Folder -> copy(size = size)
+}
+
+
+/** The panchang's language question, up while a panchang tile is being added for the first time. */
+@Composable
+private fun PanchangLanguageAskLayer(viewModel: StartViewModel, dark: Boolean, accentId: String) {
+    val ask by viewModel.panchangLanguageAsk.collectAsState()
+    if (!ask) return
+    com.tileshell.feature.livetiles.PanchangLanguageDialog(
+        dark = dark,
+        accentId = accentId,
+        current = com.tileshell.core.data.PanchangLanguage.DEFAULT,
+        onPick = { viewModel.answerPanchangLanguage(it) },
+        onDismiss = { viewModel.answerPanchangLanguage(null) },
+    )
 }

@@ -278,6 +278,10 @@ object HinduPanchang {
         return name to (next > start + 1.0 && sign == nextSign)
     }
 
+    /** 0..26: the nakshatra the Moon is in at [epochMillis] (0 = ashwini). */
+    fun nakshatraIndexAt(epochMillis: Long): Int =
+        floor(moonSiderealLongitude(centuriesSinceJ2000(julianDay(epochMillis))) / (360.0 / 27.0)).toInt().coerceIn(0, 26)
+
     /** The Sun's sidereal longitude (Lahiri) at [epochMillis], degrees 0..360. */
     fun sunSiderealAt(epochMillis: Long): Double = sunSiderealLongitude(centuriesSinceJ2000(julianDay(epochMillis)))
 
@@ -366,60 +370,19 @@ object HinduPanchang {
  * name lists [HinduPanchang] builds [PanchangInfo] from).
  */
 object PanchangDevanagari {
-    private val VARA = mapOf(
-        "ravivara" to "रविवार", "somavara" to "सोमवार", "mangalavara" to "मंगलवार",
-        "budhavara" to "बुधवार", "guruvara" to "गुरुवार", "shukravara" to "शुक्रवार", "shanivara" to "शनिवार",
-    )
-
-    /**
-     * Compact, commonly-used Devanagari abbreviation for a [HinduPanchang
-     * .VARA_NAMES] key (`"somavara"` → `"सोम"`) — a short "which day does
-     * this belong to" label, distinct from [vara]'s own full name. Not a
-     * mechanical suffix-strip of [vara]'s output (several don't reduce
-     * cleanly) — these are simply the short forms in common use.
-     */
-    private val SHORT_VARA = mapOf(
-        "ravivara" to "रवि", "somavara" to "सोम", "mangalavara" to "मंगल",
-        "budhavara" to "बुध", "guruvara" to "गुरु", "shukravara" to "शुक्र", "shanivara" to "शनि",
-    )
-
-    private val TITHI = mapOf(
-        "pratipada" to "प्रतिपदा", "dwitiya" to "द्वितीया", "tritiya" to "तृतीया", "chaturthi" to "चतुर्थी",
-        "panchami" to "पंचमी", "shashthi" to "षष्ठी", "saptami" to "सप्तमी", "ashtami" to "अष्टमी",
-        "navami" to "नवमी", "dashami" to "दशमी", "ekadashi" to "एकादशी", "dwadashi" to "द्वादशी",
-        "trayodashi" to "त्रयोदशी", "chaturdashi" to "चतुर्दशी", "purnima" to "पूर्णिमा", "amavasya" to "अमावस्या",
-    )
-
-    private val MONTH = mapOf(
-        "vaishakha" to "वैशाख", "jyeshtha" to "ज्येष्ठ", "ashadha" to "आषाढ़", "shravana" to "श्रावण",
-        "bhadrapada" to "भाद्रपद", "ashwin" to "आश्विन", "kartika" to "कार्तिक", "margashirsha" to "मार्गशीर्ष",
-        "pausha" to "पौष", "magha" to "माघ", "phalguna" to "फाल्गुन", "chaitra" to "चैत्र",
-    )
-
-    private val NAKSHATRA = mapOf(
-        "ashwini" to "अश्विनी", "bharani" to "भरणी", "krittika" to "कृत्तिका", "rohini" to "रोहिणी",
-        "mrigashira" to "मृगशिरा", "ardra" to "आर्द्रा", "punarvasu" to "पुनर्वसु", "pushya" to "पुष्य",
-        "ashlesha" to "आश्लेषा", "magha" to "मघा", "purva phalguni" to "पूर्वाफाल्गुनी",
-        "uttara phalguni" to "उत्तराफाल्गुनी", "hasta" to "हस्त", "chitra" to "चित्रा", "swati" to "स्वाती",
-        "vishakha" to "विशाखा", "anuradha" to "अनुराधा", "jyeshtha" to "ज्येष्ठा", "mula" to "मूल",
-        "purva ashadha" to "पूर्वाषाढ़ा", "uttara ashadha" to "उत्तराषाढ़ा", "shravana" to "श्रवण",
-        "dhanishta" to "धनिष्ठा", "shatabhisha" to "शतभिषा", "purva bhadrapada" to "पूर्वाभाद्रपदा",
-        "uttara bhadrapada" to "उत्तराभाद्रपदा", "revati" to "रेवती",
-    )
-
-    private val DIGITS = charArrayOf('०', '१', '२', '३', '४', '५', '६', '७', '८', '९')
+    private val L = PanchangLanguage.MARATHI
 
     /** [n]'s decimal digits as Devanagari numerals (`13` → `"१३"`). */
-    fun digits(n: Int): String = n.toString().map { c -> if (c in '0'..'9') DIGITS[c - '0'] else c }.joinToString("")
+    fun digits(n: Int): String = PanchangNames.digits(L, n)
 
     /** [TithiInfo.displayNumber] in Devanagari numerals — `"१"` … `"१५"`, `"३०"` for amavasya. */
-    fun tithiNumber(tithi: TithiInfo): String = digits(tithi.displayNumber)
+    fun tithiNumber(tithi: TithiInfo): String = PanchangNames.tithiNumber(L, tithi)
 
-    fun vara(value: String): String = VARA[value] ?: value
-    fun shortVara(value: String): String = SHORT_VARA[value] ?: value
-    fun tithiName(value: String): String = TITHI[value] ?: value
-    fun paksha(paksha: Paksha): String = if (paksha == Paksha.SHUKLA) "शुक्ल पक्ष" else "कृष्ण पक्ष"
-    fun month(value: String): String = MONTH[value] ?: value
-    fun nakshatra(value: String): String = NAKSHATRA[value] ?: value
-    fun ayana(ayana: Ayana): String = if (ayana == Ayana.UTTARAYANA) "उत्तरायण" else "दक्षिणायन"
+    fun vara(value: String): String = PanchangNames.vara(L, value)
+    fun shortVara(value: String): String = PanchangNames.shortVara(L, value)
+    fun tithiName(value: String): String = PanchangNames.tithiName(L, value)
+    fun paksha(paksha: Paksha): String = PanchangNames.paksha(L, paksha)
+    fun month(value: String): String = PanchangNames.month(L, value)
+    fun nakshatra(value: String): String = PanchangNames.nakshatra(L, value)
+    fun ayana(ayana: Ayana): String = PanchangNames.ayana(L, ayana)
 }

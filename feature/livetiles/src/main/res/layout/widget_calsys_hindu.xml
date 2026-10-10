@@ -170,6 +170,7 @@
                 android:orientation="vertical">
 
             <TextView
+                android:id="@+id/widget_back_sun_label"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="सूर्य"
@@ -205,6 +206,7 @@
                 android:orientation="vertical">
 
             <TextView
+                android:id="@+id/widget_back_moon_label"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:text="चंद्र"

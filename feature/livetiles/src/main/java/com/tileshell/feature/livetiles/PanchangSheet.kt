@@ -58,7 +58,8 @@ import com.tileshell.core.data.HinduPanchang
 import com.tileshell.core.data.Observance
 import com.tileshell.core.data.ObservanceSettings
 import com.tileshell.core.data.Paksha
-import com.tileshell.core.data.PanchangDevanagari
+import com.tileshell.core.data.PanchangLanguage
+import com.tileshell.core.data.PanchangNames
 import com.tileshell.core.data.PanchangObservances
 import com.tileshell.core.data.SunTimes
 import com.tileshell.core.data.MoonTimes
@@ -72,24 +73,18 @@ import kotlinx.coroutines.withContext
 /** Festival names: bright gold on dark, a deeper gold that reads on light. */
 private fun gold(dark: Boolean) = if (dark) Color(0xFFFFD66B) else Color(0xFF9A6A00)
 
-private val PIVOTS = listOf("आज", "हा महिना", "हे वर्ष")
-
-/** Gregorian month names in Devanagari (Marathi). */
-private val DEV_MONTHS = listOf(
-    "जानेवारी", "फेब्रुवारी", "मार्च", "एप्रिल", "मे", "जून",
-    "जुलै", "ऑगस्ट", "सप्टेंबर", "ऑक्टोबर", "नोव्हेंबर", "डिसेंबर",
-)
 private val VARA_KEYS = listOf("ravivara", "somavara", "mangalavara", "budhavara", "guruvara", "shukravara", "shanivara")
 
-/** "मंगल ६" — short weekday and date, in Devanagari. */
-internal fun devanagariDay(day: Long, withMonth: Boolean = false): String {
+/** "मंगल ६" — short weekday and date, in the Panchang language. */
+internal fun devanagariDay(day: Long, withMonth: Boolean = false, language: PanchangLanguage = PanchangLanguage.MARATHI): String {
     val c = Calendar.getInstance().apply { timeInMillis = day }
-    val vara = PanchangDevanagari.shortVara(VARA_KEYS[c.get(Calendar.DAY_OF_WEEK) - 1])
-    val date = PanchangDevanagari.digits(c.get(Calendar.DAY_OF_MONTH))
-    return if (withMonth) "$vara $date ${DEV_MONTHS[c.get(Calendar.MONTH)]}" else "$vara $date"
+    val vara = PanchangNames.shortVara(language, VARA_KEYS[c.get(Calendar.DAY_OF_WEEK) - 1])
+    val date = PanchangNames.digits(language, c.get(Calendar.DAY_OF_MONTH))
+    return if (withMonth) "$vara $date ${PanchangText.gregorianMonth(language, c.get(Calendar.MONTH))}" else "$vara $date"
 }
 
-private fun monthTitle(year: Int, month: Int) = "${DEV_MONTHS[month]} ${PanchangDevanagari.digits(year)}"
+private fun monthTitle(year: Int, month: Int, language: PanchangLanguage) =
+    "${PanchangText.gregorianMonth(language, month)} ${PanchangNames.digits(language, year)}"
 
 private fun monthStart(year: Int, month: Int): Long = Calendar.getInstance().apply {
     clear(); set(year, month, 1)
@@ -149,9 +144,12 @@ fun PanchangSheet(
             }.getOrDefault(emptyList())
         }
     }
-    val pagerState = rememberPagerState(pageCount = { PIVOTS.size })
+    val language = settings?.language ?: PanchangLanguage.DEFAULT
+    val pivots = listOf(PanchangText.PIVOT_TODAY, PanchangText.PIVOT_MONTH, PanchangText.PIVOT_YEAR).map { it.of(language) }
+    val pagerState = rememberPagerState(pageCount = { pivots.size })
     val scope = rememberCoroutineScope()
 
+    androidx.compose.runtime.CompositionLocalProvider(LocalPanchangLanguage provides language) {
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         Column(
             modifier = Modifier
@@ -167,14 +165,14 @@ fun PanchangSheet(
                 // showed settings: the app's name small, over a large light title.
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        "पंचांग",
+                        PanchangText.TITLE.of(language),
                         color = tokens.fg,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(start = 18.dp, top = 18.dp),
                     )
                     Text(
-                        "महत्त्वाचे दिवस",
+                        PanchangText.IMPORTANT_DAYS.of(language),
                         color = tokens.fg,
                         fontSize = 44.sp,
                         fontWeight = FontWeight.Light,
@@ -186,8 +184,8 @@ fun PanchangSheet(
                 }
             } else {
                 HubPanorama(
-                    title = "पंचांग",
-                    sections = PIVOTS,
+                    title = PanchangText.TITLE.of(language),
+                    sections = pivots,
                     pagerState = pagerState,
                     tokens = tokens,
                     modifier = Modifier.weight(1f),
@@ -202,11 +200,12 @@ fun PanchangSheet(
             HubAppBar(
                 tokens = tokens,
                 actions = listOf(
-                    HubAppBarAction("back", "back", "मागे") { if (settingsOpen) settingsOpen = false else onDismiss() },
-                    HubAppBarAction("settings", "choose important days", "महत्त्वाचे दिवस") { settingsOpen = !settingsOpen },
+                    HubAppBarAction("back", "back", PanchangText.BACK.of(language)) { if (settingsOpen) settingsOpen = false else onDismiss() },
+                    HubAppBarAction("settings", "choose important days", PanchangText.IMPORTANT_DAYS.of(language)) { settingsOpen = !settingsOpen },
                 ),
             )
         }
+    }
     }
 }
 
@@ -220,6 +219,7 @@ private fun TodayPage(
     accent: Color,
     onSettings: () -> Unit,
 ) {
+    val lang = LocalPanchangLanguage.current
     val panchang = remember(now) { HinduPanchang.panchangFor(now) }
     val today = PanchangObservances.startOfDay(now, TimeZone.getDefault())
     val todays = yearDays?.firstOrNull { it.first == today }?.second.orEmpty()
@@ -234,7 +234,7 @@ private fun TodayPage(
             // the tithi's name and month, then the day.
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    PanchangDevanagari.tithiNumber(panchang.tithi),
+                    PanchangNames.tithiNumber(lang, panchang.tithi),
                     color = tokens.fg,
                     fontSize = 72.sp,
                     fontWeight = FontWeight.Light,
@@ -242,31 +242,31 @@ private fun TodayPage(
                 )
                 Spacer(Modifier.width(12.dp))
                 Column {
-                    PanchangDevanagari.paksha(panchang.tithi.paksha).split(" ").forEach {
+                    PanchangNames.paksha(lang, panchang.tithi.paksha).split(" ").forEach {
                         Text(it, color = tokens.fgDim, fontSize = 17.sp, lineHeight = 22.sp)
                     }
                 }
             }
             Text(
-                "${PanchangDevanagari.tithiName(panchang.tithi.name)} · ${PanchangDevanagari.month(panchang.month)}",
+                "${PanchangNames.tithiName(lang, panchang.tithi.name)} · ${PanchangNames.month(lang, panchang.month)}",
                 color = TileAccents.Amber,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.Light,
                 lineHeight = 38.sp,
             )
             Text(
-                PanchangDevanagari.vara(panchang.vara),
+                PanchangNames.vara(lang, panchang.vara),
                 color = tokens.fg,
                 fontSize = 17.sp,
                 modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
             )
             Text(
-                "नक्षत्र: ${PanchangDevanagari.nakshatra(panchang.nakshatra)} · शक ${PanchangDevanagari.digits(panchang.shakaSamvat)} · " +
-                    "विक्रम ${PanchangDevanagari.digits(panchang.vikramSamvat)}",
+                "${PanchangText.NAKSHATRA.of(lang)}: ${PanchangNames.nakshatra(lang, panchang.nakshatra)} · ${PanchangText.SHAKA.of(lang)} ${PanchangNames.digits(lang, panchang.shakaSamvat)} · " +
+                    "${PanchangText.VIKRAM.of(lang)} ${PanchangNames.digits(lang, panchang.vikramSamvat)}",
                 color = tokens.fgDim,
                 fontSize = 13.sp,
             )
-            Text(PanchangDevanagari.ayana(panchang.ayana), color = tokens.fgDim, fontSize = 13.sp)
+            Text(PanchangNames.ayana(lang, panchang.ayana), color = tokens.fgDim, fontSize = 13.sp)
             todays.forEach { o ->
                 Column(
                     modifier = Modifier
@@ -276,35 +276,35 @@ private fun TodayPage(
                         .padding(10.dp),
                 ) {
                     Text(o.name, color = if (o.festival) gold(dark) else tokens.fg, fontSize = 17.sp, fontWeight = FontWeight.Medium)
-                    grahanDetail(o)?.let { Text(it, color = tokens.fgDim, fontSize = 13.sp) }
+                    grahanDetail(o, lang)?.let { Text(it, color = tokens.fgDim, fontSize = 13.sp) }
                     if (o.id == "sankashti" && moonrise != null) {
-                        Text("चंद्रोदय ${formatClockTime12Devanagari(moonrise)}", color = tokens.fgDim, fontSize = 13.sp)
+                        Text("${PanchangText.MOONRISE.of(lang)} ${formatClockTime12Panchang(moonrise, lang)}", color = tokens.fgDim, fontSize = 13.sp)
                     }
                 }
             }
             Spacer(Modifier.height(12.dp))
             sun?.let {
                 Text(
-                    "सूर्योदय ${formatClockTime12Devanagari(it.sunriseMillis)} · सूर्यास्त ${formatClockTime12Devanagari(it.sunsetMillis)}",
+                    "${PanchangText.SUNRISE.of(lang)} ${formatClockTime12Panchang(it.sunriseMillis, lang)} · ${PanchangText.SUNSET.of(lang)} ${formatClockTime12Panchang(it.sunsetMillis, lang)}",
                     color = tokens.fgDim,
                     fontSize = 13.sp,
                 )
             }
             Text(
                 listOfNotNull(
-                    moon.moonriseMillis?.let { "चंद्रोदय ${formatClockTime12Devanagari(it)}" },
-                    moon.moonsetMillis?.let { "चंद्रास्त ${formatClockTime12Devanagari(it)}" },
+                    moon.moonriseMillis?.let { "${PanchangText.MOONRISE.of(lang)} ${formatClockTime12Panchang(it, lang)}" },
+                    moon.moonsetMillis?.let { "${PanchangText.MOONSET.of(lang)} ${formatClockTime12Panchang(it, lang)}" },
                 ).joinToString(" · "),
                 color = tokens.fgDim,
                 fontSize = 13.sp,
             )
         }
-        item { SectionTitle("पुढील") }
-        if (yearDays != null && next.isEmpty()) item { Empty("पुढे काही नाही", tokens) }
-        next.forEach { (day, list) -> item(key = "n$day") { DayRow(devanagariDay(day, withMonth = true), list, tokens, dark, false) } }
+        item { SectionTitle(PanchangText.NEXT.of(lang)) }
+        if (yearDays != null && next.isEmpty()) item { Empty(PanchangText.NOTHING_AHEAD.of(lang), tokens) }
+        next.forEach { (day, list) -> item(key = "n$day") { DayRow(devanagariDay(day, withMonth = true, language = lang), list, tokens, dark, false) } }
         item {
             Text(
-                "महत्त्वाचे दिवस निवडा ›",
+                PanchangText.CHOOSE_DAYS.of(lang),
                 color = accent,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 18.dp).clickable(onClick = onSettings),
@@ -324,6 +324,7 @@ private fun MonthPage(
     dark: Boolean,
     accent: Color,
 ) {
+    val lang = LocalPanchangLanguage.current
     var offset by remember { mutableStateOf(0) }
     val shown = Calendar.getInstance().apply {
         timeInMillis = monthStart(nowCal.get(Calendar.YEAR), nowCal.get(Calendar.MONTH))
@@ -348,12 +349,12 @@ private fun MonthPage(
     val today = PanchangObservances.startOfDay(System.currentTimeMillis(), TimeZone.getDefault())
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)) {
         item {
-            val prev = DEV_MONTHS[(m + 11) % 12]
-            val nextName = DEV_MONTHS[(m + 1) % 12]
+            val prev = PanchangText.gregorianMonth(lang, (m + 11) % 12)
+            val nextName = PanchangText.gregorianMonth(lang, (m + 1) % 12)
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Text("‹ $prev", color = accent, fontSize = 14.sp, modifier = Modifier.clickable { offset-- }.padding(vertical = 6.dp))
                 Text(
-                    monthTitle(y, m),
+                    monthTitle(y, m, lang),
                     color = tokens.fg,
                     fontSize = 17.sp,
                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -362,7 +363,7 @@ private fun MonthPage(
                 Text("$nextName ›", color = accent, fontSize = 14.sp, modifier = Modifier.clickable { offset++ }.padding(vertical = 6.dp))
             }
         }
-        observanceSections(days, tokens, dark, today) { devanagariDay(it) }
+        observanceSections(days, tokens, dark, today) { devanagariDay(it, language = lang) }
     }
 }
 
@@ -376,6 +377,7 @@ private fun YearPage(
     dark: Boolean,
     accent: Color,
 ) {
+    val lang = LocalPanchangLanguage.current
     var group by remember { mutableStateOf(ObservanceGroup.FESTIVALS) }
     val today = PanchangObservances.startOfDay(now, TimeZone.getDefault())
     val end = monthStart(year + 1, 0)
@@ -383,29 +385,31 @@ private fun YearPage(
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)) {
         item {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(PanchangDevanagari.digits(year), color = tokens.fg, fontSize = 17.sp, modifier = Modifier.padding(end = 8.dp))
-                ObservanceGroup.entries.forEach { g -> Pill(g.title, group == g, accent, tokens) { group = g } }
+                Text(PanchangNames.digits(lang, year), color = tokens.fg, fontSize = 17.sp, modifier = Modifier.padding(end = 8.dp))
+                ObservanceGroup.entries.forEach { g -> Pill(g.titleIn(lang), group == g, accent, tokens) { group = g } }
             }
         }
-        if (yearDays == null) item { Empty("मोजत आहे…", tokens) }
+        if (yearDays == null) item { Empty(PanchangText.CALCULATING.of(lang), tokens) }
         val rows = inYear.mapNotNull { (day, list) ->
             list.filter { group.has(it) }.takeIf { it.isNotEmpty() }?.let { day to it }
         }
         rows.groupBy { Calendar.getInstance().apply { timeInMillis = it.first }.get(Calendar.MONTH) }
             .toSortedMap()
             .forEach { (month, entries) ->
-                item(key = "m$month") { SectionTitle(DEV_MONTHS[month]) }
+                item(key = "m$month") { SectionTitle(PanchangText.gregorianMonth(lang, month)) }
                 entries.forEach { (day, list) ->
-                    item(key = "y$day") { DayRow(devanagariDay(day), list, tokens, dark, past = day < today) }
+                    item(key = "y$day") { DayRow(devanagariDay(day, language = lang), list, tokens, dark, past = day < today) }
                 }
             }
-        if (yearDays != null && rows.isEmpty()) item { Empty("काही नाही", tokens) }
+        if (yearDays != null && rows.isEmpty()) item { Empty(PanchangText.NOTHING.of(lang), tokens) }
     }
 }
 
 /** The sheet's three kinds of day, each its own section. */
-private enum class ObservanceGroup(val title: String) {
-    IMPORTANT("महत्त्वाचे दिवस"), FESTIVALS("सण"), GRAHAN("ग्रहण");
+private enum class ObservanceGroup(private val text: PanchangText) {
+    IMPORTANT(PanchangText.IMPORTANT_DAYS), FESTIVALS(PanchangText.GROUP_FESTIVALS), GRAHAN(PanchangText.GROUP_GRAHAN);
+
+    fun titleIn(language: PanchangLanguage) = text.of(language)
 
     fun has(o: Observance) = when (this) {
         IMPORTANT -> !o.festival && !o.grahan
@@ -428,9 +432,9 @@ private fun LazyListScope.observanceSections(
         }
         // No grahan this month is the usual case: leave that section out.
         if (group == ObservanceGroup.GRAHAN && rows.isEmpty()) return@forEach
-        item(key = "s$group") { SectionTitle(group.title) }
-        if (days == null) item(key = "l$group") { Empty("मोजत आहे…", tokens) }
-        else if (rows.isEmpty()) item(key = "e$group") { Empty("काही नाही", tokens) }
+        item(key = "s$group") { SectionTitle(group.titleIn(LocalPanchangLanguage.current)) }
+        if (days == null) item(key = "l$group") { Empty(PanchangText.CALCULATING.of(LocalPanchangLanguage.current), tokens) }
+        else if (rows.isEmpty()) item(key = "e$group") { Empty(PanchangText.NOTHING.of(LocalPanchangLanguage.current), tokens) }
         rows.forEach { (day, list) ->
             item(key = "r$group$day") { DayRow(label(day), list, tokens, dark, past = day < today) }
         }
@@ -440,33 +444,42 @@ private fun LazyListScope.observanceSections(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HighlightSettingsPage(settings: ObservanceSettings, accent: Color, tokens: ColorTokens) {
+    val lang = LocalPanchangLanguage.current
     val context = LocalContext.current
     var paksha by remember { mutableStateOf<Paksha?>(Paksha.SHUKLA) }
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)) {
         item {
-            Text("टाइल, विजेट आणि पंचांगावर दाखवायचे दिवस · चालू/बंद करण्यासाठी टॅप करा", color = tokens.fgDim, fontSize = 13.sp)
-            SectionTitle("महत्त्वाचे दिवस")
+            Text(PanchangText.SETTINGS_NOTE.of(lang), color = tokens.fgDim, fontSize = 13.sp)
+            SectionTitle(PanchangText.LANGUAGE.of(lang))
+            Text(PanchangText.LANGUAGE_NOTE.of(lang), color = tokens.fgDim, fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                PanchangLanguage.entries.forEach { l ->
+                    Pill(l.nativeName, settings.language == l, accent, tokens) { PanchangPrefs.setLanguage(context, l) }
+                }
+            }
+            SectionTitle(PanchangText.IMPORTANT_DAYS.of(lang))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 PanchangObservances.HIGHLIGHTS.forEach { h ->
                     val on = h.id in settings.highlights
-                    Pill(h.name, on, accent, tokens) {
+                    Pill(h.nameIn(lang), on, accent, tokens) {
                         PanchangPrefs.update(context) { it.copy(highlights = if (on) it.highlights - h.id else it.highlights + h.id) }
                     }
                 }
             }
-            SectionTitle("सण")
-            Pill("हिंदू सण दाखवा", settings.festivals, accent, tokens) {
+            SectionTitle(PanchangText.GROUP_FESTIVALS.of(lang))
+            Pill(PanchangText.SHOW_FESTIVALS.of(lang), settings.festivals, accent, tokens) {
                 PanchangPrefs.update(context) { it.copy(festivals = !settings.festivals) }
             }
-            SectionTitle("ग्रहण")
-            Pill("सूर्य व चंद्र ग्रहण दाखवा", settings.grahan, accent, tokens) {
+            SectionTitle(PanchangText.GROUP_GRAHAN.of(lang))
+            Pill(PanchangText.SHOW_GRAHAN.of(lang), settings.grahan, accent, tokens) {
                 PanchangPrefs.update(context) { it.copy(grahan = !settings.grahan) }
             }
-            SectionTitle("तुमची तिथी")
-            Text("दर महिन्याला, सूर्योदयाच्या तिथीनुसार", color = tokens.fgDim, fontSize = 12.sp)
+            SectionTitle(PanchangText.YOUR_TITHI.of(lang))
+            Text(PanchangText.YOUR_TITHI_NOTE.of(lang), color = tokens.fgDim, fontSize = 12.sp)
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(Paksha.SHUKLA to "शुक्ल", Paksha.KRISHNA to "कृष्ण", null to "दोन्ही").forEach { (value, label) ->
+                listOf(Paksha.SHUKLA to PanchangNames.pakshaShort(lang, Paksha.SHUKLA), Paksha.KRISHNA to PanchangNames.pakshaShort(lang, Paksha.KRISHNA), null to PanchangText.BOTH.of(lang)).forEach { (value, label) ->
                     Pill(label, paksha == value, accent, tokens) { paksha = value }
                 }
             }
@@ -475,7 +488,7 @@ private fun HighlightSettingsPage(settings: ObservanceSettings, accent: Color, t
                 (1..15).forEach { n ->
                     val key = PanchangObservances.customKey(paksha, n)
                     val on = key in settings.customTithis
-                    Pill(PanchangDevanagari.digits(n), on, accent, tokens) {
+                    Pill(PanchangNames.digits(lang, n), on, accent, tokens) {
                         PanchangPrefs.update(context) { it.copy(customTithis = if (on) it.customTithis - key else it.customTithis + key) }
                     }
                 }
@@ -485,7 +498,7 @@ private fun HighlightSettingsPage(settings: ObservanceSettings, accent: Color, t
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     settings.customTithis.sorted().forEach { key ->
                         val (p, t) = PanchangObservances.parseCustomKey(key) ?: return@forEach
-                        Pill("${PanchangObservances.customName(p, t).first}  ×", true, accent, tokens) {
+                        Pill("${PanchangObservances.customName(p, t, lang).first}  ×", true, accent, tokens) {
                             PanchangPrefs.update(context) { it.copy(customTithis = it.customTithis - key) }
                         }
                     }
@@ -509,9 +522,7 @@ private fun Empty(text: String, tokens: ColorTokens) {
 @Composable
 private fun Note(tokens: ColorTokens) {
     Text(
-        "तिथी सूर्योदयाला, संकष्टी चंद्रोदयाला आणि सण त्यांच्या नेहमीच्या वेळी पाहिले जातात. अधिक मासात सण दाखवले जात नाहीत. " +
-            "ग्रहणाच्या वेळा तुमच्या ठिकाणानुसार आहेत (मांद्य चंद्रग्रहण दाखवले जात नाही). " +
-            "तुमच्या स्थानिक पंचांगापेक्षा एखाद्या दिवसाचा फरक असू शकतो.",
+        PanchangText.FOOTNOTE.of(LocalPanchangLanguage.current),
         color = tokens.fgDim,
         fontSize = 11.sp,
         lineHeight = 16.sp,
@@ -521,6 +532,7 @@ private fun Note(tokens: ColorTokens) {
 
 @Composable
 private fun DayRow(date: String, list: List<Observance>, tokens: ColorTokens, dark: Boolean, past: Boolean) {
+    val lang = LocalPanchangLanguage.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 7.dp).graphicsLayer { alpha = if (past) 0.45f else 1f },
         verticalAlignment = Alignment.CenterVertically,
@@ -528,7 +540,7 @@ private fun DayRow(date: String, list: List<Observance>, tokens: ColorTokens, da
         Column(modifier = Modifier.weight(1f)) {
             list.forEach { o ->
                 Text(o.name, color = if (o.festival) gold(dark) else tokens.fg, fontSize = 15.sp)
-                grahanDetail(o)?.let { Text(it, color = tokens.fgDim, fontSize = 12.sp) }
+                grahanDetail(o, lang)?.let { Text(it, color = tokens.fgDim, fontSize = 12.sp) }
             }
         }
         Text(date, color = tokens.fgDim, fontSize = 13.sp)
@@ -536,12 +548,12 @@ private fun DayRow(date: String, list: List<Observance>, tokens: ColorTokens, da
 }
 
 /** "स्पर्श ७:१२ · मोक्ष ९:३४" when seen here, else "येथे दिसणार नाही". */
-private fun grahanDetail(o: Observance): String? {
+private fun grahanDetail(o: Observance, lang: PanchangLanguage): String? {
     val e = o.eclipse ?: return null
     val start = e.visibleStart
     val end = e.visibleEnd
-    if (start == null || end == null) return "येथे दिसणार नाही"
-    return "स्पर्श ${formatClockTime12Devanagari(start)} · मोक्ष ${formatClockTime12Devanagari(end)}"
+    if (start == null || end == null) return PanchangText.NOT_VISIBLE.of(lang)
+    return "${PanchangText.CONTACT.of(lang)} ${formatClockTime12Panchang(start, lang)} · ${PanchangText.RELEASE.of(lang)} ${formatClockTime12Panchang(end, lang)}"
 }
 
 @Composable
