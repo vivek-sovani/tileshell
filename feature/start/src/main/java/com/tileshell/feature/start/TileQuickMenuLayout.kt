@@ -34,12 +34,17 @@ internal fun quickMenuSlots(
     val side = min(count, sideCap)
     val out = ArrayList<Offset>(count)
     val sideX = if (rightFits) tile.right + gap else tile.left - gap - item
+    // The column moves as one: when the tile is near the bottom edge it shifts up whole, never squashing its items together.
+    val columnTop = tile.top.coerceAtMost(maxY - (side * step - gap)).coerceAtLeast(minY)
     for (i in 0 until side) {
-        out += Offset(sideX, (tile.top + i * step).coerceIn(minY, max(minY, maxY - item)))
+        out += Offset(sideX, columnTop + i * step)
     }
     val rest = count - side
     if (rest > 0) {
-        val perRow = floor((screenW - 2 * margin + gap) / step).toInt().coerceIn(1, 4)
+        // Rows stop short of the side column (whichever side it is on), so the two never overlap.
+        val rowLeft = if (side > 0 && !rightFits) sideX + item + gap else margin
+        val rowRight = if (side > 0 && rightFits) sideX - gap else screenW - margin
+        val perRow = floor((rowRight - rowLeft + gap) / step).toInt().coerceIn(1, 4)
         val rows = ceil(rest / perRow.toFloat()).toInt()
         val blockHeight = rows * step - gap
         val below = tile.bottom + gap
@@ -49,7 +54,7 @@ internal fun quickMenuSlots(
             val col = k % perRow
             val inRow = min(perRow, rest - row * perRow)
             val rowWidth = inRow * step - gap
-            val startX = tile.left.coerceIn(margin, max(margin, screenW - margin - rowWidth))
+            val startX = tile.left.coerceIn(rowLeft, max(rowLeft, rowRight - rowWidth))
             out += Offset(startX + col * step, startY + row * step)
         }
     }

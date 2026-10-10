@@ -36,11 +36,11 @@ class TileQuickMenuLayoutTest {
     }
 
     @Test
-    fun `a tile at the bottom puts the row above it`() {
+    fun `a tile at the bottom puts the rows above it`() {
         val tile = Rect(20f, 640f, 190f, 780f)
         val s = slots(tile, 6)
-        val rowY = s.drop(3).map { it.y }.distinct().single()
-        assertTrue(rowY + item < tile.top)
+        // Two in the side column, the other four in rows, all above the tile.
+        s.drop(2).forEach { assertTrue(it.y + item <= tile.top) }
     }
 
     @Test
@@ -49,6 +49,28 @@ class TileQuickMenuLayoutTest {
         slots(tile, 6).forEach {
             assertTrue(it.x >= margin && it.x + item <= 400f - margin)
             assertTrue(it.y >= margin && it.y + item <= 800f - margin)
+        }
+    }
+
+    @Test
+    fun `a side column near the bottom shifts up whole, never overlapping`() {
+        // The navigation bar leaves the screen's usable bottom at 730; the tile (150px tall) starts at 640.
+        val tile = Rect(20f, 640f, 190f, 790f)
+        val s = quickMenuSlots(tile, 2, 400f, 800f, item, gap, margin, bottomInset = 60f)
+        assertEquals(2, s.size)
+        assertEquals(s[0].x, s[1].x, 0.01f)
+        assertEquals(item + gap, s[1].y - s[0].y, 0.01f)
+        assertTrue(s[1].y + item <= 730f + 0.01f)
+    }
+
+    @Test
+    fun `a row never runs into the side column`() {
+        // A narrow-ish tile whose three-wide row would be wider than the tile itself.
+        val tile = Rect(20f, 300f, 130f, 400f)
+        val s = slots(tile, 5)
+        val sideX = s[0].x
+        s.drop(1).filter { it.y > tile.bottom || it.y + item < tile.top }.forEach {
+            assertTrue(it.x + item <= sideX - gap + 0.01f)
         }
     }
 

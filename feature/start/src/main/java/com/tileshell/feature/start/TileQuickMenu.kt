@@ -77,7 +77,7 @@ private class QuickAction(
 /**
  * The quick-action cluster that opens on a long press of a Start tile: the app's own shortcuts (compose, search, …,
  * up to two), then size and colour (their pickers open directly), edit (edit mode with this tile selected), app info and unpin, as small accent tiles
- * beside the tile while the rest of Start dims. Its own composable (not inline in `StartScreen`) because that layout
+ * beside the tile while the rest of Start dims. A folder tile gets "open folder" first and "ungroup" instead of unpin. Its own composable (not inline in `StartScreen`) because that layout
  * lambda is near the register limit.
  */
 @Composable
@@ -90,17 +90,27 @@ internal fun TileQuickMenuLayer(
 ) {
     val request by viewModel.tileMenu.collectAsState()
     val req = request ?: return
-    val tile = tiles.firstOrNull { it.id == req.tileId } as? TileModel.App
+    val tile = tiles.firstOrNull { it.id == req.tileId }
     if (tile == null) {
         LaunchedEffect(req) { viewModel.closeTileMenu() }
         return
     }
     BackHandler { viewModel.closeTileMenu() }
     val context = LocalContext.current
-    val shortcuts by produceState(emptyList<AppEntry>(), tile.packageName) {
-        value = if (tile.packageName.isBlank()) emptyList() else viewModel.appShortcuts(tile.packageName).take(2)
+    val app = tile as? TileModel.App
+    val packageName = app?.packageName.orEmpty()
+    val shortcuts by produceState(emptyList<AppEntry>(), packageName) {
+        value = if (packageName.isBlank()) emptyList() else viewModel.appShortcuts(packageName).take(2)
     }
+    val expandedFolderId by viewModel.expandedFolderId.collectAsState()
     val actions = buildList {
+        if (tile is TileModel.Folder) {
+            val open = expandedFolderId == tile.id
+            add(QuickAction("folder", if (open) "close folder" else "open folder", TileIcons["folder"]) {
+                viewModel.closeTileMenu()
+                viewModel.toggleFolder(tile.id)
+            })
+        }
         shortcuts.forEach { entry ->
             add(
                 QuickAction("shortcut:${entry.activityName}", entry.label, shortcut = entry) {
@@ -123,26 +133,37 @@ internal fun TileQuickMenuLayer(
                 viewModel.enterTileEdit(tile.id)
             })
         }
-        if (tile.packageName.isNotBlank()) {
+        if (packageName.isNotBlank()) {
             add(QuickAction("info", "app info", TileIcons["settings"]) {
                 viewModel.closeTileMenu()
                 runCatching {
                     context.startActivity(
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", tile.packageName, null))
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null))
                             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
                     )
                 }
             })
         }
         if (!lockLayout) {
-            add(QuickAction("unpin", "unpin", TileIcons["unpin"]) {
-                viewModel.closeTileMenu()
-                viewModel.unpin(tile.id)
-            })
+            if (tile is TileModel.Folder) {
+                // Every app in the folder goes back to Start as its own tile; nothing is lost.
+                add(QuickAction("ungroup", "ungroup", TileIcons["unpin"]) {
+                    viewModel.closeTileMenu()
+                    viewModel.unfoldFolder(tile.id)
+                })
+            } else {
+                add(QuickAction("unpin", "unpin", TileIcons["unpin"]) {
+                    viewModel.closeTileMenu()
+                    viewModel.unpin(tile.id)
+                })
+            }
         }
     }
-    val accent = TileAccents.colorForOverride(tile.accentOverride, accentId).takeIf { tile.accentOverride != null }
-        ?: TileAccents.forId(accentId)
+    val override = when (tile) {
+        is TileModel.App -> tile.accentOverride
+        is TileModel.Folder -> tile.accentOverride
+    }
+    val accent = if (override != null) TileAccents.colorForOverride(override, accentId) else TileAccents.forId(accentId)
     TileQuickMenu(
         bounds = Rect(req.left, req.top, req.right, req.bottom),
         actions = actions,
