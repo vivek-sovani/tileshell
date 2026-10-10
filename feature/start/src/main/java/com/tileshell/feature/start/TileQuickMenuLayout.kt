@@ -41,14 +41,22 @@ internal fun quickMenuSlots(
     }
     val rest = count - side
     if (rest > 0) {
-        // Rows stop short of the side column (whichever side it is on), so the two never overlap.
-        val rowLeft = if (side > 0 && !rightFits) sideX + item + gap else margin
-        val rowRight = if (side > 0 && rightFits) sideX - gap else screenW - margin
-        val perRow = floor((rowRight - rowLeft + gap) / step).toInt().coerceIn(1, 4)
-        val rows = ceil(rest / perRow.toFloat()).toInt()
-        val blockHeight = rows * step - gap
+        fun perRowFor(left: Float, right: Float) = floor((right - left + gap) / step).toInt().coerceIn(1, 4)
+        var rowLeft = margin
+        var rowRight = screenW - margin
+        var perRow = perRowFor(rowLeft, rowRight)
+        var blockHeight = ceil(rest / perRow.toFloat()).toInt() * step - gap
         val below = tile.bottom + gap
-        val startY = if (below + blockHeight <= maxY) below else (tile.top - gap - blockHeight).coerceAtLeast(minY)
+        fun startYFor(height: Float) = if (below + height <= maxY) below else (tile.top - gap - height).coerceAtLeast(minY)
+        var startY = startYFor(blockHeight)
+        // Rows above the tile (no room below) can run into a side column that was shifted up: then they stop short of it.
+        val columnBottom = columnTop + side * step - gap
+        if (side > 0 && startY + blockHeight > columnTop && startY < columnBottom) {
+            if (rightFits) rowRight = sideX - gap else rowLeft = sideX + item + gap
+            perRow = perRowFor(rowLeft, rowRight)
+            blockHeight = ceil(rest / perRow.toFloat()).toInt() * step - gap
+            startY = startYFor(blockHeight)
+        }
         for (k in 0 until rest) {
             val row = k / perRow
             val col = k % perRow

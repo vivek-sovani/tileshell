@@ -233,7 +233,7 @@ internal fun NotificationFaceContent(
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                     NotificationTitle(item, look, FaceText, look.badgeRoom)
-                    NotificationBody(item, look, FaceText.copy(alpha = 0.78f))
+                    NotificationBody(item, look, FaceText)
                 }
             }
         } else {
@@ -243,7 +243,7 @@ internal fun NotificationFaceContent(
             ) {
                 Column {
                     NotificationTitle(item, look, FaceText, look.badgeRoom)
-                    NotificationBody(item, look, FaceText.copy(alpha = 0.78f))
+                    NotificationBody(item, look, FaceText)
                 }
                 NotificationFooter(packageName, look, FaceText, homeStyle, iconShape, themedIcons)
             }
@@ -272,25 +272,26 @@ internal data class NotificationLook(
             val oneRow = size.rows <= 1
             val narrow = size.narrowLive
             val rows = size.rows / liveScale.coerceAtLeast(1f)
-            val titleSp = if (narrow) 13f else 16f
-            val bodySp = if (narrow) 11f else 13f
+            // News-style hierarchy: the sender is a small label, the message is the text that fills the tile.
             return NotificationLook(
                 oneRow = oneRow,
                 narrow = narrow,
                 padding = if (narrow) 8.dp else 12.dp,
-                titleSp = if (oneRow) 14f else titleSp,
-                bodySp = if (oneRow) 12f else bodySp,
+                titleSp = if (narrow || oneRow) 11f else 12f,
+                bodySp = if (narrow) 13f else if (oneRow) 13f else 15f,
                 labelSp = if (narrow) 11f else 13f,
-                titleLines = if (oneRow) 1 else if (rows >= 3f) 3 else 2,
+                titleLines = 1,
                 bodyLines = when {
                     oneRow -> 1
-                    rows < 2.2f -> 3
-                    rows < 2.7f -> 4
-                    rows < 3.5f -> 7
-                    else -> 12
+                    // A 1-column tile wraps every few letters, so it gets fewer lines than its height suggests.
+                    narrow -> (size.rows * 2 - 1).coerceAtLeast(1)
+                    rows < 2.2f -> 5
+                    rows < 2.7f -> 6
+                    rows < 3.5f -> 9
+                    else -> 14
                 },
                 badgeRoom = if (narrow) 0.dp else 24.dp,
-                topRoom = if (narrow) 16.dp else 0.dp,
+                topRoom = if (narrow) 20.dp else 0.dp,
             )
         }
     }
@@ -300,9 +301,10 @@ internal data class NotificationLook(
 private fun NotificationTitle(item: ConversationItem, look: NotificationLook, color: Color, endPadding: Dp = 0.dp) {
     Text(
         text = item.sender.ifBlank { "someone" },
-        color = color,
+        color = color.copy(alpha = 0.78f),
         fontSize = look.titleSp.sp,
-        lineHeight = (look.titleSp + 5).sp,
+        fontWeight = FontWeight.SemiBold,
+        lineHeight = (look.titleSp + 4).sp,
         maxLines = look.titleLines,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier.padding(end = endPadding),
@@ -316,10 +318,10 @@ private fun NotificationBody(item: ConversationItem, look: NotificationLook, col
         text = item.snippet,
         color = color,
         fontSize = look.bodySp.sp,
-        lineHeight = (look.bodySp + 4).sp,
+        lineHeight = (look.bodySp + 5).sp,
         maxLines = look.bodyLines,
         overflow = TextOverflow.Ellipsis,
-        modifier = Modifier.padding(top = 3.dp),
+        modifier = Modifier.padding(top = 2.dp),
     )
 }
 
@@ -392,7 +394,7 @@ private fun NotificationPhotoFace(
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
                     NotificationTitle(item, look, Color.White, look.badgeRoom)
-                    NotificationBody(item, look, Color.White.copy(alpha = 0.85f))
+                    NotificationBody(item, look, Color.White)
                 }
             }
         } else {
@@ -402,7 +404,7 @@ private fun NotificationPhotoFace(
             ) {
                 Column {
                     NotificationTitle(item, look, Color.White, look.badgeRoom)
-                    NotificationBody(item, look, Color.White.copy(alpha = 0.85f))
+                    NotificationBody(item, look, Color.White)
                 }
                 NotificationFooter(packageName, look, Color.White, homeStyle, iconShape, themedIcons)
             }

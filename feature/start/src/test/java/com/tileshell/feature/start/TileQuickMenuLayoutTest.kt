@@ -64,13 +64,19 @@ class TileQuickMenuLayoutTest {
     }
 
     @Test
-    fun `a row never runs into the side column`() {
-        // A narrow-ish tile whose three-wide row would be wider than the tile itself.
-        val tile = Rect(20f, 300f, 130f, 400f)
-        val s = slots(tile, 5)
-        val sideX = s[0].x
-        s.drop(1).filter { it.y > tile.bottom || it.y + item < tile.top }.forEach {
-            assertTrue(it.x + item <= sideX - gap + 0.01f)
+    fun `no two mini tiles ever overlap`() {
+        val tiles = listOf(
+            Rect(20f, 200f, 190f, 370f), Rect(20f, 640f, 190f, 790f), Rect(300f, 100f, 395f, 195f),
+            Rect(210f, 640f, 390f, 790f), Rect(5f, 300f, 395f, 460f), Rect(20f, 300f, 130f, 400f),
+        )
+        for (tile in tiles) for (count in 1..10) {
+            val s = quickMenuSlots(tile, count, 400f, 800f, item, gap, margin, bottomInset = 60f)
+            assertEquals(count, s.size)
+            for (i in s.indices) for (j in i + 1 until s.size) {
+                val overlaps = s[i].x < s[j].x + item && s[j].x < s[i].x + item &&
+                    s[i].y < s[j].y + item && s[j].y < s[i].y + item
+                assertTrue("tile=$tile count=$count: slot $i overlaps slot $j", !overlaps)
+            }
         }
     }
 
