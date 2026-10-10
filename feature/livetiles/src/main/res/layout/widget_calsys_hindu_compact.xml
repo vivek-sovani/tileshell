@@ -22,53 +22,79 @@
     android:inAnimation="@android:anim/fade_in"
     android:outAnimation="@android:anim/fade_out">
 
-    <LinearLayout
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="vertical"
-        android:gravity="center"
-        android:padding="6dp">
+        android:layout_height="match_parent">
 
-        <ImageView
-            android:id="@+id/widget_icon"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:layout_marginBottom="4dp"
-            android:src="@drawable/ic_widget_moonphase" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:gravity="center"
+            android:padding="6dp">
 
+            <ImageView
+                android:id="@+id/widget_icon"
+                android:layout_width="30dp"
+                android:layout_height="30dp"
+                android:layout_marginBottom="4dp"
+                android:src="@drawable/ic_widget_moonphase" />
+
+            <TextView
+                android:id="@+id/widget_vara"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="15sp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/widget_tithi_number"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textSize="30sp"
+                android:fontFamily="sans-serif-light"
+                android:includeFontPadding="false"
+                android:maxLines="1"
+                android:gravity="center"
+                android:textColor="#FFFFFFFF" />
+
+            <TextView
+                android:id="@+id/widget_paksha"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:textSize="12sp"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:gravity="center"
+                android:textColor="#FFE2A200" />
+
+        </LinearLayout>
+
+        <!-- The day's highlighted tithi / festival (PanchangObservances); GONE
+             on ordinary days. Front face only — the back never shows it. Sits under the
+             gear, padded clear of it. -->
         <TextView
-            android:id="@+id/widget_vara"
-            android:layout_width="wrap_content"
+            android:id="@+id/widget_observance"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:textSize="15sp"
+            android:layout_gravity="bottom"
+            android:background="#FFE2A200"
+            android:paddingStart="10dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="34dp"
+            android:paddingBottom="3dp"
+            android:textSize="10sp"
+            android:textStyle="bold"
             android:maxLines="1"
             android:ellipsize="end"
-            android:gravity="center"
-            android:textColor="#FFFFFFFF" />
+            android:textColor="#FF3A2600"
+            android:visibility="gone" />
 
-        <TextView
-            android:id="@+id/widget_tithi_number"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:textSize="30sp"
-            android:fontFamily="sans-serif-light"
-            android:includeFontPadding="false"
-            android:maxLines="1"
-            android:gravity="center"
-            android:textColor="#FFFFFFFF" />
-
-        <TextView
-            android:id="@+id/widget_paksha"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="2dp"
-            android:textSize="12sp"
-            android:maxLines="2"
-            android:ellipsize="end"
-            android:gravity="center"
-            android:textColor="#FFE2A200" />
-
-    </LinearLayout>
+    </FrameLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
@@ -167,25 +193,6 @@
     </LinearLayout>
 
 </ViewFlipper>
-
-    <!-- The day's highlighted tithi / festival (PanchangObservances); GONE
-         on ordinary days. Sits under the gear, padded clear of it. -->
-    <TextView
-        android:id="@+id/widget_observance"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:background="#FFE2A200"
-        android:paddingStart="10dp"
-        android:paddingTop="3dp"
-        android:paddingEnd="34dp"
-        android:paddingBottom="3dp"
-        android:textSize="10sp"
-        android:textStyle="bold"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:textColor="#FF3A2600"
-        android:visibility="gone" />
 
     <ImageView
         android:id="@+id/widget_settings"

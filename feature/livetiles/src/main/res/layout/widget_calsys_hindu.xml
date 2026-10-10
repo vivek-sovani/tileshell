@@ -27,79 +27,105 @@
     android:outAnimation="@android:anim/fade_out">
 
     <!-- Front: devanagari. -->
-    <LinearLayout
+    <FrameLayout
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:orientation="horizontal"
-        android:gravity="center_vertical"
-        android:padding="12dp">
-
-        <ImageView
-            android:id="@+id/widget_icon"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
-            android:layout_marginEnd="10dp"
-            android:src="@drawable/ic_widget_moonphase" />
+        android:layout_height="match_parent">
 
         <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:gravity="center_vertical"
+            android:padding="12dp">
 
-            <TextView
-                android:id="@+id/widget_vara"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:textSize="18sp"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#FFFFFFFF" />
+            <ImageView
+                android:id="@+id/widget_icon"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:layout_marginEnd="10dp"
+                android:src="@drawable/ic_widget_moonphase" />
 
-            <!-- The tithi as a big number, like a calendar's day of month. -->
-            <TextView
-                android:id="@+id/widget_tithi_number"
-                android:layout_width="match_parent"
+            <LinearLayout
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:textSize="38sp"
-                android:fontFamily="sans-serif-light"
-                android:includeFontPadding="false"
-                android:maxLines="1"
-                android:textColor="#FFFFFFFF" />
+                android:layout_weight="1"
+                android:orientation="vertical">
 
-            <TextView
-                android:id="@+id/widget_paksha"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textSize="15sp"
-                android:maxLines="2"
-                android:ellipsize="end"
-                android:textColor="#FFE2A200" />
+                <TextView
+                    android:id="@+id/widget_vara"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="18sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="#FFFFFFFF" />
 
-            <TextView
-                android:id="@+id/widget_nakshatra"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:textSize="13sp"
-                android:maxLines="2"
-                android:ellipsize="end"
-                android:textColor="#FFFFFFFF" />
+                <!-- The tithi as a big number, like a calendar's day of month. -->
+                <TextView
+                    android:id="@+id/widget_tithi_number"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:textSize="38sp"
+                    android:fontFamily="sans-serif-light"
+                    android:includeFontPadding="false"
+                    android:maxLines="1"
+                    android:textColor="#FFFFFFFF" />
 
-            <TextView
-                android:id="@+id/widget_roman"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:textSize="12sp"
-                android:maxLines="1"
-                android:ellipsize="end"
-                android:textColor="#FFFFFFFF" />
+                <TextView
+                    android:id="@+id/widget_paksha"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:textSize="15sp"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    android:textColor="#FFE2A200" />
+
+                <TextView
+                    android:id="@+id/widget_nakshatra"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:textSize="13sp"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    android:textColor="#FFFFFFFF" />
+
+                <TextView
+                    android:id="@+id/widget_roman"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:textSize="12sp"
+                    android:maxLines="1"
+                    android:ellipsize="end"
+                    android:textColor="#FFFFFFFF" />
+
+            </LinearLayout>
 
         </LinearLayout>
 
-    </LinearLayout>
+        <!-- The day's highlighted tithi / festival (PanchangObservances); GONE
+             on ordinary days. Front face only — the back never shows it. Sits under
+             the gear, padded clear of it. -->
+        <TextView
+            android:id="@+id/widget_observance"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="#FFE2A200"
+            android:paddingStart="10dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="34dp"
+            android:paddingBottom="3dp"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:textColor="#FF3A2600"
+            android:visibility="gone" />
+
+    </FrameLayout>
 
     <!-- Back (user-requested: no moon picture, text laid out better):
          ayana heading, a sun column and a moon column side by side, the
@@ -222,25 +248,6 @@
     </LinearLayout>
 
 </ViewFlipper>
-
-    <!-- The day's highlighted tithi / festival (PanchangObservances); GONE
-         on ordinary days. Sits under the gear, padded clear of it. -->
-    <TextView
-        android:id="@+id/widget_observance"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom"
-        android:background="#FFE2A200"
-        android:paddingStart="10dp"
-        android:paddingTop="3dp"
-        android:paddingEnd="34dp"
-        android:paddingBottom="3dp"
-        android:textSize="12sp"
-        android:textStyle="bold"
-        android:maxLines="1"
-        android:ellipsize="end"
-        android:textColor="#FF3A2600"
-        android:visibility="gone" />
 
     <ImageView
         android:id="@+id/widget_settings"
