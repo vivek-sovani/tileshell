@@ -1673,7 +1673,7 @@ fun StartScreen(
                         // A top-level app tile, folder or widget stack gets the cluster (an inline-expanded folder
                         // child keeps long-press-to-edit).
                         val top = tiles.firstOrNull { it.id == tile.id }
-                        if (settings.tileQuickMenu && (top is TileModel.App || top is TileModel.Folder)) {
+                        if (settings.tileQuickMenu && (top is TileModel.App || top is TileModel.Folder || parseFolderChildId(tile.id) != null)) {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             viewModel.openTileMenu(TileMenuRequest(tile.id, bounds.left, bounds.top, bounds.right, bounds.bottom))
                             true
@@ -2773,7 +2773,7 @@ private fun folderChildTileId(folderId: String, rowId: Long): String =
     "$FOLDER_CHILD_ID_PREFIX$folderId:$rowId"
 
 /** Reverses [folderChildTileId], or null if [id] isn't a synthetic child id. */
-private fun parseFolderChildId(id: String): Pair<String, Long>? {
+internal fun parseFolderChildId(id: String): Pair<String, Long>? {
     if (!id.startsWith(FOLDER_CHILD_ID_PREFIX)) return null
     val rest = id.removePrefix(FOLDER_CHILD_ID_PREFIX)
     val sep = rest.lastIndexOf(':')

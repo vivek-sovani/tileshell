@@ -90,15 +90,19 @@ internal fun TileQuickMenuLayer(
 ) {
     val request by viewModel.tileMenu.collectAsState()
     val req = request ?: return
+    val childRef = parseFolderChildId(req.tileId)?.let { (folderId, rowId) ->
+        (tiles.firstOrNull { it.id == folderId } as? TileModel.Folder)
+            ?.children?.firstOrNull { it.rowId == rowId }?.let { folderId to it }
+    }
     val tile = tiles.firstOrNull { it.id == req.tileId }
-    if (tile == null) {
+    if (tile == null && childRef == null) {
         LaunchedEffect(req) { viewModel.closeTileMenu() }
         return
     }
     BackHandler { viewModel.closeTileMenu() }
     val context = LocalContext.current
     val app = tile as? TileModel.App
-    val packageName = app?.packageName.orEmpty()
+    val packageName = app?.packageName ?: childRef?.second?.packageName.orEmpty()
     val shortcuts by produceState(emptyList<AppEntry>(), packageName) {
         value = if (packageName.isBlank()) emptyList() else viewModel.appShortcuts(packageName).take(2)
     }
@@ -123,15 +127,15 @@ internal fun TileQuickMenuLayer(
         if (!lockLayout) {
             add(QuickAction("size", "size", TileIcons["widgets"]) {
                 viewModel.closeTileMenu()
-                viewModel.requestTilePicker(TilePickerRequest(tile.id, TilePickerKind.SIZE))
+                viewModel.requestTilePicker(TilePickerRequest(req.tileId, TilePickerKind.SIZE))
             })
             add(QuickAction("colour", "colour", TileIcons["palette"]) {
                 viewModel.closeTileMenu()
-                viewModel.requestTilePicker(TilePickerRequest(tile.id, TilePickerKind.COLOR))
+                viewModel.requestTilePicker(TilePickerRequest(req.tileId, TilePickerKind.COLOR))
             })
             add(QuickAction("edit", "edit", TileIcons["edit"]) {
                 viewModel.closeTileMenu()
-                viewModel.enterTileEdit(tile.id)
+                viewModel.enterTileEdit(req.tileId)
             })
         }
         if (packageName.isNotBlank()) {
@@ -152,10 +156,16 @@ internal fun TileQuickMenuLayer(
                     viewModel.closeTileMenu()
                     viewModel.unfoldFolder(tile.id)
                 })
+            } else if (childRef != null) {
+                // The app leaves the folder and goes back to Start as its own tile.
+                add(QuickAction("take out", "take out", TileIcons["unpin"]) {
+                    viewModel.closeTileMenu()
+                    viewModel.removeFolderChild(childRef.first, childRef.second)
+                })
             } else {
                 add(QuickAction("unpin", "unpin", TileIcons["unpin"]) {
                     viewModel.closeTileMenu()
-                    viewModel.unpin(tile.id)
+                    viewModel.unpin(req.tileId)
                 })
             }
         }
@@ -163,6 +173,7 @@ internal fun TileQuickMenuLayer(
     val override = when (tile) {
         is TileModel.App -> tile.accentOverride
         is TileModel.Folder -> tile.accentOverride
+        null -> childRef?.second?.accentOverride
     }
     val accent = if (override != null) TileAccents.colorForOverride(override, accentId) else TileAccents.forId(accentId)
     TileQuickMenu(
