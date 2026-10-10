@@ -438,16 +438,14 @@ private fun PeopleAppIcon(app: PeopleApp, color: Color) {
             )
         }
         if (app.badge > 0) {
-            Text(
-                text = if (app.badge > 99) "99+" else app.badge.toString(),
-                color = Color(0xFF0A0A0D),
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(color)
-                    .padding(horizontal = 4.dp),
+            // The tile face is the glyph colour on the tile's own fill, so the badge
+            // is a dark circle ringed in that colour (WP style, like Start's badge).
+            OutlinedCountBadge(
+                count = app.badge,
+                ring = color,
+                fill = Color(0xFF111111),
+                modifier = Modifier.align(Alignment.TopEnd),
+                diameter = 16.dp,
             )
         }
     }

@@ -354,16 +354,11 @@ private fun AppCell(
         Box(modifier = Modifier.size(46.dp), contentAlignment = Alignment.Center) {
             if (icon != null) Image(bitmap = icon, contentDescription = null, modifier = Modifier.size(40.dp))
             if (app.badge > 0 && !editing) {
-                Text(
-                    text = if (app.badge > 99) "99+" else app.badge.toString(),
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(accent)
-                        .padding(horizontal = 5.dp),
+                OutlinedCountBadge(
+                    count = app.badge,
+                    ring = tokens.fg,
+                    fill = tokens.bg,
+                    modifier = Modifier.align(Alignment.TopEnd),
                 )
             }
             if (editing) {
