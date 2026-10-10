@@ -371,7 +371,7 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
                 Text(
                     "TileShell's Accessibility Service is used for one narrow purpose only: " +
                     "locking the screen (the lock tile in the Quick Panel), opening recent " +
-                    "apps (edge strip), and opening the system notification shade " +
+                    "apps (dock), and opening the system notification shade " +
                     "(swipe down from the left screen edge). It never reads your screen " +
                     "content, other apps, or keystrokes.\n\n" +
                     "Separately from Accessibility — and only if you grant each permission — " +

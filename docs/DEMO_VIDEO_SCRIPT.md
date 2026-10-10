@@ -30,7 +30,7 @@ your own voice — they're a scaffold, not a teleprompter script.
 8. Android widgets
 9. App list
 10. Quick search
-11. Edge strip
+11. Dock
 12. Personalization
 13. Backup & restore
 14. Screen lock
@@ -225,11 +225,11 @@ each with a pending notification, so all three badge styles are visible.
 
 ---
 
-## 11. Edge strip
+## 11. Dock
 *Runtime: ~20–25s*
 
-**Setup:** Have the edge strip enabled with a few apps pinned to it
-(Personalize → edge strip), if it isn't already.
+**Setup:** Have the dock enabled with a few apps pinned to it
+(Personalize → dock), if it isn't already.
 
 **Beats:**
 - Point at the bar along the bottom of Start. *"A quick-launch bar always

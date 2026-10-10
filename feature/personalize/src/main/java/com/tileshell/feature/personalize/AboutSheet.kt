@@ -222,7 +222,7 @@ fun AboutSheet(
                             ),
                         )
                         FeatureGroup(
-                            title = "edge strip",
+                            title = "dock",
                             accent = accent,
                             tokens = tokens,
                             items = listOf(
@@ -232,7 +232,7 @@ fun AboutSheet(
                                 "tap an app to launch it; unread badge shows pending notifications",
                                 "collapses to a thin sliver — tap the handle to expand or collapse",
                                 "configure handle size (thin / thick) and background from personalize",
-                                "pin or remove apps from the strip in personalize → edge strip",
+                                "pin or remove apps from the dock in personalize → dock",
                             ),
                         )
                     }
@@ -451,7 +451,7 @@ fun AboutSheet(
                                 "tile corner radius slider and gradient fill option",
                                 "font style: outfit (default), nunito, or system",
                                 "grid columns — pack 4, 5, or 6 tiles into a row",
-                                "edge strip — choose which apps appear, handle style, and background",
+                                "dock — choose which apps appear, handle style, and background",
                                 "lock layout — long-pressing a tile stops opening edit mode, so nothing moves by accident",
                                 "set tileshell as your default launcher right from personalize's system group",
                                 "turn live tiles off as one master switch — clock/weather/notification flipping pauses, badges and counts keep updating",

@@ -1188,7 +1188,7 @@ fun PersonalizeSheet(
                             }
                         }
                         // ---- edge strip ----
-                        SettingGroup(label = "edge strip", tokens.fgDim) {
+                        SettingGroup(label = "dock", tokens.fgDim) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -1197,9 +1197,9 @@ fun PersonalizeSheet(
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = "edge strip", color = tokens.fg, fontSize = 14.sp)
+                                    Text(text = "dock", color = tokens.fg, fontSize = 14.sp)
                                     Text(
-                                        text = if (edgeStripEnabled) "enabled · tap to configure" else "optional shortcut strip at a screen edge",
+                                        text = if (edgeStripEnabled) "enabled · tap to configure" else "optional quick-launch dock at the bottom of the screen",
                                         color = tokens.fgDim,
                                         fontSize = 12.sp,
                                     )

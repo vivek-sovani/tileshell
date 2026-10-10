@@ -137,7 +137,7 @@ fun EdgeStripSheet(
                 )
 
                 Text(
-                    text = "edge strip",
+                    text = "dock",
                     color = tokens.fg,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.W300,
@@ -161,9 +161,9 @@ fun EdgeStripSheet(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("enable edge strip", color = tokens.fg, fontSize = 15.sp)
+                                Text("enable dock", color = tokens.fg, fontSize = 15.sp)
                                 Text(
-                                    "shortcuts at the screen edge, auto-hides when not in use",
+                                    "quick-launch shortcuts at the bottom of the screen, auto-hides when not in use",
                                     color = tokens.fgDim, fontSize = 12.sp,
                                 )
                             }
@@ -288,7 +288,7 @@ fun EdgeStripSheet(
                         if (selectedApps.isNotEmpty()) {
                             item(key = "order_header") {
                                 Text(
-                                    "strip order",
+                                    "dock order",
                                     color = tokens.fgDim,
                                     fontSize = 13.sp,
                                     modifier = Modifier.padding(

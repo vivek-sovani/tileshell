@@ -233,7 +233,7 @@ cert SHA-256 1a904ad5…), keyboard left out. Permissions new since 4.5.0:
    4. Tap **"Go to Settings"**, open Android's Accessibility list, tap TileShell and read its
       description aloud on screen, turn it **on**, accept Android's own permission prompt.
    5. **Show each action working**: back in TileShell, Quick Panel → "lock screen" (screen
-      locks, unlock with fingerprint); edge strip's recents button (recent apps open);
+      locks, unlock with fingerprint); dock's recents button (recent apps open);
       swipe down along the **left** screen edge (system notification shade opens).
       The right-edge swipe opens TileShell's own Quick Panel and does not use the service.
    6. Show it can be **turned off**: Settings → Accessibility → TileShell → off.
