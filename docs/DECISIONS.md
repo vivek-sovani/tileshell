@@ -11778,3 +11778,14 @@ change. Tiles reuse the monochrome plate path (`MaskedAppIcon`, square, 44dp, `g
 renderer, so the plate follows the accent and "monochrome icons" keeps controlling glyph tint. Letter headers become
 outlined accent squares as in the reference. Follow-up: the plate always uses (independent of the tile colour source, per the user) the icon's most common saturated hue (hue-bucket mode,
 not the mean, which muddies multi-colour logos) and the badge is an outlined circle on the tile corner.
+
+## Live tile flip: whole tile, global camera (supersedes the S20 per-face flip)
+Tester feedback with two videos of real Lumias. S20's `FlipTile` rotated only the face inside the tile (plate static,
+camera per tile via `cameraDistance`). A real WP flip turns the whole tile (plate included) and every tile is seen from
+the same eye, so tiles near the edges lean toward the middle of the screen. Compose's `graphicsLayer` can't do this (its
+camera always sits on the layer's own pivot, and the 3D translation needed to move the pivot to the screen centre can't be
+applied before projection), so `tileFlip` draws the tile content through an explicit 4x4 (translate-to-eye · perspective ·
+translate · rotateX · translate-to-centre) via `withTransform`. Past 90° the turn continues as `rotation − 180°`, equivalent
+to the old counter-rotated back face. Compose's `Matrix.translate`/`rotateX` compose in different orders, so the matrix is
+multiplied by hand. Camera distance 4 screen heights (2 looked too skewed beside the videos); 0.4 s timing measured from
+the video (flat → edge-on ≈ 0.15 s → settled ≈ 0.35 s).

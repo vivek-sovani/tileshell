@@ -1,7 +1,6 @@
 package com.tileshell.feature.livetiles
 
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -9,27 +8,30 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import kotlinx.coroutines.delay
 
-/** Prototype flip easing: `cubic-bezier(.5,.05,.2,1)` over 500 ms (styles.css). */
-private val FlipEasing = CubicBezierEasing(0.5f, 0.05f, 0.2f, 1f)
-private const val FLIP_DURATION_MS = 500
+/** Flip easing: quick off the mark, settling at the end — about 0.4 s end to end, as timed from a real Lumia. */
+private val FlipEasing = CubicBezierEasing(0.42f, 0f, 0.3f, 1f)
+private const val FLIP_DURATION_MS = 400
 
 /**
- * A live tile that turns between a [front] and a [back] face on an X-axis 3D
- * flip (FR-2). [flipped] drives the half-turn: the container rotates 0°→180°,
- * the front shows for the first quarter-turn and the back — counter-rotated so
- * it reads upright — for the second. `cameraDistance` keeps the perspective
- * shallow so the turn reads like the WP tile rather than a steep page-fold.
+ * A live tile that turns between a [front] and a [back] face (FR-2), the way a
+ * Windows Phone tile does: the *whole tile* (plate, outline and face) turns
+ * about its horizontal centre line, seen by one camera at the middle of the
+ * screen — a global perspective, not one per tile (see [tileFlip]). [flipped]
+ * drives the half-turn: the front shows for the first quarter-turn and the back
+ * — upright — for the second.
  *
- * (The HTML prototype fakes this with a vertical slide because CSS 3D backface
- * was unreliable; Compose handles the real rotation, so we use it — closer to
- * the actual Windows Phone flip. See docs/DECISIONS.md S20.)
+ * Inside a `TileView` (which provides a [TileFlipHost] around the whole tile)
+ * this only drives the host's rotation and swaps the faces; with no host (a
+ * glance card, a preview) it turns its own box instead.
  */
 @Composable
 fun FlipTile(
@@ -38,26 +40,26 @@ fun FlipTile(
     back: @Composable BoxScope.() -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val rotation by animateFloatAsState(
-        targetValue = if (flipped) 180f else 0f,
-        animationSpec = tween(FLIP_DURATION_MS, easing = FlipEasing),
-        label = "flip",
-    )
-    Box(
-        modifier = modifier.graphicsLayer {
-            rotationX = rotation
-            cameraDistance = 16f * density
-        },
-    ) {
-        if (rotation <= 90f) {
+    val provided = LocalTileFlipHost.current
+    val host = provided ?: remember { TileFlipHost() }
+    // The first composition snaps to its face (a tile that appears already
+    // flipped must not spin); every later change turns.
+    var settled by remember { mutableStateOf(false) }
+    LaunchedEffect(flipped) {
+        val target = if (flipped) 180f else 0f
+        if (!settled) {
+            settled = true
+            host.rotation.snapTo(target)
+        } else {
+            host.rotation.animateTo(target, tween(FLIP_DURATION_MS, easing = FlipEasing))
+        }
+    }
+    val showBack by remember(host) { derivedStateOf { host.rotation.value > 90f } }
+    Box(modifier = if (provided == null) modifier.tileFlip(host) else modifier) {
+        if (!showBack) {
             Box(modifier = Modifier.fillMaxSize(), content = front)
         } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { rotationX = 180f },
-                content = back,
-            )
+            Box(modifier = Modifier.fillMaxSize(), content = back)
         }
     }
 }

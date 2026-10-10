@@ -295,7 +295,10 @@ import com.tileshell.feature.livetiles.openAppPermissionSettings
 import com.tileshell.feature.livetiles.regionDisplayName
 import com.tileshell.feature.livetiles.rememberBatteryOptimizationExempt
 import com.tileshell.feature.livetiles.rememberContactPhotoUri
+import com.tileshell.feature.livetiles.LocalTileFlipHost
+import com.tileshell.feature.livetiles.TileFlipHost
 import com.tileshell.feature.livetiles.rememberFlipState
+import com.tileshell.feature.livetiles.tileFlip
 import com.tileshell.feature.livetiles.rememberLiveTilesActive
 import com.tileshell.feature.livetiles.rememberNotificationAccess
 import com.tileshell.feature.livetiles.rememberPermissionGranted
@@ -5278,6 +5281,7 @@ internal fun TileView(
         targetValue = if (dragging) 1f else 0f,
         label = "tileElevation",
     )
+    val flipHost = remember { TileFlipHost() }
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -5288,6 +5292,10 @@ internal fun TileView(
                 rotationZ = if (editMode && !dragging) (if (index % 2 == 0) jigglePhase() else -jigglePhase()) else 0f
                 shadowElevation = elevation * 18.dp.toPx()
             }
+            // A live tile's flip turns the whole tile (plate, outline, face) under one
+            // global camera — drawn here, outside everything below, so the fill and
+            // clip turn with the face. See tileFlip / FlipTile.
+            .tileFlip(flipHost)
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
             .then(if (editMode || readOnly) Modifier else Modifier.tiltOnPress())
             // No drop shadow here — tried and removed (see DECISIONS.md
@@ -5424,83 +5432,85 @@ internal fun TileView(
                 }
             },
     ) {
-        when {
-            tile is TileModel.Folder && isExpanded -> FolderExpandedPlaceholder(
-                name = tile.name,
-                onRename = onRenameFolder,
-            )
-            tile is TileModel.App -> LiveFaceScale(tile.size, tile.iconKey) {
-                AppTileContent(
-                    tile,
-                    flipped = flipped,
-                    liveActive = liveActive,
-                    interactive = !editMode && !readOnly,
-                    homeStyle = homeStyle,
-                    iconShape = iconShape,
-                    themedIcons = themedIcons,
-                    stockRefreshRate = stockRefreshRate,
-                    commodityRefreshRate = commodityRefreshRate,
-                    sportsRefreshRate = sportsRefreshRate,
+        CompositionLocalProvider(LocalTileFlipHost provides flipHost) {
+            when {
+                tile is TileModel.Folder && isExpanded -> FolderExpandedPlaceholder(
+                    name = tile.name,
+                    onRename = onRenameFolder,
                 )
-            }
-            tile is TileModel.Folder ->
-                // A widget stack's own carousel face owns a swipe-to-flip gesture
-                // (right-edge zone) — skipped in the read-only preview in favour of
-                // the plain closed mini-grid, so nothing there can intercept the
-                // crop overlay's own drag/pinch.
-                if (tile.isStack && !readOnly) {
-                    StackTileContent(
-                        tile = tile,
-                        editMode = editMode,
-                        selected = selected,
+                tile is TileModel.App -> LiveFaceScale(tile.size, tile.iconKey) {
+                    AppTileContent(
+                        tile,
+                        flipped = flipped,
                         liveActive = liveActive,
-                        accent = accent,
+                        interactive = !editMode && !readOnly,
                         homeStyle = homeStyle,
                         iconShape = iconShape,
                         themedIcons = themedIcons,
                         stockRefreshRate = stockRefreshRate,
                         commodityRefreshRate = commodityRefreshRate,
                         sportsRefreshRate = sportsRefreshRate,
-                        appIconColors = appIconColors,
-                        glass = glass,
-                        transparency = transparency,
-                        tiledWallpaper = tiledWallpaper,
-                        borderless = borderless,
-                        darkTheme = darkTheme,
-                        wallpaper = wallpaper,
-                        wallpaperPhoto = wallpaperPhoto,
-                        wallpaperAlignX = wallpaperAlignX,
-                        wallpaperAlignY = wallpaperAlignY,
-                        wallpaperZoom = wallpaperZoom,
-                        wallpaperOrigin = wallpaperOrigin,
-                        fullWidth = fullWidth,
-                        fullHeight = fullHeight,
-                        notifications = notifications,
-                        onLaunchChild = onLaunchFolderChild,
-                        onEnterEdit = onLongPress,
-                    )
-                } else {
-                    FolderTileContent(
-                        tile = tile,
-                        editMode = editMode,
-                        launchEnabled = inlineFolderLaunch,
-                        appIconColors = appIconColors,
-                        wallpaperAccent = wallpaperAccent,
-                        glass = glass,
-                        transparency = transparency,
-                        darkTheme = darkTheme,
-                        tiledWallpaper = tiledWallpaper,
-                        borderless = borderless,
-                        notifications = notifications,
-                        homeStyle = homeStyle,
-                        iconShape = iconShape,
-                        themedIcons = themedIcons,
-                        onLaunchChild = onLaunchFolderChild,
-                        onOpenFolder = onTap,
-                        onEnterEdit = onLongPress,
                     )
                 }
-            else -> Unit
+                tile is TileModel.Folder ->
+                    // A widget stack's own carousel face owns a swipe-to-flip gesture
+                    // (right-edge zone) — skipped in the read-only preview in favour of
+                    // the plain closed mini-grid, so nothing there can intercept the
+                    // crop overlay's own drag/pinch.
+                    if (tile.isStack && !readOnly) {
+                        StackTileContent(
+                            tile = tile,
+                            editMode = editMode,
+                            selected = selected,
+                            liveActive = liveActive,
+                            accent = accent,
+                            homeStyle = homeStyle,
+                            iconShape = iconShape,
+                            themedIcons = themedIcons,
+                            stockRefreshRate = stockRefreshRate,
+                            commodityRefreshRate = commodityRefreshRate,
+                            sportsRefreshRate = sportsRefreshRate,
+                            appIconColors = appIconColors,
+                            glass = glass,
+                            transparency = transparency,
+                            tiledWallpaper = tiledWallpaper,
+                            borderless = borderless,
+                            darkTheme = darkTheme,
+                            wallpaper = wallpaper,
+                            wallpaperPhoto = wallpaperPhoto,
+                            wallpaperAlignX = wallpaperAlignX,
+                            wallpaperAlignY = wallpaperAlignY,
+                            wallpaperZoom = wallpaperZoom,
+                            wallpaperOrigin = wallpaperOrigin,
+                            fullWidth = fullWidth,
+                            fullHeight = fullHeight,
+                            notifications = notifications,
+                            onLaunchChild = onLaunchFolderChild,
+                            onEnterEdit = onLongPress,
+                        )
+                    } else {
+                        FolderTileContent(
+                            tile = tile,
+                            editMode = editMode,
+                            launchEnabled = inlineFolderLaunch,
+                            appIconColors = appIconColors,
+                            wallpaperAccent = wallpaperAccent,
+                            glass = glass,
+                            transparency = transparency,
+                            darkTheme = darkTheme,
+                            tiledWallpaper = tiledWallpaper,
+                            borderless = borderless,
+                            notifications = notifications,
+                            homeStyle = homeStyle,
+                            iconShape = iconShape,
+                            themedIcons = themedIcons,
+                            onLaunchChild = onLaunchFolderChild,
+                            onOpenFolder = onTap,
+                            onEnterEdit = onLongPress,
+                        )
+                    }
+                else -> Unit
+            }
         }
         // Per-app notification badge (FR-1.2). Top-right pill, count from the
         // notification listener; sized down on small tiles (prototype .badge).
