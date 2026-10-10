@@ -6803,7 +6803,14 @@ internal fun Modifier.tileGesture(
         when (outcome) {
             null -> {
                 onLongPress()
-                waitForUpOrCancellation()
+                // The long press is this tile's: swallow the rest of the gesture, in the first pass (before the children
+                // see it), so a link or button on the tile's face (the music tile's podcasts / radio rows) does not also
+                // read the release as a tap and open its hub.
+                while (true) {
+                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                    event.changes.forEach { it.consume() }
+                    if (event.changes.none { it.pressed }) break
+                }
             }
             true -> onTap()
             false -> Unit
