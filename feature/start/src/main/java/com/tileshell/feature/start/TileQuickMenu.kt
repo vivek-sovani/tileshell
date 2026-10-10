@@ -12,6 +12,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -71,6 +79,7 @@ import com.tileshell.core.design.TileIcons
 import com.tileshell.feature.livetiles.ConversationItem
 import com.tileshell.feature.livetiles.NotificationCenter
 import com.tileshell.feature.livetiles.QuickAction
+import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 private val MINI_TILE = 54.dp
@@ -140,44 +149,42 @@ internal fun TileQuickMenuLayer(
             pm.getApplicationLabel(pm.getApplicationInfo(packageName, 0)).toString()
         }.getOrDefault("")
     }
-    var replying by remember(req.tileId) { mutableStateOf<ConversationItem?>(null) }
-    val accentForReply = TileAccents.forId(accentId)
-    replying?.let { item ->
-        ReplyBar(
-            sender = item.sender.ifBlank { "someone" },
-            quote = item.fullText.ifBlank { item.snippet },
-            accent = accentForReply,
+    var expanded by remember(req) { mutableStateOf(false) }
+    var replyOpen by remember(req) { mutableStateOf(false) }
+    // The buttons the app put on this very notification: they live in its card, and act on its key.
+    fun offers(action: QuickAction) = target?.takeIf { action in it.quickActions }
+    val card = target?.let { item ->
+        CardModel(
+            item = item,
+            appLabel = appLabel,
+            canReply = offers(QuickAction.REPLY) != null,
+            canMarkRead = offers(QuickAction.MARK_READ) != null,
+            canArchive = offers(QuickAction.ARCHIVE) != null,
+            expanded = expanded,
+            replyOpen = replyOpen,
+            onToggleExpanded = { expanded = !expanded },
+            onToggleReply = { replyOpen = !replyOpen },
             onSend = { text ->
                 viewModel.closeTileMenu()
                 if (!NotificationCenter.performQuickAction(context, item.notificationKey, QuickAction.REPLY, text)) {
                     Toast.makeText(context, "couldn't send — open the app to reply", Toast.LENGTH_SHORT).show()
                 }
             },
-            onDismiss = { replying = null },
-        )
-        return
-    }
-    val actions = buildList {
-        fun itemFor(action: QuickAction) = target?.takeIf { action in it.quickActions }
-        itemFor(QuickAction.REPLY)?.let { item ->
-            add(MiniAction("reply", "reply", TileIcons["messages"]) { replying = item })
-        }
-        itemFor(QuickAction.MARK_READ)?.let { item ->
-            add(MiniAction("read", "mark read", TileIcons["check"]) {
+            onMarkRead = {
                 viewModel.closeTileMenu()
                 if (!NotificationCenter.performQuickAction(context, item.notificationKey, QuickAction.MARK_READ)) {
                     Toast.makeText(context, "couldn't mark as read — open the app", Toast.LENGTH_SHORT).show()
                 }
-            })
-        }
-        itemFor(QuickAction.ARCHIVE)?.let { item ->
-            add(MiniAction("archive", "archive", TileIcons["download"]) {
+            },
+            onArchive = {
                 viewModel.closeTileMenu()
                 if (!NotificationCenter.performQuickAction(context, item.notificationKey, QuickAction.ARCHIVE)) {
                     Toast.makeText(context, "couldn't archive — open the app", Toast.LENGTH_SHORT).show()
                 }
-            })
-        }
+            },
+        )
+    }
+    val actions = buildList {
         if (tile is TileModel.Folder) {
             val open = expandedFolderId == tile.id
             val noun = if (tile.isStack) "stack" else "folder"
@@ -250,19 +257,38 @@ internal fun TileQuickMenuLayer(
         bounds = Rect(req.left, req.top, req.right, req.bottom),
         actions = actions,
         accent = accent,
-        notification = target,
-        appLabel = appLabel,
+        card = card,
         onDismiss = viewModel::closeTileMenu,
     )
 }
+
+/** Everything the notification card shows and does (see [NotificationCard]). */
+private class CardModel(
+    val item: ConversationItem,
+    val appLabel: String,
+    val canReply: Boolean,
+    val canMarkRead: Boolean,
+    val canArchive: Boolean,
+    val expanded: Boolean,
+    val replyOpen: Boolean,
+    val onToggleExpanded: () -> Unit,
+    val onToggleReply: () -> Unit,
+    val onSend: (String) -> Unit,
+    val onMarkRead: () -> Unit,
+    val onArchive: () -> Unit,
+) {
+    val hasButtons get() = canReply || canMarkRead || canArchive
+}
+
+private val CARD_TEXT_HEIGHT = 118.dp
+private val CARD_BUTTON_ROW = 52.dp
 
 @Composable
 private fun TileQuickMenu(
     bounds: Rect,
     actions: List<MiniAction>,
     accent: Color,
-    notification: ConversationItem?,
-    appLabel: String,
+    card: CardModel?,
     onDismiss: () -> Unit,
 ) {
     var shown by remember { mutableStateOf(false) }
@@ -271,21 +297,33 @@ private fun TileQuickMenu(
     val density = LocalDensity.current
     val statusTop = WindowInsets.statusBars.getTop(density).toFloat()
     val navBottom = WindowInsets.navigationBars.getBottom(density).toFloat()
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    // imePadding: while replying the keyboard takes the bottom of the screen, and the card moves up to stay visible.
+    BoxWithConstraints(modifier = Modifier.fillMaxSize().imePadding()) {
         val item = with(density) { MINI_TILE.toPx() }
-        // The notification card sits on whichever half of the screen the tile is not in; the cluster keeps clear of it.
-        val cardHeight = if (notification != null) with(density) { NOTIFICATION_CARD_HEIGHT.toPx() } else 0f
-        val cardAtTop = bounds.center.y > constraints.maxHeight / 2f
-        val slots = quickMenuSlots(
+        val screenH = constraints.maxHeight.toFloat()
+        // The card sits right next to the tile. Collapsed it shows the first lines of the message and its buttons;
+        // expanded (or while replying) it grows to hold the whole message and the mini tiles step aside.
+        val collapsedHeight = CARD_TEXT_HEIGHT + 52.dp + if (card?.hasButtons == true) CARD_BUTTON_ROW else 0.dp
+        // Expanded: as tall as the message needs (about 30 characters a line), up to most of the screen.
+        val messageLines = card?.let { c ->
+            c.item.fullText.ifBlank { c.item.snippet }.split('\n').sumOf { ceil(it.length / 34f).toInt().coerceAtLeast(1) }
+        } ?: 0
+        val expandedHeight = (collapsedHeight + 23.dp * (messageLines - 3).coerceAtLeast(0))
+            .coerceAtMost(minOf(with(density) { (screenH * 0.58f).toDp() }, 460.dp))
+            .coerceAtLeast(collapsedHeight)
+        val cardHeightDp = if (card == null) 0.dp else if (card.expanded) expandedHeight else collapsedHeight
+        val tilesVisible = card == null || (!card.expanded && !card.replyOpen)
+        val plan = quickMenuPlan(
             tile = bounds,
-            count = actions.size,
+            count = if (tilesVisible) actions.size else 0,
+            cardHeight = with(density) { cardHeightDp.toPx() },
             screenW = constraints.maxWidth.toFloat(),
-            screenH = constraints.maxHeight.toFloat(),
+            screenH = screenH,
             item = item,
             gap = with(density) { MINI_GAP.toPx() },
             margin = with(density) { 10.dp.toPx() },
-            topInset = statusTop + if (cardAtTop) cardHeight else 0f,
-            bottomInset = navBottom + if (cardAtTop) 0f else cardHeight,
+            topInset = statusTop,
+            bottomInset = navBottom,
         )
         // Everything but the pressed tile dims; a tap on the dimmed part closes the cluster.
         Box(
@@ -298,33 +336,32 @@ private fun TileQuickMenu(
                 }
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
         )
-        if (notification != null) {
+        val cardRect = plan.card
+        if (card != null && cardRect != null) {
             NotificationCard(
-                item = notification,
-                appLabel = appLabel,
+                card = card,
                 accent = accent,
                 modifier = Modifier
-                    .align(if (cardAtTop) Alignment.TopCenter else Alignment.BottomCenter)
-                    .then(
-                        if (cardAtTop) Modifier.padding(top = with(density) { statusTop.toDp() } + 10.dp)
-                        else Modifier.padding(bottom = with(density) { navBottom.toDp() } + 10.dp),
-                    )
+                    .offset { IntOffset(cardRect.left.roundToInt(), cardRect.top.roundToInt()) }
+                    .size(width = with(density) { cardRect.width.toDp() }, height = cardHeightDp)
                     .graphicsLayer { alpha = progress },
             )
         }
-        actions.forEachIndexed { i, action ->
-            val at = slots.getOrNull(i) ?: return@forEachIndexed
-            MiniTile(
-                action = action,
-                accent = accent,
-                modifier = Modifier
-                    .offset { IntOffset(at.x.roundToInt(), at.y.roundToInt()) }
-                    .graphicsLayer {
-                        alpha = progress
-                        scaleX = 0.85f + 0.15f * progress
-                        scaleY = 0.85f + 0.15f * progress
-                    },
-            )
+        if (tilesVisible) {
+            actions.forEachIndexed { i, action ->
+                val at = plan.slots.getOrNull(i) ?: return@forEachIndexed
+                MiniTile(
+                    action = action,
+                    accent = accent,
+                    modifier = Modifier
+                        .offset { IntOffset(at.x.roundToInt(), at.y.roundToInt()) }
+                        .graphicsLayer {
+                            alpha = progress
+                            scaleX = 0.85f + 0.15f * progress
+                            scaleY = 0.85f + 0.15f * progress
+                        },
+                )
+            }
         }
     }
 }
@@ -366,101 +403,104 @@ private fun MiniTile(action: MiniAction, accent: Color, modifier: Modifier) {
     }
 }
 
-/** A one-line reply box over the dimmed Start: the sender, a text field and a send button. */
+/**
+ * The notification the cluster acts on, right next to the tile: its app, sender and message (the first lines, with
+ * "more" to read all of it), and the buttons the app put on it — reply (opens a text box inside the card), mark
+ * read, archive — so each one visibly belongs to this message.
+ */
 @Composable
-private fun ReplyBar(sender: String, quote: String, accent: Color, onSend: (String) -> Unit, onDismiss: () -> Unit) {
-    var text by remember { mutableStateOf("") }
+private fun NotificationCard(card: CardModel, accent: Color, modifier: Modifier) {
+    val message = card.item.fullText.ifBlank { card.item.snippet }
+    var overflowing by remember(card.item.notificationKey) { mutableStateOf(false) }
+    var reply by remember(card.item.notificationKey) { mutableStateOf("") }
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
-    BackHandler(onBack = onDismiss)
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color(0x99000000))
-            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onDismiss),
-    ) {
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .background(Color(0xFF1C1C21))
-                .navigationBarsPadding()
-                .imePadding()
-                .padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp)
-                .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text("replying to $sender", color = Color(0xB3FFFFFF), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                // The message being answered, so it is clear which notification the reply goes to.
-                if (quote.isNotBlank()) {
-                    Text(
-                        quote,
-                        color = Color(0x99FFFFFF),
-                        fontSize = 13.sp,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 2.dp, bottom = 2.dp),
-                    )
-                }
-                BasicTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    textStyle = TextStyle(color = Color.White, fontSize = 16.sp),
-                    cursorBrush = SolidColor(accent),
-                    modifier = Modifier.fillMaxWidth().focusRequester(focus).padding(vertical = 8.dp),
-                )
-            }
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(if (text.isBlank()) accent.copy(alpha = 0.4f) else accent)
-                    .clickable(enabled = text.isNotBlank()) { onSend(text.trim()) },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("send", color = Color.White, fontSize = 12.sp)
-            }
-        }
-    }
-}
-
-/** The notification the cluster acts on, shown large: its app, sender and the whole message. */
-@Composable
-private fun NotificationCard(item: ConversationItem, appLabel: String, accent: Color, modifier: Modifier) {
+    LaunchedEffect(card.replyOpen) { if (card.replyOpen) focus.requestFocus() }
     Row(
         modifier = modifier
-            .padding(horizontal = 10.dp)
-            .fillMaxWidth()
-            .size(width = Dp.Unspecified, height = NOTIFICATION_CARD_HEIGHT)
             .background(Color(0xFF1C1C21))
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
     ) {
-        Box(Modifier.size(width = 4.dp, height = NOTIFICATION_CARD_HEIGHT).background(accent))
-        Column(modifier = Modifier.weight(1f).padding(horizontal = 14.dp, vertical = 12.dp)) {
+        Box(Modifier.fillMaxHeight().width(4.dp).background(accent))
+        Column(modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
             Text(
-                text = appLabel.lowercase(),
+                text = card.appLabel.lowercase(),
                 color = Color(0x99FFFFFF),
                 fontSize = 11.sp,
                 maxLines = 1,
             )
             Text(
-                text = item.sender.ifBlank { "someone" },
+                text = card.item.sender.ifBlank { "someone" },
                 color = Color(0xCCFFFFFF),
                 fontSize = 13.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 2.dp),
             )
-            Text(
-                text = item.fullText.ifBlank { item.snippet },
-                color = Color.White,
-                fontSize = 18.sp,
-                lineHeight = 24.sp,
-                maxLines = 5,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = 4.dp),
-            )
+            // The message: a few lines when collapsed, the whole thing (scrolling if it is long) when expanded.
+            Box(modifier = Modifier.weight(1f).padding(top = 4.dp)) {
+                Text(
+                    text = message,
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    lineHeight = 23.sp,
+                    maxLines = if (card.expanded) Int.MAX_VALUE else 3,
+                    overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { if (!card.expanded) overflowing = it.hasVisualOverflow },
+                    modifier = if (card.expanded) Modifier.verticalScroll(rememberScrollState()) else Modifier,
+                )
+            }
+            if (overflowing || card.expanded) {
+                Text(
+                    text = if (card.expanded) "less ▴" else "more ▾",
+                    color = accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clickable(onClick = card.onToggleExpanded)
+                        .padding(vertical = 4.dp),
+                )
+            }
+            if (card.replyOpen && card.canReply) {
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.weight(1f).background(Color(0xFF2A2A31)).padding(horizontal = 10.dp, vertical = 10.dp)) {
+                        if (reply.isEmpty()) {
+                            Text("reply to ${card.item.sender.ifBlank { "someone" }}", color = Color(0x80FFFFFF), fontSize = 14.sp, maxLines = 1)
+                        }
+                        BasicTextField(
+                            value = reply,
+                            onValueChange = { reply = it },
+                            textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                            cursorBrush = SolidColor(accent),
+                            modifier = Modifier.fillMaxWidth().focusRequester(focus),
+                        )
+                    }
+                    CardButton("send", null, accent, enabled = reply.isNotBlank()) { card.onSend(reply.trim()) }
+                }
+            } else if (card.hasButtons) {
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
+                    if (card.canReply) CardButton("reply", TileIcons["messages"], accent, onClick = card.onToggleReply)
+                    if (card.canMarkRead) CardButton("mark read", TileIcons["check"], accent, onClick = card.onMarkRead)
+                    if (card.canArchive) CardButton("archive", TileIcons["download"], accent, onClick = card.onArchive)
+                }
+            }
         }
+    }
+}
+
+@Composable
+private fun CardButton(label: String, icon: ImageVector?, accent: Color, enabled: Boolean = true, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .height(38.dp)
+            .background(if (enabled) accent else accent.copy(alpha = 0.4f))
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (icon != null) {
+            Icon(icon, null, tint = Color.White, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+        }
+        Text(label, color = Color.White, fontSize = 13.sp)
     }
 }

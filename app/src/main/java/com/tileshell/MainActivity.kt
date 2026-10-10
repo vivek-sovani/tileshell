@@ -247,7 +247,7 @@ class MainActivity : ComponentActivity() {
             val now = System.currentTimeMillis()
             val gmail = "com.google.android.gm"
             val mail = listOf(
-                Triple("Ananya Kulkarni", "Q3 launch deck — final slides attached for review", 4L),
+                Triple("Ananya Kulkarni", "Q3 launch deck — final slides attached for review. Can you check the revenue slide and the roadmap before the 4 pm review? Priya also wants the churn numbers split by region, and Kabir needs the updated budget sheet by tomorrow morning.", 4L),
                 Triple("Rohan Mehta", "Flight to Bengaluru confirmed for Monday, 7:40 am", 38L),
                 Triple("Priya Nair", "Re: Saturday lunch — booked a table for six", 95L),
                 Triple("Kabir Shah", "Invoice #2041 paid, thanks!", 180L),

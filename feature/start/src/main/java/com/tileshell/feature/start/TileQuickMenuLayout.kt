@@ -68,3 +68,68 @@ internal fun quickMenuSlots(
     }
     return out
 }
+
+/** Where the cluster's pieces go: the mini-tiles' top-left corners and, when a notification is shown, its card. */
+internal data class QuickMenuPlan(val slots: List<Offset>, val card: Rect?)
+
+/**
+ * [quickMenuSlots] plus a notification card of [cardHeight] (0 = none) right next to [tile]: under it when the tile
+ * is in the upper half of the screen (above it otherwise, or wherever it fits), as wide as the screen. The
+ * mini-tiles then go in rows on the other side of the tile; when there is no room there they go beyond the card.
+ * Pure, so it is unit-tested.
+ */
+internal fun quickMenuPlan(
+    tile: Rect,
+    count: Int,
+    cardHeight: Float,
+    screenW: Float,
+    screenH: Float,
+    item: Float,
+    gap: Float,
+    margin: Float,
+    topInset: Float = 0f,
+    bottomInset: Float = 0f,
+): QuickMenuPlan {
+    if (cardHeight <= 0f) {
+        return QuickMenuPlan(quickMenuSlots(tile, count, screenW, screenH, item, gap, margin, topInset, bottomInset), null)
+    }
+    val step = item + gap
+    val minY = margin + topInset
+    val maxY = screenH - margin - bottomInset
+    val fitsBelow = tile.bottom + gap + cardHeight <= maxY
+    val fitsAbove = tile.top - gap - cardHeight >= minY
+    val preferBelow = tile.center.y < screenH / 2f
+    val cardBelow = when {
+        preferBelow && fitsBelow -> true
+        !preferBelow && fitsAbove -> false
+        fitsBelow -> true
+        fitsAbove -> false
+        else -> preferBelow
+    }
+    val rawTop = if (cardBelow) tile.bottom + gap else tile.top - gap - cardHeight
+    val cardTop = rawTop.coerceIn(minY, max(minY, maxY - cardHeight))
+    val card = Rect(margin, cardTop, screenW - margin, cardTop + cardHeight)
+    if (count <= 0) return QuickMenuPlan(emptyList(), card)
+
+    val perRow = floor((screenW - 2 * margin + gap) / step).toInt().coerceIn(1, 5)
+    val rows = ceil(count / perRow.toFloat()).toInt()
+    val rowsHeight = rows * step - gap
+    // The side of the tile away from the card, if the rows fit there; else beyond the card.
+    val oppositeTop = if (cardBelow) tile.top - gap - rowsHeight else tile.bottom + gap
+    val oppositeFits = if (cardBelow) oppositeTop >= minY else oppositeTop + rowsHeight <= maxY
+    val startY = when {
+        oppositeFits -> oppositeTop
+        cardBelow -> (card.bottom + gap).coerceAtMost(max(minY, maxY - rowsHeight))
+        else -> (card.top - gap - rowsHeight).coerceAtLeast(minY)
+    }
+    val slots = ArrayList<Offset>(count)
+    for (k in 0 until count) {
+        val row = k / perRow
+        val col = k % perRow
+        val inRow = min(perRow, count - row * perRow)
+        val rowWidth = inRow * step - gap
+        val startX = tile.left.coerceIn(margin, max(margin, screenW - margin - rowWidth))
+        slots += Offset(startX + col * step, startY + row * step)
+    }
+    return QuickMenuPlan(slots, card)
+}

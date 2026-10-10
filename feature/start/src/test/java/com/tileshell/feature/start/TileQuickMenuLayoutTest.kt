@@ -86,4 +86,42 @@ class TileQuickMenuLayoutTest {
         val s = slots(tile, 3)
         assertEquals(1, s.map { it.y }.distinct().size)
     }
+
+    private fun overlaps(a: Rect, b: Rect) = a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom
+
+    @Test
+    fun `the notification card sits next to the tile and nothing overlaps`() {
+        val tiles = listOf(
+            Rect(20f, 150f, 190f, 320f), Rect(20f, 500f, 190f, 670f), Rect(300f, 100f, 395f, 195f),
+            Rect(210f, 640f, 390f, 790f), Rect(5f, 300f, 395f, 460f),
+        )
+        for (tile in tiles) for (count in 0..8) {
+            val plan = quickMenuPlan(tile, count, 220f, 400f, 800f, item, gap, margin, bottomInset = 40f)
+            val card = plan.card!!
+            // Adjacent: touching distance from the tile (above or below), never on top of it.
+            assertTrue(!overlaps(card, tile))
+            assertTrue(card.top >= tile.bottom || card.bottom <= tile.top)
+            plan.slots.forEach { slot ->
+                val r = Rect(slot.x, slot.y, slot.x + item, slot.y + item)
+                assertTrue("count=$count tile=$tile: mini tile overlaps the card", !overlaps(r, card))
+                assertTrue("count=$count tile=$tile: mini tile overlaps the tile", !overlaps(r, tile))
+            }
+        }
+    }
+
+    @Test
+    fun `a tile in the upper half gets its card below it and the mini tiles above`() {
+        val tile = Rect(20f, 300f, 190f, 470f)
+        val plan = quickMenuPlan(tile, 3, 220f, 400f, 800f, item, gap, margin)
+        assertEquals(tile.bottom + gap, plan.card!!.top, 0.01f)
+        assertTrue(plan.slots.all { it.y + item <= tile.top })
+    }
+
+    @Test
+    fun `without a notification the plan is the plain cluster`() {
+        val tile = Rect(20f, 200f, 190f, 370f)
+        val plan = quickMenuPlan(tile, 5, 0f, 400f, 800f, item, gap, margin)
+        assertEquals(null, plan.card)
+        assertEquals(slots(tile, 5), plan.slots)
+    }
 }
