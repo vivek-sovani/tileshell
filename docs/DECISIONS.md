@@ -11789,3 +11789,11 @@ translate · rotateX · translate-to-centre) via `withTransform`. Past 90° the 
 to the old counter-rotated back face. Compose's `Matrix.translate`/`rotateX` compose in different orders, so the matrix is
 multiplied by hand. Camera distance 4 screen heights (2 looked too skewed beside the videos); 0.4 s timing measured from
 the video (flat → edge-on ≈ 0.15 s → settled ≈ 0.35 s).
+
+## Tile quick actions on long press (branch tile-quick-actions)
+From a WP10 screenshot (a mail tile with its actions as mini tiles around it). Optional, default off, so a long press
+keeps entering edit mode for everyone who doesn't opt in. Actions are the app's own launcher shortcuts plus a fixed
+set (customize, app info, unpin), not per-app hand-written ones; hubs and live tiles (blank package) get customize and
+unpin only. Folders, stacks and expanded folder children are left on long-press-to-edit: their long press already means
+something else (stack: open the folder overlay). The overlay is its own composable (the register limit in StartScreen's
+layout lambda), the dim is one offscreen layer with the pressed tile cut out (BlendMode.Clear) so the tile stays bright.

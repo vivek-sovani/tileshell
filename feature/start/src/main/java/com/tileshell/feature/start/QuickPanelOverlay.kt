@@ -168,6 +168,8 @@ fun QuickPanelOverlay(
     followSystemTheme: Boolean,
     onDismiss: () -> Unit,
     onOpenPersonalize: () -> Unit,
+    /** Enter Start's edit mode (long-press on a tile now opens quick actions instead). */
+    onEditStart: () -> Unit,
     onLockScreen: () -> Unit,
     onThemeChange: (Boolean) -> Unit,
     onFollowSystemThemeChange: (Boolean) -> Unit,
@@ -335,6 +337,7 @@ fun QuickPanelOverlay(
                 // otherwise Personalize would open underneath/behind the still-
                 // showing panel instead of over a normal Start backdrop.
                 onOpenPersonalize = { onDismiss(); onOpenPersonalize() },
+                onEditStart = { onDismiss(); onEditStart() },
             )
             // Persisted order/size (see quickPanelTileOrder/quickPanelTileSizes)
             // applied over the live, device-state-derived tile list; packed into
@@ -1018,6 +1021,7 @@ private fun quickPanelTiles(
     onThemeChange: (Boolean) -> Unit,
     onFollowSystemThemeChange: (Boolean) -> Unit,
     onOpenPersonalize: () -> Unit,
+    onEditStart: () -> Unit,
 ): List<QuickPanelTileSpec> = buildList {
     // Connectivity toggles.
     add(QuickPanelTileSpec(id = "wifi", icon = "wifi", label = "wifi", active = wifiOn, onClick = { openWifiSettings(context) }))
@@ -1112,6 +1116,13 @@ private fun quickPanelTiles(
         QuickPanelTileSpec(
             id = "home_settings", icon = "settings", label = "home settings", active = false,
             onClick = onOpenPersonalize,
+        ),
+    )
+    // Edit mode is no longer entered by pressing a tile (that opens its quick actions), so it is also here.
+    add(
+        QuickPanelTileSpec(
+            id = "edit_start", icon = "edit", label = "edit tiles", active = false,
+            onClick = onEditStart,
         ),
     )
 }

@@ -762,6 +762,25 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * every long-press/edit-mode entry routes through, so gating here blocks
      * all of them at once without touching each call site.
      */
+    // ---- tile quick actions (long press on a tile) ----
+
+    private val _tileMenu = MutableStateFlow<TileMenuRequest?>(null)
+
+    /** The tile whose quick-action cluster is open, with its on-screen bounds; null when closed. */
+    val tileMenu: StateFlow<TileMenuRequest?> = _tileMenu.asStateFlow()
+
+    fun openTileMenu(request: TileMenuRequest) {
+        _tileMenu.value = request
+    }
+
+    fun closeTileMenu() {
+        _tileMenu.value = null
+    }
+
+    /** The app's own launcher shortcuts (e.g. compose, search), for the quick-action cluster. */
+    suspend fun appShortcuts(packageName: String): List<com.tileshell.core.data.AppEntry> =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { catalogRepository.shortcutsFor(packageName) }
+
     fun enterEdit(tileId: String?) {
         if (settings.value.lockLayout) return
         _selectedTileId.value = tileId
@@ -1835,6 +1854,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { settingsRepository.setMonochromeIconTint(tint) }
     }
 
+    /** See [LauncherSettings.tileQuickMenu]'s doc comment. */
+    fun setTileQuickMenu(enabled: Boolean) {
+        viewModelScope.launch(writeContext) { settingsRepository.setTileQuickMenu(enabled) }
+    }
+
     /** See [LauncherSettings.appListStyle]'s doc comment. */
     fun setAppListStyle(style: AppListStyle) {
         viewModelScope.launch(writeContext) { settingsRepository.setAppListStyle(style) }
@@ -2286,6 +2310,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      * the top.
      */
     fun goHome() {
+        closeTileMenu()
         com.tileshell.feature.livetiles.PeopleHubNavigation.dismissQuickActions()
         closePersonalize()
         closeAbout()
@@ -3016,3 +3041,6 @@ sealed interface WeatherLocationTarget {
 
 /** Which location the weather hub is showing — see [StartViewModel.weatherHubTarget]. */
 data class WeatherHubTarget(val location: WeatherTile.Location?)
+
+/** A tile's quick-action cluster request: which tile, and its bounds in the root coordinate space (px). */
+data class TileMenuRequest(val tileId: String, val left: Float, val top: Float, val right: Float, val bottom: Float)

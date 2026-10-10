@@ -136,6 +136,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
@@ -1665,6 +1666,18 @@ fun StartScreen(
                     },
                     // In-edit tap on another tile switches the selection (no
                     // long-press haptic — it's a light tap, not a fresh lift).
+                    onOpenTileMenu = { tile, bounds ->
+                        // Only a top-level app tile gets the cluster (a folder, a widget stack and an inline-expanded
+                        // folder child keep long-press-to-edit).
+                        val top = tiles.firstOrNull { it.id == tile.id }
+                        if (settings.tileQuickMenu && top is TileModel.App) {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            viewModel.openTileMenu(TileMenuRequest(tile.id, bounds.left, bounds.top, bounds.right, bounds.bottom))
+                            true
+                        } else {
+                            false
+                        }
+                    },
                     onSelectTile = viewModel::enterEdit,
                     onExitEdit = viewModel::exitEdit,
                     onReorder = viewModel::reorder,
@@ -2103,6 +2116,13 @@ fun StartScreen(
             followSystemTheme = settings.followSystemTheme,
             onDismiss = viewModel::closeQuickPanel,
             onOpenPersonalize = viewModel::openPersonalize,
+            onEditStart = {
+                if (settings.lockLayout) {
+                    Toast.makeText(context, "layout is locked — unlock it in personalize to edit", Toast.LENGTH_SHORT).show()
+                } else {
+                    viewModel.enterEdit(null)
+                }
+            },
             onLockScreen = onLockScreen,
             onThemeChange = viewModel::setTheme,
             onFollowSystemThemeChange = viewModel::setFollowSystemTheme,
@@ -2156,6 +2176,9 @@ fun StartScreen(
         // and R8's register allocation then miscompiled it (VerifyError in
         // StartScreenKt at launch). See docs/DECISIONS.md.
         HubScreensLayer(viewModel, tiles, accentId = settings.accentId, dark = dark, isLandscape = isLandscape)
+
+        // Long-press quick actions on a tile. Its own composable, like the hubs: this lambda is near the register limit.
+        TileQuickMenuLayer(viewModel, tiles, accentId = settings.accentId, dark = dark, lockLayout = settings.lockLayout)
 
 
         // Build a name→packageNames map from the current tile list so CategoryFolderSheet
@@ -2913,6 +2936,9 @@ private fun StartPage(
     onChevron: () -> Unit,
     // Empty-space long-press passes null (enter edit with nothing selected).
     onEnterEdit: (String?) -> Unit,
+    // Long press on a tile: true when the tile's quick-action cluster opened (given the tile's bounds in the
+    // root), false to fall back to entering edit mode as before.
+    onOpenTileMenu: (TileModel, androidx.compose.ui.geometry.Rect) -> Boolean,
     onSelectTile: (String) -> Unit,
     onExitEdit: () -> Unit,
     onReorder: (List<String>) -> Unit,
@@ -3806,6 +3832,7 @@ private fun StartPage(
                 } else {
                     baseModel
                 }
+                val menuCoordinates = remember(model.id) { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.tileshell.feature.livetiles.LocalNotificationMuted provides (model.id in mutedNotificationTiles),
                 ) {
@@ -3832,6 +3859,8 @@ private fun StartPage(
                             with(density) { (livePreviewSizePx?.width ?: sizePx.width).toDp() },
                             with(density) { (livePreviewSizePx?.height ?: sizePx.height).toDp() },
                         )
+                        // After the offset and size above, so these are the tile's own bounds.
+                        .onGloballyPositioned { menuCoordinates[0] = it }
                         .then(
                             if (sizePickerFor == model.id) {
                                 Modifier.onGloballyPositioned { c ->
@@ -3894,7 +3923,12 @@ private fun StartPage(
                             onTile(model)
                         }
                     }
-                    val onLongPressAction = { if (!editMode) onEnterEdit(model.id) }
+                    val onLongPressAction = {
+                        if (!editMode) {
+                            val bounds = menuCoordinates[0]?.takeIf { it.isAttached }?.boundsInRoot()
+                            if (bounds == null || !onOpenTileMenu(model, bounds)) onEnterEdit(model.id)
+                        }
+                    }
                     val onSelectAction = { onSelectTile(model.id) }
                     val onUnpinAction = {
                         val ref = folderChildRef(model.id)
@@ -9731,6 +9765,12 @@ private fun PersonalizeSheetLayer(
         onAppListStyleChange = viewModel::setAppListStyle,
         lockLayout = settings.lockLayout,
         onLockLayoutChange = viewModel::setLockLayout,
+        onEditStart = {
+            viewModel.closePersonalize()
+            viewModel.enterEdit(null)
+        },
+        tileQuickMenu = settings.tileQuickMenu,
+        onTileQuickMenuChange = viewModel::setTileQuickMenu,
         hideStatusBar = settings.hideStatusBar,
         onHideStatusBarChange = viewModel::setHideStatusBar,
         doubleTapLock = settings.doubleTapLock,

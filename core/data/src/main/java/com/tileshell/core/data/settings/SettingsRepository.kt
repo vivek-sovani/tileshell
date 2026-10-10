@@ -397,6 +397,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(monochromeIconTint = tint) }
     }
 
+    /** See [LauncherSettings.tileQuickMenu]'s doc comment. */
+    suspend fun setTileQuickMenu(enabled: Boolean) {
+        store.updateData { it.copy(tileQuickMenu = enabled) }
+    }
+
     /** See [LauncherSettings.appListStyle]'s doc comment. */
     suspend fun setAppListStyle(style: AppListStyle) {
         store.updateData { it.copy(appListStyle = style) }
