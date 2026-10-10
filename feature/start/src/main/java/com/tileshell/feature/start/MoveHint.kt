@@ -24,10 +24,12 @@ val LocalTileOnlyEdit = staticCompositionLocalOf { false }
 
 /**
  * Called when a long press on a tile (which opened its quick actions) turns into a drag: starts move mode for this
- * tile and lets the edit-mode grid gesture carry on with the same finger. Returns false (nothing happens, the
- * cluster stays) when the layout is locked. Null where a tile has no such handover.
+ * tile and lets the edit-mode grid gesture carry on with the same finger. It is given where the finger first pressed,
+ * relative to the tile's top-left, so the tile can be held by that same point however far the finger has moved by the
+ * time the handover is done. Returns false (nothing happens, the cluster stays) when the layout is locked. Null where
+ * a tile has no such handover.
  */
-val LocalTileDragStart = staticCompositionLocalOf<(() -> Boolean)?> { null }
+val LocalTileDragStart = staticCompositionLocalOf<((Offset) -> Boolean)?> { null }
 
 /**
  * Tells the user the tile can be moved now: when [active] turns on, the tile lifts and pulses three times while a

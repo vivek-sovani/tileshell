@@ -808,10 +808,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         if (_editMode.value) _tileOnlyEdit.value = true
     }
 
-    private val _armedDrag = MutableStateFlow<String?>(null)
+    private val _armedDrag = MutableStateFlow<ArmedDrag?>(null)
 
     /** A tile whose long press turned into a drag: the edit-mode grid gesture takes over the finger that is still down. */
-    val armedDrag: StateFlow<String?> = _armedDrag.asStateFlow()
+    val armedDrag: StateFlow<ArmedDrag?> = _armedDrag.asStateFlow()
 
     private val _dragEntry = MutableStateFlow(false)
 
@@ -819,12 +819,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val dragEntry: StateFlow<Boolean> = _dragEntry.asStateFlow()
 
     /** Move mode for one tile, entered mid-gesture by dragging after a long press. False when the layout is locked. */
-    fun enterTileEditByDrag(tileId: String): Boolean {
+    fun enterTileEditByDrag(tileId: String, grab: androidx.compose.ui.geometry.Offset): Boolean {
         if (settings.value.lockLayout) return false
         closeTileMenu()
         enterTileEdit(tileId)
         if (!_editMode.value) return false
-        _armedDrag.value = tileId
+        _armedDrag.value = ArmedDrag(tileId, grab.x, grab.y)
         _dragEntry.value = true
         return true
     }
@@ -3101,3 +3101,6 @@ enum class TilePickerKind { COLOR, SIZE }
 
 /** Which picker to open for which tile (see [StartViewModel.tilePicker]). */
 data class TilePickerRequest(val tileId: String, val kind: TilePickerKind)
+
+/** A long-press drag waiting to be taken over: the tile, and where the finger first pressed it (px, from its top-left). */
+data class ArmedDrag(val tileId: String, val grabX: Float, val grabY: Float)

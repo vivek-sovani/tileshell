@@ -2956,10 +2956,10 @@ private fun StartPage(
     tileOnlyEditFlow: kotlinx.coroutines.flow.StateFlow<Boolean>,
     // Long press then drag: the tile whose drag the grid gesture should take over, whether move mode was entered that
     // way, and the callbacks to start it and to say the handover happened.
-    armedDragFlow: kotlinx.coroutines.flow.StateFlow<String?>,
+    armedDragFlow: kotlinx.coroutines.flow.StateFlow<ArmedDrag?>,
     dragEntryFlow: kotlinx.coroutines.flow.StateFlow<Boolean>,
     onArmedDragHandled: () -> Unit,
-    onDragFromLongPress: (String) -> Boolean,
+    onDragFromLongPress: (String, Offset) -> Boolean,
     onTilePickerHandled: () -> Unit,
     onSelectTile: (String) -> Unit,
     onExitEdit: () -> Unit,
@@ -3877,7 +3877,7 @@ private fun StartPage(
                 }
                 val menuCoordinates = remember(model.id) { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
                 // Stable per tile, so a recomposition during the long press does not restart the tile's gesture.
-                val dragStart = remember(model.id) { { onDragFromLongPress(model.id) } }
+                val dragStart = remember(model.id) { { grab: Offset -> onDragFromLongPress(model.id, grab) } }
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.tileshell.feature.livetiles.LocalNotificationMuted provides (model.id in mutedNotificationTiles),
                     LocalTileOnlyEdit provides tileOnlyEdit,
@@ -6799,7 +6799,7 @@ internal fun Modifier.tileGesture(
     onTap: () -> Unit,
     onLongPress: () -> Unit,
     // Once the long press has fired, a drag past a small slop hands the finger to move mode (see LocalTileDragStart).
-    onLongPressDrag: (() -> Boolean)? = null,
+    onLongPressDrag: ((Offset) -> Boolean)? = null,
 ): Modifier = composed {
     // The callbacks are read through State and the gesture is keyed on nothing: they are new lambdas on every
     // recomposition, and opening the quick actions recomposes the tile. With them as keys that restarted the gesture
@@ -6807,7 +6807,7 @@ internal fun Modifier.tileGesture(
     val currentTap by rememberUpdatedState(onTap)
     val currentLongPress by rememberUpdatedState(onLongPress)
     val currentLongPressDrag by rememberUpdatedState(onLongPressDrag)
-    pointerInput(Unit) { tileGestureLoop({ currentTap() }, { currentLongPress() }, { currentLongPressDrag?.invoke() }) }
+    pointerInput(Unit) { tileGestureLoop({ currentTap() }, { currentLongPress() }, { grab -> currentLongPressDrag?.invoke(grab) }) }
 }
 
 /**
@@ -6820,7 +6820,7 @@ internal fun Modifier.tileGesture(
 internal suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.swallowAfterLongPress(
     down: androidx.compose.ui.input.pointer.PointerInputChange,
     dragSlop: Float,
-    onDrag: () -> Boolean?,
+    onDrag: (Offset) -> Boolean?,
 ) {
     var handedOver = false
     while (true) {
@@ -6829,7 +6829,8 @@ internal suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.sw
         if (!handedOver && change != null && change.pressed &&
             (change.position - down.position).getDistance() > dragSlop
         ) {
-            handedOver = onDrag() == true
+            // Where the finger first pressed (tile-local), so the tile is held by that point after the handover.
+            handedOver = onDrag(down.position) == true
         }
         event.changes.forEach { it.consume() }
         if (event.changes.none { it.pressed }) break
@@ -6839,7 +6840,7 @@ internal suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.sw
 private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.tileGestureLoop(
     onTap: () -> Unit,
     onLongPress: () -> Unit,
-    onLongPressDrag: () -> Boolean?,
+    onLongPressDrag: (Offset) -> Boolean?,
 ) {
     val slop = 7.dp.toPx()
     awaitEachGesture {
@@ -6899,7 +6900,7 @@ private fun Modifier.editDragGesture(
     cornerButtons: Boolean = true,
     // The tile whose long press has just turned into a drag, with the finger still down: this gesture takes that
     // finger over (instead of waiting for a new press) and drags the tile at once.
-    armedDragId: () -> String? = { null },
+    armedDragId: () -> ArmedDrag? = { null },
     onArmedDragTaken: () -> Unit = {},
     onLift: (id: String, offset: IntOffset) -> Unit,
     onDrag: (offset: IntOffset) -> Unit,
@@ -7068,7 +7069,8 @@ private fun Modifier.editDragGesture(
 
     awaitEachGesture {
         // A long press that turned into a drag: carry on with that same finger.
-        val armedId = armedDragId()
+        val armed = armedDragId()
+        val armedId = armed?.tileId
         val down = if (armedId != null) {
             var taken: androidx.compose.ui.input.pointer.PointerInputChange? = null
             while (taken == null) {
@@ -7232,7 +7234,9 @@ private fun Modifier.editDragGesture(
                 lifted = true
                 val p0 = placementsNow().first { it.id == startId }
                 val r = geom.rect(p0)
-                grab = down.position - r.topLeft
+                // A long press that turned into a drag holds the tile by the point first pressed, not by wherever the
+                // finger has got to by the time this gesture took over (which can be well outside the tile).
+                grab = if (armed != null) Offset(armed.grabX, armed.grabY) else down.position - r.topLeft
                 val sz = geom.sizePx(p0)
                 dragHalf = Offset(sz.width / 2f, sz.height / 2f)
                 onLift(startId, (pos - grab).round())
@@ -8883,7 +8887,7 @@ private fun StackTileContent(
                                 null -> {
                                     enterEditRef.value()
                                     // A drag after the long press starts move mode, as on any other tile.
-                                    swallowAfterLongPress(down, 10.dp.toPx()) { dragStartRef.value?.invoke() }
+                                    swallowAfterLongPress(down, 10.dp.toPx()) { grab -> dragStartRef.value?.invoke(grab) }
                                 }
                                 0 -> launchCurrent.value()
                                 else -> Unit
