@@ -19,6 +19,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -83,6 +84,12 @@ internal data class MaskableAppIcon(
     val monochromeBitmap: ImageBitmap,
     /** The icon's dominant colour — the tile plate under "tile colour from app icon". */
     val dominantColor: Color? = null,
+    /**
+     * The colour surrounding the icon's picture: an adaptive icon's background where the OS mask's window meets its
+     * edge, a legacy icon's border (or a light / dark fallback when it has none). The square-tile plate in the app
+     * list's "tiles" style is this colour, with the original icon drawn on it ([SquareOriginalIcon]).
+     */
+    val surroundColor: Color = Color.White,
 )
 
 @Composable
@@ -113,6 +120,7 @@ internal fun rememberMaskableAppIcon(packageName: String, activityName: String):
                     if (isAdaptive) null else dominant,
                     monochromeIconBitmap(drawable, rawBitmap),
                     mostCommonHueColor(osBitmap) ?: dominant,
+                    surroundColor(osBitmap, rawBitmap, isAdaptive),
                 )
             }
             // An app shortcut publishes its own icon and has no resolvable
@@ -200,6 +208,101 @@ private fun IconShape.toShape(): Shape? = when (this) {
     IconShape.ROUNDED -> RoundedCornerShape(percent = 30)
     IconShape.SQUARE -> RectangleShape
     IconShape.ORIGINAL -> null
+}
+
+
+/**
+ * The colour around an icon's picture, from the ring of pixels at the edge of what is visible: for an adaptive icon the
+ * OS mask's window (the middle 72 of its 108 units) of the unmasked layers, for a legacy icon the bounding box of its
+ * opaque pixels. The most common colour on that ring (4 bits a channel, averaged) when the ring is mostly opaque
+ * (Google's icons: white); an icon with no border of its own (a logo on transparency) gets white, or a dark plate when
+ * its picture is itself light.
+ */
+private fun surroundColor(osBitmap: ImageBitmap, rawBitmap: ImageBitmap, adaptive: Boolean): Color {
+    val source = if (adaptive) rawBitmap else osBitmap
+    val w = source.width
+    val h = source.height
+    val px = IntArray(w * h)
+    runCatching { source.asAndroidBitmap().getPixels(px, 0, w, 0, 0, w, h) }.getOrElse { return Color.White }
+    var left: Int
+    var top: Int
+    var right: Int
+    var bottom: Int
+    if (adaptive) {
+        left = w / 6; top = h / 6; right = w - w / 6 - 1; bottom = h - h / 6 - 1
+    } else {
+        left = w; top = h; right = -1; bottom = -1
+        for (y in 0 until h) for (x in 0 until w) {
+            if ((px[y * w + x] ushr 24 and 0xff) >= 128) {
+                if (x < left) left = x
+                if (x > right) right = x
+                if (y < top) top = y
+                if (y > bottom) bottom = y
+            }
+        }
+        if (right < left || bottom < top) return Color.White
+    }
+    val counts = HashMap<Int, IntArray>() // bucket -> [n, r, g, b]
+    var ring = 0
+    var opaque = 0
+    fun take(x: Int, y: Int) {
+        ring++
+        val p = px[y.coerceIn(0, h - 1) * w + x.coerceIn(0, w - 1)]
+        if ((p ushr 24 and 0xff) < 200) return
+        opaque++
+        val r = p ushr 16 and 0xff
+        val g = p ushr 8 and 0xff
+        val b = p and 0xff
+        val c = counts.getOrPut((r shr 4 shl 8) or (g shr 4 shl 4) or (b shr 4)) { IntArray(4) }
+        c[0]++; c[1] += r; c[2] += g; c[3] += b
+    }
+    // Two pixels thick, just inside the window's edge.
+    for (inset in 1..2) {
+        for (x in left..right) { take(x, top + inset); take(x, bottom - inset) }
+        for (y in top..bottom) { take(left + inset, y); take(right - inset, y) }
+    }
+    if (ring > 0 && opaque >= ring * 0.6) {
+        val best = counts.values.maxByOrNull { it[0] }
+        if (best != null && best[0] > 0) return Color(best[1] / best[0], best[2] / best[0], best[3] / best[0])
+    }
+    // No border of its own: a light plate, or a dark one under a light picture.
+    var lum = 0.0
+    var n = 0
+    for (p in px) {
+        if ((p ushr 24 and 0xff) < 128) continue
+        lum += 0.299 * (p ushr 16 and 0xff) + 0.587 * (p ushr 8 and 0xff) + 0.114 * (p and 0xff)
+        n++
+    }
+    return if (n > 0 && lum / n > 170.0) Color(0xFF2A2A2E) else Color.White
+}
+
+/**
+ * The original icon, uncut and in its own colours, on a square plate of the colour around its picture (the app list's
+ * "tiles" style): an adaptive icon's layers cropped to the window the OS mask shows (so its content, which the
+ * platform keeps inside the middle 66 of 108 units, is never cut), a legacy icon whole.
+ */
+@Composable
+internal fun SquareOriginalIcon(loaded: MaskableAppIcon, size: Dp, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier.size(size).clipToBounds().background(loaded.surroundColor),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (loaded.isAdaptive) {
+            Image(
+                bitmap = loaded.unmaskedBitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(size).scale(1.5f),
+            )
+        } else {
+            Image(
+                bitmap = loaded.bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.size(size),
+            )
+        }
+    }
 }
 
 /**

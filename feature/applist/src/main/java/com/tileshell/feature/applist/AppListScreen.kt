@@ -481,20 +481,10 @@ private fun AppRow(
                     )
                 } else if (icon != null) {
                     if (appListStyle == AppListStyle.TILES) {
-                        // The prototype's `.app-tile`: a square 44dp accent plate
-                        // with the app's glyph on it (the monochrome plate path,
-                        // forced square and full row-slot size).
-                        MaskedAppIcon(
-                            loaded = icon,
-                            homeStyle = homeStyle,
-                            shape = IconShape.SQUARE,
-                            size = 44.dp,
-                            themedIcons = true,
-                            monochromeIconTint = if (themedIcons) monochromeIconTint else MonochromeIconTint.ACCENT,
-                            // Adaptive icons carry a safe-zone margin; the plate is the whole tile.
-                            glyphScale = 1.35f,
-                            plateColor = icon.dominantColor,
-                        )
+                        // The prototype's `.app-tile` as a square 44dp tile: the app's own icon, uncut and in its own
+                        // colours, on a plate of the colour around its picture (white for most of Google's) — not a
+                        // monochrome or accent-coloured glyph.
+                        SquareOriginalIcon(loaded = icon, size = 44.dp)
                     } else {
                         MaskedAppIcon(
                             loaded = icon,
