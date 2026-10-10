@@ -72,6 +72,7 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -137,6 +138,7 @@ import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalConfiguration
@@ -4639,6 +4641,8 @@ private fun StartPage(
                 // it the panel covers, but never so far that the tile's top leaves the screen.
                 LaunchedEffect(sizeTileTop, sizeTileBottom, sizePanelTop) {
                     if (sizeTileBottom.isNaN() || sizePanelTop.isNaN()) return@LaunchedEffect
+                    // The panel sits right under or above the tile when there is room: nothing to scroll then.
+                    if (sizePanelTop >= sizeTileBottom - 1f || sizePanelTop + sizePanelHeightPx <= sizeTileTop + 1f) return@LaunchedEffect
                     val margin = with(density) { 12.dp.toPx() }
                     val overlap = sizeTileBottom + margin - sizePanelTop
                     if (overlap > 1f) {
@@ -4652,6 +4656,8 @@ private fun StartPage(
                     sizeCandidate = null
                 }
                 TileSizeCellPicker(
+                    tileTop = sizeTileTop,
+                    tileBottom = sizeTileBottom,
                     onPanelBounds = { top, height ->
                         sizePanelTop = top
                         sizePanelHeightPx = height
@@ -4736,22 +4742,48 @@ private fun BoxScope.TileSizeCellPicker(
     onCandidate: (TileSize) -> Unit,
     onApply: () -> Unit,
     onCancel: () -> Unit,
+    // The tile being sized (root px, NaN until measured): the panel sits next to it when there is room.
+    tileTop: Float = Float.NaN,
+    tileBottom: Float = Float.NaN,
     onPanelBounds: (top: Float, heightPx: Int) -> Unit = { _, _ -> },
 ) {
+    var originY by remember { mutableStateOf(0f) }
+    var panelHeight by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    val screenH = LocalWindowInfo.current.containerSize.height.toFloat()
+    val nearTop = sizePanelTop(
+        tileTop = tileTop,
+        tileBottom = tileBottom,
+        panelHeight = panelHeight.toFloat(),
+        screenH = screenH,
+        topInset = WindowInsets.statusBars.getTop(density).toFloat(),
+        bottomInset = WindowInsets.navigationBars.getBottom(density).toFloat(),
+        gap = with(density) { 8.dp.toPx() },
+    )
     Box(
         modifier = Modifier
             .matchParentSize()
+            .onGloballyPositioned { originY = it.positionInRoot().y }
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onCancel),
     )
     // Kept small so the tile being sized stays on screen above it: a compact grid, a short label beside it, and the
     // two buttons in a full-width row below (a narrow side column squeezed their text out on a big display scale).
     Column(
         modifier = Modifier
-            .align(Alignment.BottomCenter)
+            .then(
+                if (nearTop != null) {
+                    Modifier.align(Alignment.TopStart).offset { IntOffset(0, (nearTop - originY).roundToInt()) }
+                } else {
+                    Modifier.align(Alignment.BottomCenter)
+                },
+            )
             .fillMaxWidth()
-            .onGloballyPositioned { c -> onPanelBounds(c.positionInRoot().y, c.size.height) }
+            .onGloballyPositioned { c ->
+                panelHeight = c.size.height
+                onPanelBounds(c.positionInRoot().y, c.size.height)
+            }
             .background(Color(0xFF1A1A1F))
-            .navigationBarsPadding()
+            .then(if (nearTop != null) Modifier else Modifier.navigationBarsPadding())
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
             .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 24.dp),
     ) {

@@ -133,3 +133,25 @@ internal fun quickMenuPlan(
     }
     return QuickMenuPlan(slots, card)
 }
+
+/**
+ * Where the size panel goes so it sits next to the tile being resized (root px for its top edge): right under the
+ * tile's current (previewed) size, else right above it; null when neither side has room, so the caller keeps it
+ * at the bottom of the screen. Pure, so it is unit-tested.
+ */
+internal fun sizePanelTop(
+    tileTop: Float,
+    tileBottom: Float,
+    panelHeight: Float,
+    screenH: Float,
+    topInset: Float,
+    bottomInset: Float,
+    gap: Float,
+): Float? {
+    if (tileTop.isNaN() || tileBottom.isNaN() || panelHeight <= 0f) return null
+    val below = tileBottom + gap
+    if (below + panelHeight <= screenH - bottomInset) return below
+    val above = tileTop - gap - panelHeight
+    if (above >= topInset) return above
+    return null
+}

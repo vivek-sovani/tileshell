@@ -124,4 +124,16 @@ class TileQuickMenuLayoutTest {
         assertEquals(null, plan.card)
         assertEquals(slots(tile, 5), plan.slots)
     }
+
+    @Test
+    fun `the size panel goes under the tile, else above it, else nowhere`() {
+        // Plenty of room below.
+        assertEquals(410f, sizePanelTop(200f, 400f, 300f, 1000f, 50f, 40f, 10f))
+        // Tile low on the screen: no room below, so above it.
+        assertEquals(390f, sizePanelTop(700f, 900f, 300f, 1000f, 50f, 40f, 10f))
+        // A tile as tall as the screen leaves no room either side.
+        assertEquals(null, sizePanelTop(60f, 950f, 300f, 1000f, 50f, 40f, 10f))
+        // Not measured yet.
+        assertEquals(null, sizePanelTop(Float.NaN, 400f, 300f, 1000f, 50f, 40f, 10f))
+    }
 }
