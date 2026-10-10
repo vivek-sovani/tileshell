@@ -133,13 +133,9 @@ fun PhotosTileFace(
 
     val photoFront: @Composable () -> Unit = {
         Box(modifier = Modifier.fillMaxSize()) {
-            // Cross-fade between photos (prototype .photoslab opacity .8s).
-            Crossfade(
-                targetState = index.coerceIn(0, uris.lastIndex),
-                animationSpec = tween(800),
-                label = "slide",
-                modifier = Modifier.fillMaxSize(),
-            ) { i ->
+            // The next photo rises from the bottom while the old one leaves through the top, like every tile that
+            // shows items one after another (see MessageSlide); it was a cross-fade before.
+            MessageSlide(index.coerceIn(0, uris.lastIndex)) { i ->
                 val bitmap = rememberTileBitmap(uris[i])
                 if (bitmap != null) {
                     Image(

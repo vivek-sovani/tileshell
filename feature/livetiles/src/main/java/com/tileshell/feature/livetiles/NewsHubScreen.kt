@@ -996,7 +996,6 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
         }
         return
     }
-    val story = stories[index.coerceIn(0, stories.lastIndex)]
     // One column wide: smaller type and more lines, so a word is rarely split to fit 64dp.
     val narrow = size.cols <= 1
     val lines = when {
@@ -1005,7 +1004,10 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
         size == TileSize.WIDE || size == TileSize.WIDE_MEDIUM -> 3
         else -> 2
     }
-    androidx.compose.animation.Crossfade(targetState = story, animationSpec = tween(500), modifier = modifier.fillMaxSize(), label = "newsTileRoll") { a ->
+    // The next story rises from the bottom while the old one leaves through the top, like every tile that shows
+    // items one after another (see MessageSlide).
+    Box(modifier = modifier.fillMaxSize()) { MessageSlide(index.coerceIn(0, stories.lastIndex)) { i ->
+        val a = stories[i.coerceIn(0, stories.lastIndex)]
         val photo = rememberRemoteImage(a.imageUrl)
         Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
             if (photo != null) {
@@ -1033,7 +1035,7 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
                 )
             }
         }
-    }
+    } }
 }
 
 

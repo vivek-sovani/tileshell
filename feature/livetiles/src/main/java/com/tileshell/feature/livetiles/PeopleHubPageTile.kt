@@ -322,16 +322,21 @@ private fun WhatsNewTileFace(size: TileSize, active: Boolean, fallback: @Composa
             modifier = Modifier.fillMaxSize(),
             front = { ConversationCountFace(entries.size, "new", size) },
             back = {
-                NotificationFaceContent(
-                    item = ConversationItem(
-                        sender = current.sender,
-                        snippet = current.snippet,
-                        notificationKey = current.notificationKey,
-                    ),
-                    avatar = imgs?.avatar?.asImageBitmap(),
-                    picture = imgs?.picture?.asImageBitmap(),
-                    size = size,
-                )
+                // The pending entries step through one after another, each rising from the bottom (see MessageSlide).
+                MessageSlide(itemIndex.intValue) { slot ->
+                    val entry = entries.getOrElse(slot) { entries.first() }
+                    val entryImgs = itemImages[entry.notificationKey] ?: fallbackImages[entry.packageName]
+                    NotificationFaceContent(
+                        item = ConversationItem(
+                            sender = entry.sender,
+                            snippet = entry.snippet,
+                            notificationKey = entry.notificationKey,
+                        ),
+                        avatar = entryImgs?.avatar?.asImageBitmap(),
+                        picture = entryImgs?.picture?.asImageBitmap(),
+                        size = size,
+                    )
+                }
             },
         )
         PageIconCorner("bell")
