@@ -137,6 +137,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -3062,6 +3063,9 @@ private fun StartPage(
     // Where the tile being sized and the picker panel are on screen (root px), so the page can scroll to keep the
     // tile (at its previewed size) above the panel instead of under it.
     var sizeTileTop by remember { mutableStateOf(Float.NaN) }
+    // The tile's horizontal extent while a picker (size or tile settings) is open, for cutting it out of the dim.
+    var pickerTileLeft by remember { mutableStateOf(Float.NaN) }
+    var pickerTileRight by remember { mutableStateOf(Float.NaN) }
     var sizeTileBottom by remember { mutableStateOf(Float.NaN) }
     var sizePanelTop by remember { mutableStateOf(Float.NaN) }
     var sizePanelHeightPx by remember { mutableStateOf(0) }
@@ -3889,11 +3893,13 @@ private fun StartPage(
                         // Tile-only edit: lift, pulse and show arrows once, so it's clear the tile can be moved now.
                         .moveHint(tileOnlyEdit && editMode && model.id == selectedTileId)
                         .then(
-                            if (sizePickerFor == model.id) {
+                            if (sizePickerFor == model.id || colorPickerFor == model.id) {
                                 Modifier.onGloballyPositioned { c ->
                                     val at = c.positionInRoot()
                                     sizeTileTop = at.y
                                     sizeTileBottom = at.y + c.size.height
+                                    pickerTileLeft = at.x
+                                    pickerTileRight = at.x + c.size.width
                                 }
                             } else {
                                 Modifier
@@ -4541,7 +4547,23 @@ private fun StartPage(
             } else {
                 null
             }
+            // Tile settings sit next to the tile too (its bounds are tracked while either picker is open).
+            DisposableEffect(pickId) {
+                onDispose {
+                    if (sizePickerFor == null) {
+                        sizeTileTop = Float.NaN
+                        sizeTileBottom = Float.NaN
+                        pickerTileLeft = Float.NaN
+                        pickerTileRight = Float.NaN
+                    }
+                }
+            }
             TileColorPicker(
+                tileRect = if (sizeTileTop.isNaN() || sizeTileBottom.isNaN() || pickerTileLeft.isNaN() || pickerTileRight.isNaN()) {
+                    null
+                } else {
+                    androidx.compose.ui.geometry.Rect(pickerTileLeft, sizeTileTop, pickerTileRight, sizeTileBottom)
+                },
                 current = current,
                 suggestedNearestId = suggestion?.nearestId,
                 suggestedExact = suggestion?.exact,
@@ -4898,6 +4920,8 @@ private fun TileSize.pickerName(): String = when (this) {
 
 @Composable
 private fun BoxScope.TileColorPicker(
+    // The tile being edited (root px; null until measured): the sheet sits next to it when there is room.
+    tileRect: androidx.compose.ui.geometry.Rect? = null,
     current: String?,
     suggestedNearestId: String?,
     suggestedExact: Color?,
@@ -4933,10 +4957,38 @@ private fun BoxScope.TileColorPicker(
     onDismiss: () -> Unit,
 ) {
     val exactHex = suggestedExact?.let { "#%06X".format(it.toArgb() and 0xFFFFFF) }
+    var originX by remember { mutableStateOf(0f) }
+    var originY by remember { mutableStateOf(0f) }
+    var panelHeight by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    val nearTop = tileRect?.let { rect ->
+        sizePanelTop(
+            tileTop = rect.top,
+            tileBottom = rect.bottom,
+            panelHeight = panelHeight.toFloat(),
+            screenH = LocalWindowInfo.current.containerSize.height.toFloat(),
+            topInset = WindowInsets.statusBars.getTop(density).toFloat(),
+            bottomInset = WindowInsets.navigationBars.getBottom(density).toFloat(),
+            gap = with(density) { 8.dp.toPx() },
+        )
+    }
     Box(
         modifier = Modifier
             .matchParentSize()
-            .background(Color.Black.copy(alpha = 0.5f))
+            .onGloballyPositioned { originX = it.positionInRoot().x; originY = it.positionInRoot().y }
+            // The dim keeps the tile bright (cut out), so it is clear which tile the settings are for.
+            .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
+            .drawBehind {
+                drawRect(Color.Black.copy(alpha = 0.5f))
+                if (tileRect != null) {
+                    drawRect(
+                        Color.Transparent,
+                        androidx.compose.ui.geometry.Offset(tileRect.left - originX, tileRect.top - originY),
+                        androidx.compose.ui.geometry.Size(tileRect.width, tileRect.height),
+                        blendMode = androidx.compose.ui.graphics.BlendMode.Clear,
+                    )
+                }
+            }
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
@@ -4945,10 +4997,17 @@ private fun BoxScope.TileColorPicker(
     )
     Column(
         modifier = Modifier
-            .align(Alignment.BottomCenter)
+            .then(
+                if (nearTop != null) {
+                    Modifier.align(Alignment.TopStart).offset { IntOffset(0, (nearTop - originY).roundToInt()) }
+                } else {
+                    Modifier.align(Alignment.BottomCenter)
+                },
+            )
             .fillMaxWidth()
+            .onGloballyPositioned { panelHeight = it.size.height }
             .background(Color(0xFF1A1A1F))
-            .navigationBarsPadding()
+            .then(if (nearTop != null) Modifier else Modifier.navigationBarsPadding())
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null,
