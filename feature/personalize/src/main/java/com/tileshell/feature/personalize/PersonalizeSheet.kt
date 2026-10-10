@@ -28,6 +28,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -448,7 +449,7 @@ fun PersonalizeSheet(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                             ) {
                                 ThemeTile(
-                                    "moon", "dark", selected = !followSystemTheme && dark,
+                                    ThemePreview.DARK, "dark", selected = !followSystemTheme && dark,
                                     accent = accent, tokens = tokens,
                                     modifier = Modifier.weight(1f),
                                 ) {
@@ -456,7 +457,7 @@ fun PersonalizeSheet(
                                     onThemeChange(true)
                                 }
                                 ThemeTile(
-                                    "brightness", "light", selected = !followSystemTheme && !dark,
+                                    ThemePreview.LIGHT, "light", selected = !followSystemTheme && !dark,
                                     accent = accent, tokens = tokens,
                                     modifier = Modifier.weight(1f),
                                 ) {
@@ -464,7 +465,7 @@ fun PersonalizeSheet(
                                     onThemeChange(false)
                                 }
                                 ThemeTile(
-                                    "auto", "auto", selected = followSystemTheme,
+                                    ThemePreview.AUTO, "auto", selected = followSystemTheme,
                                     accent = accent, tokens = tokens,
                                     modifier = Modifier.weight(1f),
                                 ) {
@@ -1870,9 +1871,17 @@ private fun rememberAndroidSettingsIcon(): ImageBitmap? {
     }.value
 }
 
+/** Which Start-screen preview a [ThemeTile] draws. */
+private enum class ThemePreview { DARK, LIGHT, AUTO }
+
+/**
+ * One theme choice: a small preview of the Start screen in that theme (dark and light backgrounds, a diagonal
+ * split for auto, with a few tiles in the current [accent]) over its label, so the choice can be seen, not just
+ * read. The selected one is ringed in the accent and its label takes the accent.
+ */
 @Composable
 private fun ThemeTile(
-    icon: String,
+    preview: ThemePreview,
     label: String,
     selected: Boolean,
     accent: Color,
@@ -1880,18 +1889,63 @@ private fun ThemeTile(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
-    // Lumia-style text choice ("dark  light  auto"), selected in the accent.
-    Box(
+    val dark = com.tileshell.core.design.DarkColorTokens
+    val light = com.tileshell.core.design.LightColorTokens
+    Column(
         modifier = modifier
             .clickable(onClick = onClick)
             .semantics { this.selected = selected }
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.CenterStart,
+            .padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.72f)
+                .border(
+                    width = if (selected) 2.dp else 1.dp,
+                    color = if (selected) accent else tokens.fgDim.copy(alpha = 0.45f),
+                ),
+        ) {
+            val w = size.width
+            val h = size.height
+            // Background: dark, light, or auto's diagonal split (dark top-left, light bottom-right).
+            when (preview) {
+                ThemePreview.DARK -> drawRect(dark.bg)
+                ThemePreview.LIGHT -> drawRect(light.bg)
+                ThemePreview.AUTO -> {
+                    drawRect(dark.bg)
+                    val lightHalf = androidx.compose.ui.graphics.Path().apply {
+                        moveTo(w, 0f)
+                        lineTo(w, h)
+                        lineTo(0f, h)
+                        close()
+                    }
+                    drawPath(lightHalf, light.bg)
+                }
+            }
+            // A few Windows Phone tiles in the accent: one wide, two medium, two small.
+            val pad = w * 0.09f
+            val gap = w * 0.045f
+            val inner = w - 2 * pad
+            val top = h * 0.12f
+            val wideH = h * 0.16f
+            drawRect(accent, androidx.compose.ui.geometry.Offset(pad, top), androidx.compose.ui.geometry.Size(inner, wideH))
+            val medium = (inner - gap) / 2f
+            val row2 = top + wideH + gap
+            drawRect(accent, androidx.compose.ui.geometry.Offset(pad, row2), androidx.compose.ui.geometry.Size(medium, medium))
+            drawRect(accent, androidx.compose.ui.geometry.Offset(pad + medium + gap, row2), androidx.compose.ui.geometry.Size(medium, medium))
+            val small = (medium - gap) / 2f
+            val row3 = row2 + medium + gap
+            drawRect(accent, androidx.compose.ui.geometry.Offset(pad, row3), androidx.compose.ui.geometry.Size(small, small))
+            drawRect(accent, androidx.compose.ui.geometry.Offset(pad + small + gap, row3), androidx.compose.ui.geometry.Size(small, small))
+            drawRect(accent, androidx.compose.ui.geometry.Offset(pad + medium + gap, row3), androidx.compose.ui.geometry.Size(medium, small))
+        }
+        Spacer(Modifier.height(6.dp))
         Text(
             label,
             color = if (selected) accent else tokens.fgDim,
-            fontSize = 17.sp,
+            fontSize = 15.sp,
             fontWeight = FontWeight.Light,
         )
     }
