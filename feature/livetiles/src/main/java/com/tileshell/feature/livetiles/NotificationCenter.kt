@@ -271,6 +271,8 @@ object NotificationCenter {
     /** Records which notification a cycling face is currently displaying for
      * [packageName], or clears it (pass null) once that face returns to its
      * front/count face — called from the tile face composables, not user code. */
+    fun displayedKeyFor(packageName: String): String? = displayedKeys[packageName]
+
     fun reportDisplayedKey(packageName: String, key: String?) {
         displayedKeys = if (key == null) displayedKeys - packageName else displayedKeys + (packageName to key)
     }
