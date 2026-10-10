@@ -102,13 +102,10 @@ fun PhotosTileFace(
                     avatar = imgs?.avatar?.asImageBitmap(),
                     picture = imgs?.picture?.asImageBitmap(),
                     size = size,
-                )
-                AppIconCorner(
                     packageName = packageName,
                     homeStyle = homeStyle,
                     iconShape = iconShape,
                     themedIcons = themedIcons,
-                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 )
             }
         } else {
@@ -198,14 +195,10 @@ fun PhotosTileFace(
                     avatar = imgs?.avatar?.asImageBitmap(),
                     picture = imgs?.picture?.asImageBitmap(),
                     size = size,
-                )
-                // The gallery app's own icon in the top-left corner.
-                AppIconCorner(
                     packageName = packageName,
                     homeStyle = homeStyle,
                     iconShape = iconShape,
                     themedIcons = themedIcons,
-                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 )
             },
         )

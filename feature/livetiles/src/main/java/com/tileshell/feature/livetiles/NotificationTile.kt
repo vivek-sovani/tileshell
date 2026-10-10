@@ -2,7 +2,6 @@ package com.tileshell.feature.livetiles
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
@@ -12,7 +11,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
@@ -31,8 +29,7 @@ private const val NOTIF_CYCLE_MS = 2_600L
  * Any pinned app tile without a dedicated live face becomes live the moment its
  * package has an active notification.
  *
- * Front face: total notification count (big number) + "notifications" — immediately
- * readable at a glance, same style as the mail/messages count face.
+ * Front face: the tile's own static face (app glyph and name) — the count is the badge.
  * Back face: cycles through each pending notification in turn (newest first, one
  * every 2.6 s) so every message gets its moment. With a single notification the back
  * face shows it without cycling.
@@ -96,22 +93,21 @@ fun NotificationTileFace(
         FlipTile(
             flipped = flipped,
             modifier = Modifier.fillMaxSize(),
-            front = { ConversationCountFace(preview.count, "notifications", size) },
+            // The tile's own face (app glyph + name), as on a Windows Phone flip tile; the
+            // pending count is the badge, and the back shows the notification.
+            front = { fallback() },
             back = {
                 NotificationFaceContent(
                     item = current,
                     avatar = imgs?.avatar?.asImageBitmap(),
                     picture = imgs?.picture?.asImageBitmap(),
                     size = size,
+                    packageName = packageName,
+                    homeStyle = homeStyle,
+                    iconShape = iconShape,
+                    themedIcons = themedIcons,
                 )
             },
-        )
-        AppIconCorner(
-            packageName = packageName,
-            homeStyle = homeStyle,
-            iconShape = iconShape,
-            themedIcons = themedIcons,
-            modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
         )
     }
 }
