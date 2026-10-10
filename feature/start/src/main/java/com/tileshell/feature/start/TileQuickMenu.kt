@@ -77,7 +77,7 @@ private class QuickAction(
 /**
  * The quick-action cluster that opens on a long press of a Start tile: the app's own shortcuts (compose, search, …,
  * up to two), then size and colour (their pickers open directly), edit (edit mode with this tile selected), app info and unpin, as small accent tiles
- * beside the tile while the rest of Start dims. A folder tile gets "open folder" first and "ungroup" instead of unpin. Its own composable (not inline in `StartScreen`) because that layout
+ * beside the tile while the rest of Start dims. A folder or widget stack gets "open folder" / "open stack" first and "ungroup" instead of unpin. Its own composable (not inline in `StartScreen`) because that layout
  * lambda is near the register limit.
  */
 @Composable
@@ -106,7 +106,8 @@ internal fun TileQuickMenuLayer(
     val actions = buildList {
         if (tile is TileModel.Folder) {
             val open = expandedFolderId == tile.id
-            add(QuickAction("folder", if (open) "close folder" else "open folder", TileIcons["folder"]) {
+            val noun = if (tile.isStack) "stack" else "folder"
+            add(QuickAction("folder", if (open) "close $noun" else "open $noun", TileIcons[if (tile.isStack) "stack" else "folder"]) {
                 viewModel.closeTileMenu()
                 viewModel.toggleFolder(tile.id)
             })

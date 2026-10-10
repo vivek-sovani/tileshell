@@ -1670,10 +1670,10 @@ fun StartScreen(
                     tileOnlyEditFlow = viewModel.tileOnlyEdit,
                     onTilePickerHandled = viewModel::clearTilePicker,
                     onOpenTileMenu = { tile, bounds ->
-                        // A top-level app tile or folder gets the cluster (a widget stack and an inline-expanded
-                        // folder child keep long-press-to-edit).
+                        // A top-level app tile, folder or widget stack gets the cluster (an inline-expanded folder
+                        // child keeps long-press-to-edit).
                         val top = tiles.firstOrNull { it.id == tile.id }
-                        if (settings.tileQuickMenu && (top is TileModel.App || (top is TileModel.Folder && !top.isStack))) {
+                        if (settings.tileQuickMenu && (top is TileModel.App || top is TileModel.Folder)) {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             viewModel.openTileMenu(TileMenuRequest(tile.id, bounds.left, bounds.top, bounds.right, bounds.bottom))
                             true
