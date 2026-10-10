@@ -518,41 +518,23 @@ private fun AppRow(
                     // tile to badge, so it gets one here instead (mirrors the Start
                     // tile's NotificationBadge).
                     val tokens = LocalColorTokens.current
-                    if (appListStyle == AppListStyle.TILES) {
-                        // Windows Phone badge: an outlined circle straddling the
-                        // tile's top-right corner, number in the foreground colour.
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 9.dp, y = (-9).dp)
-                                .size(22.dp)
-                                .background(tokens.bg, CircleShape)
-                                .border(2.dp, tokens.fg, CircleShape),
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Text(
-                                text = if (badgeCount > 9) "9+" else badgeCount.toString(),
-                                color = tokens.fg,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                    } else {
+                    // Windows Phone badge, in both list styles: an outlined circle straddling the icon's
+                    // top-right corner, number in the foreground colour.
                     Box(
                         modifier = Modifier
                             .align(Alignment.TopEnd)
-                            .size(16.dp)
-                            .background(LocalAccent.current, CircleShape)
-                            .border(1.dp, tokens.bg, CircleShape),
+                            .offset(x = 9.dp, y = (-9).dp)
+                            .size(22.dp)
+                            .background(tokens.bg, CircleShape)
+                            .border(2.dp, tokens.fg, CircleShape),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(
                             text = if (badgeCount > 9) "9+" else badgeCount.toString(),
-                            color = Color.White,
-                            fontSize = 9.sp,
+                            color = tokens.fg,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
                         )
-                    }
                     }
                 }
             }
