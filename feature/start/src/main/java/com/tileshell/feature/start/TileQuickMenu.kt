@@ -89,7 +89,7 @@ private class MiniAction(
 
 /**
  * The quick-action cluster that opens on a long press of a Start tile: the app's own shortcuts (compose, search, …,
- * up to two), then size and colour (their pickers open directly), edit (edit mode with this tile selected), app info and unpin, as small accent tiles
+ * up to two), then size, tile settings (colour and the rest, opened directly) and move (edit mode for this tile only), app info and unpin, as small accent tiles
  * beside the tile while the rest of Start dims. A folder or widget stack gets "open folder" / "open stack" first and "ungroup" instead of unpin. Its own composable (not inline in `StartScreen`) because that layout
  * lambda is near the register limit.
  */
@@ -181,17 +181,17 @@ internal fun TileQuickMenuLayer(
                 viewModel.closeTileMenu()
                 viewModel.requestTilePicker(TilePickerRequest(req.tileId, TilePickerKind.SIZE))
             })
-            add(MiniAction("colour", "colour", TileIcons["palette"]) {
+            add(MiniAction("settings", "tile settings", TileIcons["settings"]) {
                 viewModel.closeTileMenu()
                 viewModel.requestTilePicker(TilePickerRequest(req.tileId, TilePickerKind.COLOR))
             })
-            add(MiniAction("edit", "edit", TileIcons["edit"]) {
+            add(MiniAction("move", "move", TileIcons["grip"]) {
                 viewModel.closeTileMenu()
                 viewModel.enterTileEdit(req.tileId)
             })
         }
         if (packageName.isNotBlank()) {
-            add(MiniAction("info", "app info", TileIcons["settings"]) {
+            add(MiniAction("info", "app info", TileIcons["help"]) {
                 viewModel.closeTileMenu()
                 runCatching {
                     context.startActivity(

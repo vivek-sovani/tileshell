@@ -3678,6 +3678,7 @@ private fun StartPage(
                 // A tap on the size button (bottom-right corner) opens the size picker; dragging the corner resizes.
                 onResize = { id -> sizePickerFor = id },
                 onColor = { id -> colorPickerFor = id },
+                cornerButtons = !tileOnlyEdit,
                 // Merging is disabled while a folder is expanded: its children
                 // are never valid merge participants, and without this a drag
                 // hovering over one would show a confusing "merge target"
@@ -3856,6 +3857,7 @@ private fun StartPage(
                 val menuCoordinates = remember(model.id) { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.tileshell.feature.livetiles.LocalNotificationMuted provides (model.id in mutedNotificationTiles),
+                    LocalTileOnlyEdit provides tileOnlyEdit,
                 ) {
                 Box(
                     modifier = Modifier
@@ -3882,6 +3884,8 @@ private fun StartPage(
                         )
                         // After the offset and size above, so these are the tile's own bounds.
                         .onGloballyPositioned { menuCoordinates[0] = it }
+                        // Tile-only edit: lift, pulse and show arrows once, so it's clear the tile can be moved now.
+                        .moveHint(tileOnlyEdit && editMode && model.id == selectedTileId)
                         .then(
                             if (sizePickerFor == model.id) {
                                 Modifier.onGloballyPositioned { c ->
@@ -3981,7 +3985,7 @@ private fun StartPage(
                     // write path below since a child's resize has to run the
                     // stack-collapse/-promote bookkeeping a top-level tile
                     // doesn't need.
-                    val resizeHandlesEnabled = true
+                    val resizeHandlesEnabled = !tileOnlyEdit
                     val onResizeDragStartAction = {
                         resizingId = model.id
                         resizeAccumDx = 0f
@@ -4921,7 +4925,7 @@ private fun BoxScope.TileColorPicker(
             .padding(20.dp),
     ) {
         if (showColorOptions) {
-            Text("tile colour", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Text("tile settings", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
             Spacer(Modifier.height(14.dp))
             Box(
                 modifier = Modifier
@@ -6221,6 +6225,8 @@ internal fun BoxScope.TileControls(
     dotColor: Color,
     isFolder: Boolean = false,
 ) {
+    // Opened from a tile's quick actions: those buttons live in the cluster, so none are drawn here.
+    if (LocalTileOnlyEdit.current) return
     TileControl(
         iconKey = if (isFolder) "folder" else "close",
         description = if (isFolder) "open folder" else "unpin",
@@ -6738,6 +6744,8 @@ private fun Modifier.editDragGesture(
     onOpenFolder: (String) -> Unit = {},
     onResize: (String) -> Unit,
     onColor: (String) -> Unit = {},
+    // False in tile-only edit: the corner buttons (unpin, colour, size) are not drawn, so they must not respond either.
+    cornerButtons: Boolean = true,
     onLift: (id: String, offset: IntOffset) -> Unit,
     onDrag: (offset: IntOffset) -> Unit,
     onReorderTo: (dragId: String, targetId: String) -> Unit,
@@ -6913,7 +6921,7 @@ private fun Modifier.editDragGesture(
         // never also fires.
         val sel = selectedId()
         val selPlacement = sel?.let { id -> placementsNow().firstOrNull { it.id == id } }
-        if (selPlacement != null) {
+        if (selPlacement != null && cornerButtons) {
             val r = geom.rect(selPlacement)
             // Smaller on a small tile, where three 30dp corners would cover most of it and make every press a button.
             val zone = cornerZoneSize(r.width, r.height, 30.dp.toPx())
