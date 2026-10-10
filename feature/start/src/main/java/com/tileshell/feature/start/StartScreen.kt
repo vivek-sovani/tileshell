@@ -137,6 +137,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerId
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.platform.LocalWindowInfo
@@ -6799,7 +6800,47 @@ internal fun Modifier.tileGesture(
     onLongPress: () -> Unit,
     // Once the long press has fired, a drag past a small slop hands the finger to move mode (see LocalTileDragStart).
     onLongPressDrag: (() -> Boolean)? = null,
-): Modifier = pointerInput(onTap, onLongPress, onLongPressDrag) {
+): Modifier = composed {
+    // The callbacks are read through State and the gesture is keyed on nothing: they are new lambdas on every
+    // recomposition, and opening the quick actions recomposes the tile. With them as keys that restarted the gesture
+    // in the middle of the press, which lost the finger (the drag after a long press then scrolled the page).
+    val currentTap by rememberUpdatedState(onTap)
+    val currentLongPress by rememberUpdatedState(onLongPress)
+    val currentLongPressDrag by rememberUpdatedState(onLongPressDrag)
+    pointerInput(Unit) { tileGestureLoop({ currentTap() }, { currentLongPress() }, { currentLongPressDrag?.invoke() }) }
+}
+
+/**
+ * What a tile does with the finger once its long press has fired: swallow the rest of the gesture in the first
+ * pointer pass (before the children see it), so a link or button on the tile's face (the music tile's podcasts / radio
+ * rows) does not read the release as a tap and open its hub, and the page does not scroll under the finger. A drag past
+ * [dragSlop] hands the finger to move mode ([onDrag] starts it: true = started, then the edit-mode grid gesture
+ * carries on with the same finger; false / null = not available, keep swallowing).
+ */
+internal suspend fun androidx.compose.ui.input.pointer.AwaitPointerEventScope.swallowAfterLongPress(
+    down: androidx.compose.ui.input.pointer.PointerInputChange,
+    dragSlop: Float,
+    onDrag: () -> Boolean?,
+) {
+    var handedOver = false
+    while (true) {
+        val event = awaitPointerEvent(PointerEventPass.Initial)
+        val change = event.changes.firstOrNull { it.id == down.id }
+        if (!handedOver && change != null && change.pressed &&
+            (change.position - down.position).getDistance() > dragSlop
+        ) {
+            handedOver = onDrag() == true
+        }
+        event.changes.forEach { it.consume() }
+        if (event.changes.none { it.pressed }) break
+    }
+}
+
+private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.tileGestureLoop(
+    onTap: () -> Unit,
+    onLongPress: () -> Unit,
+    onLongPressDrag: () -> Boolean?,
+) {
     val slop = 7.dp.toPx()
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
@@ -6822,23 +6863,7 @@ internal fun Modifier.tileGesture(
         when (outcome) {
             null -> {
                 onLongPress()
-                val dragSlop = 10.dp.toPx()
-                var handedOver = false
-                // The long press is this tile's: swallow the rest of the gesture, in the first pass (before the children
-                // see it), so a link or button on the tile's face (the music tile's podcasts / radio rows) does not also
-                // read the release as a tap and open its hub, and the page does not scroll under the finger.
-                while (true) {
-                    val event = awaitPointerEvent(PointerEventPass.Initial)
-                    val change = event.changes.firstOrNull { it.id == down.id }
-                    // Dragging after the long press starts move mode: the edit-mode grid gesture takes this same finger.
-                    if (!handedOver && onLongPressDrag != null && change != null && change.pressed &&
-                        (change.position - down.position).getDistance() > dragSlop
-                    ) {
-                        handedOver = onLongPressDrag()
-                    }
-                    event.changes.forEach { it.consume() }
-                    if (event.changes.none { it.pressed }) break
-                }
+                swallowAfterLongPress(down, 10.dp.toPx(), onLongPressDrag)
             }
             true -> onTap()
             false -> Unit
@@ -8779,6 +8804,7 @@ private fun StackTileContent(
             ?.let(onLaunchChild)
     }
     val enterEditRef = rememberUpdatedState(onEnterEdit)
+    val dragStartRef = rememberUpdatedState(LocalTileDragStart.current)
 
     Box(
         modifier = Modifier
@@ -8856,7 +8882,8 @@ private fun StackTileContent(
                             when (phase) {
                                 null -> {
                                     enterEditRef.value()
-                                    waitForUpOrCancellation()
+                                    // A drag after the long press starts move mode, as on any other tile.
+                                    swallowAfterLongPress(down, 10.dp.toPx()) { dragStartRef.value?.invoke() }
                                 }
                                 0 -> launchCurrent.value()
                                 else -> Unit
