@@ -1786,6 +1786,7 @@ fun StartScreen(
             AppListScreen(
                 modifier = Modifier.fillMaxSize(),
                 visible = isAppList,
+                onBack = { settleTo(lastActiveBlockIndex.toFloat()) },
                 activeSectionId = activeSectionId,
                 onPinned = { settleTo(lastActiveBlockIndex.toFloat()) },
                 onAlreadyOnStart = { pageSectionId ->

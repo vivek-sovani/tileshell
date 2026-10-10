@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.displayCutoutPadding
@@ -55,6 +56,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
@@ -114,6 +118,8 @@ private val JUMP_LETTERS: List<String> = listOf("#") + ('a'..'z').map(Char::toSt
 fun AppListScreen(
     modifier: Modifier = Modifier,
     visible: Boolean = true,
+    // The left arrow above the search button: back to Start.
+    onBack: () -> Unit = {},
     onPinned: () -> Unit = {},
     // An app that's already pinned: Start switches to the page its tile is on
     // (null = main), so "already on start" never leaves the tile unfindable.
@@ -143,12 +149,16 @@ fun AppListScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var jumpOpen by remember { mutableStateOf(false) }
+    var searchOpen by remember { mutableStateOf(false) }
 
     // Clear the search whenever the list is left (back press, swipe back to
     // Start, home) so the next time it opens it starts fresh — the screen is
     // never disposed (just translated off-screen), so nothing else would reset it.
     LaunchedEffect(visible) {
-        if (!visible) viewModel.resetQuery()
+        if (!visible) {
+            viewModel.resetQuery()
+            searchOpen = false
+        }
     }
 
     // Pinning a row toasts and, on success, returns to Start (FR-5).
@@ -181,10 +191,27 @@ fun AppListScreen(
     }
 
     Box(modifier = modifier.fillMaxSize()) {
-        Column(
+        Row(
             modifier = Modifier.fillMaxSize().statusBarsPadding().displayCutoutPadding(),
         ) {
-            SearchBar(query = query, onQueryChange = viewModel::setQuery)
+        // Windows Phone all-apps: a fixed left rail (back arrow over the search
+        // button) that stays put while the list scrolls beside it.
+        SearchRail(
+            searchActive = searchOpen || query.isNotBlank(),
+            onBack = onBack,
+            onSearch = {
+                if (searchOpen || query.isNotBlank()) {
+                    searchOpen = false
+                    viewModel.resetQuery()
+                } else {
+                    searchOpen = true
+                }
+            },
+        )
+        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+            if (searchOpen || query.isNotBlank()) {
+                SearchBar(query = query, onQueryChange = viewModel::setQuery)
+            }
 
             if (apps.isEmpty() && query.isNotBlank()) {
                 Text(
@@ -284,6 +311,7 @@ fun AppListScreen(
                 }
             }
         }
+        }
 
         AnimatedVisibility(visible = jumpOpen, enter = fadeIn(), exit = fadeOut()) {
             JumpGrid(
@@ -304,18 +332,56 @@ fun AppListScreen(
 }
 
 @Composable
+private fun SearchRail(searchActive: Boolean, onBack: () -> Unit, onSearch: () -> Unit) {
+    val tokens = LocalColorTokens.current
+    val accent = LocalAccent.current
+    Column(
+        modifier = Modifier.width(56.dp).fillMaxHeight(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Spacer(Modifier.weight(0.16f))
+        Box(
+            modifier = Modifier.size(48.dp).clickable(onClick = onBack),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(TileIcons["back"], "back to start", tint = tokens.fg, modifier = Modifier.size(30.dp))
+        }
+        Spacer(Modifier.height(10.dp))
+        Box(
+            modifier = Modifier
+                .size(42.dp)
+                .border(2.dp, if (searchActive) accent else tokens.fg, CircleShape)
+                .clickable(onClick = onSearch),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                TileIcons["search"],
+                if (searchActive) "close search" else "search apps",
+                tint = if (searchActive) accent else tokens.fg,
+                modifier = Modifier.size(22.dp),
+            )
+        }
+        Spacer(Modifier.weight(0.84f))
+    }
+}
+
+@Composable
 private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
+    val focus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        focus.requestFocus()
+        keyboard?.show()
+    }
     Row(
         modifier = Modifier
-            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)
+            .padding(start = 18.dp, end = 16.dp, top = 12.dp, bottom = 8.dp)
             .fillMaxWidth()
             .height(38.dp)
             .background(LocalColorTokens.current.chip)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(TileIcons["search"], null, tint = LocalColorTokens.current.fgDim, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(9.dp))
         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             if (query.isEmpty()) {
                 Text("search apps", color = LocalColorTokens.current.fgDim, fontSize = 14.sp)
@@ -326,7 +392,7 @@ private fun SearchBar(query: String, onQueryChange: (String) -> Unit) {
                 singleLine = true,
                 textStyle = TextStyle(color = LocalColorTokens.current.fg, fontSize = 14.sp),
                 cursorBrush = SolidColor(LocalColorTokens.current.fg),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusRequester(focus),
             )
         }
     }
