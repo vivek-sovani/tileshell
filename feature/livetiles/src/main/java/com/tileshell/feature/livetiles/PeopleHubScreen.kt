@@ -86,6 +86,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -550,8 +551,8 @@ private fun FrequentAvatar(person: PersonSummary, tokens: ColorTokens, onClick: 
                 person.name.lowercase(),
                 color = tokens.fg,
                 fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
         PinContactMenu(menuOpen, person) { menuOpen = false }
@@ -606,8 +607,6 @@ private fun ContactRow(
                     person.name.lowercase(),
                     color = tokens.fg,
                     fontSize = 16.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
                 if (subtitle != null) {
                     Text(subtitle, color = tokens.fgDim, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
