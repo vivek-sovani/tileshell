@@ -794,8 +794,24 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun appShortcuts(packageName: String): List<com.tileshell.core.data.AppEntry> =
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { catalogRepository.shortcutsFor(packageName) }
 
+    private val _tileOnlyEdit = MutableStateFlow(false)
+
+    /**
+     * True while edit mode was opened from a tile's quick actions: only that tile's own controls (move, resize,
+     * colour, unpin) show, without the page headers, "add page" or the bottom edit bar.
+     */
+    val tileOnlyEdit: StateFlow<Boolean> = _tileOnlyEdit.asStateFlow()
+
+    /** Edit mode for one tile only (the quick-action cluster's "edit"). */
+    fun enterTileEdit(tileId: String) {
+        enterEdit(tileId)
+        if (_editMode.value) _tileOnlyEdit.value = true
+    }
+
     fun enterEdit(tileId: String?) {
         if (settings.value.lockLayout) return
+        // Switching the selection while already editing keeps the mode; a fresh entry is a full edit.
+        if (!_editMode.value) _tileOnlyEdit.value = false
         _selectedTileId.value = tileId
         _editMode.value = true
         _swipeEnabled.value = false
@@ -809,6 +825,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     fun exitEdit() {
         if (!_editMode.value) return
         _editMode.value = false
+        _tileOnlyEdit.value = false
         _selectedTileId.value = null
         _swipeEnabled.value = true
     }

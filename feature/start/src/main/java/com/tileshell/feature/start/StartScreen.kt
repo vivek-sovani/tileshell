@@ -1667,6 +1667,7 @@ fun StartScreen(
                     // In-edit tap on another tile switches the selection (no
                     // long-press haptic — it's a light tap, not a fresh lift).
                     tilePickerRequests = viewModel.tilePicker,
+                    tileOnlyEditFlow = viewModel.tileOnlyEdit,
                     onTilePickerHandled = viewModel::clearTilePicker,
                     onOpenTileMenu = { tile, bounds ->
                         // Only a top-level app tile gets the cluster (a folder, a widget stack and an inline-expanded
@@ -2943,6 +2944,8 @@ private fun StartPage(
     onOpenTileMenu: (TileModel, androidx.compose.ui.geometry.Rect) -> Boolean,
     // A colour or size picker asked for from a tile's quick-action cluster (outside edit mode).
     tilePickerRequests: kotlinx.coroutines.flow.StateFlow<TilePickerRequest?>,
+    // Edit mode opened from a tile's quick actions: that tile's own controls only (no page headers, add page, edit bar).
+    tileOnlyEditFlow: kotlinx.coroutines.flow.StateFlow<Boolean>,
     onTilePickerHandled: () -> Unit,
     onSelectTile: (String) -> Unit,
     onExitEdit: () -> Unit,
@@ -3077,6 +3080,7 @@ private fun StartPage(
             sizeCandidate = null
         }
     }
+    val tileOnlyEdit by tileOnlyEditFlow.collectAsState()
     val pickerRequest by tilePickerRequests.collectAsState()
     LaunchedEffect(pickerRequest) {
         val request = pickerRequest ?: return@LaunchedEffect
@@ -3526,7 +3530,7 @@ private fun StartPage(
             // could be dismissed by an accidental tap elsewhere; committing
             // also exits edit mode, since there's nothing on the fresh empty
             // page yet worth staying in edit mode to arrange.
-            if (editMode) {
+            if (editMode && !tileOnlyEdit) {
                 var addingSectionDialog by remember { mutableStateOf(false) }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -3596,7 +3600,7 @@ private fun StartPage(
             // while editing — hidden otherwise, reclaiming that height (the
             // page is identified purely by swiping to it, not by a
             // permanently-visible label).
-            if (editMode) {
+            if (editMode && !tileOnlyEdit) {
                 if (block.sectionId != null) {
                     SectionHeader(
                         label = block.label ?: "",
@@ -4269,7 +4273,7 @@ private fun StartPage(
             }
             // FR-1 bottom breathing room (prototype home-scroll padding-bottom:74px;
             // grows to clear the edit bar while editing, like .home-scroll padding).
-            Spacer(Modifier.height(if (editMode || sizePickerFor != null) 130.dp + (if (sizePickerFor != null) with(density) { sizePanelHeightPx.toDp() } else 0.dp) else 74.dp))
+            Spacer(Modifier.height(if ((editMode && !tileOnlyEdit) || sizePickerFor != null) 130.dp + (if (sizePickerFor != null) with(density) { sizePanelHeightPx.toDp() } else 0.dp) else 74.dp))
         } // end per-page Column(verticalScroll)
         } // end per-page Box(translationX)
         } // end key(block.sectionId ?: "__unsectioned__") [outer]
@@ -4464,7 +4468,7 @@ private fun StartPage(
 
         // Bottom edit bar (prototype .edit-bar): slides up while editing.
         EditBar(
-            visible = editMode,
+            visible = editMode && !tileOnlyEdit,
             onAdd = onAdd,
             onAddWidgets = onAddWidgets,
             onPersonalize = onPersonalize,

@@ -120,7 +120,7 @@ internal fun TileQuickMenuLayer(
             })
             add(QuickAction("edit", "edit", TileIcons["edit"]) {
                 viewModel.closeTileMenu()
-                viewModel.enterEdit(tile.id)
+                viewModel.enterTileEdit(tile.id)
             })
         }
         if (tile.packageName.isNotBlank()) {
