@@ -4769,6 +4769,19 @@ private fun StartPage(
  * not another colour choice.
  */
 /**
+ * 0 → 1 over a short ease-out when a tile's size / settings panel first appears, so it fades and settles in
+ * (a few dp of slide, a fading dim) instead of popping up.
+ */
+@Composable
+private fun rememberPanelEnter(): Float {
+    val progress = remember { androidx.compose.animation.core.Animatable(0f) }
+    LaunchedEffect(Unit) {
+        progress.animateTo(1f, androidx.compose.animation.core.tween(260, easing = androidx.compose.animation.core.FastOutSlowInEasing))
+    }
+    return progress.value
+}
+
+/**
  * The size picker: a [SIZE_PICKER_CELLS]-square grid where the tile's size is the rectangle from the top-left cell
  * to the cell you tap or drag to (see [sizeForCell]); cells that aren't a size are dimmed. The chosen rectangle is
  * filled, the tile's current size outlined, and the tile on Start shows the chosen size live while this is open.
@@ -4788,6 +4801,7 @@ private fun BoxScope.TileSizeCellPicker(
     tileBottom: Float = Float.NaN,
     onPanelBounds: (top: Float, heightPx: Int) -> Unit = { _, _ -> },
 ) {
+    val enter = rememberPanelEnter()
     var originY by remember { mutableStateOf(0f) }
     var panelHeight by remember { mutableStateOf(0) }
     val density = LocalDensity.current
@@ -4818,6 +4832,10 @@ private fun BoxScope.TileSizeCellPicker(
                     Modifier.align(Alignment.BottomCenter)
                 },
             )
+            .graphicsLayer {
+                alpha = enter
+                translationY = (1f - enter) * 14.dp.toPx()
+            }
             .fillMaxWidth()
             .onGloballyPositioned { c ->
                 panelHeight = c.size.height
@@ -4975,6 +4993,7 @@ private fun BoxScope.TileColorPicker(
     onPick: (String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val enter = rememberPanelEnter()
     val exactHex = suggestedExact?.let { "#%06X".format(it.toArgb() and 0xFFFFFF) }
     var originX by remember { mutableStateOf(0f) }
     var originY by remember { mutableStateOf(0f) }
@@ -4998,7 +5017,7 @@ private fun BoxScope.TileColorPicker(
             // The dim keeps the tile bright (cut out), so it is clear which tile the settings are for.
             .graphicsLayer { compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen }
             .drawBehind {
-                drawRect(Color.Black.copy(alpha = 0.5f))
+                drawRect(Color.Black.copy(alpha = 0.5f * enter))
                 if (tileRect != null) {
                     drawRect(
                         Color.Transparent,
@@ -5023,6 +5042,10 @@ private fun BoxScope.TileColorPicker(
                     Modifier.align(Alignment.BottomCenter)
                 },
             )
+            .graphicsLayer {
+                alpha = enter
+                translationY = (1f - enter) * 14.dp.toPx()
+            }
             .fillMaxWidth()
             .onGloballyPositioned { panelHeight = it.size.height }
             .background(Color(0xFF1A1A1F))
