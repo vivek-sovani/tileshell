@@ -182,6 +182,12 @@ internal fun TileQuickMenuLayer(
                     Toast.makeText(context, "couldn't archive — open the app", Toast.LENGTH_SHORT).show()
                 }
             },
+            onOpenLink = { url ->
+                viewModel.closeTileMenu()
+                runCatching {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }.onFailure { Toast.makeText(context, "nothing can open that link", Toast.LENGTH_SHORT).show() }
+            },
         )
     }
     val actions = buildList {
@@ -276,6 +282,8 @@ private class CardModel(
     val onSend: (String) -> Unit,
     val onMarkRead: () -> Unit,
     val onArchive: () -> Unit,
+    /** Opens a link tapped in the message (and closes the cluster). */
+    val onOpenLink: (String) -> Unit,
 ) {
     val hasButtons get() = canReply || canMarkRead || canArchive
 }
@@ -411,6 +419,7 @@ private fun MiniTile(action: MiniAction, accent: Color, modifier: Modifier) {
 @Composable
 private fun NotificationCard(card: CardModel, accent: Color, modifier: Modifier) {
     val message = card.item.fullText.ifBlank { card.item.snippet }
+    val linked = remember(message) { linkifiedMessage(message, Color(0xFF7DB8FF), card.onOpenLink) }
     var overflowing by remember(card.item.notificationKey) { mutableStateOf(false) }
     var reply by remember(card.item.notificationKey) { mutableStateOf("") }
     val focus = remember { FocusRequester() }
@@ -439,7 +448,7 @@ private fun NotificationCard(card: CardModel, accent: Color, modifier: Modifier)
             // The message: a few lines when collapsed, the whole thing (scrolling if it is long) when expanded.
             Box(modifier = Modifier.weight(1f).padding(top = 4.dp)) {
                 Text(
-                    text = message,
+                    text = linked,
                     color = Color.White,
                     fontSize = 17.sp,
                     lineHeight = 23.sp,
