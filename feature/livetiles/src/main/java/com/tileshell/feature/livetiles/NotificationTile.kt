@@ -25,33 +25,18 @@ private const val COUNT_HOLD_MS = 3_000L
 private const val NOTIF_CYCLE_MS = 2_600L
 
 /**
- * The count → message → message … → count sequence of a notification tile, as whole-tile flips (a Windows Phone
- * tile turns over for every message, not just to its back face once). A [FlipTile] has two faces, so each step writes
- * what comes next into the face that is turned away and then flips to it: [frontSlot] / [backSlot] hold the content
- * of each face (-1 = the count face, otherwise the index of a message) and [flipped] says which is showing.
+ * The sequence of a notification tile, as on Windows Phone: the whole tile flips from its front face (the count) to
+ * its back face and shows the first message; further messages then slide up inside the tile, one after another
+ * ([MessageSlide], the old one leaving through the top as the next rises from the bottom, the colour plate staying
+ * put); after the last the tile flips back to the front. [flipped] says which face is showing, [index] which message.
  */
 internal class NotificationFlipper {
-    var frontSlot by mutableIntStateOf(COUNT_SLOT)
-    var backSlot by mutableIntStateOf(0)
     var flipped by mutableStateOf(false)
-
-    /** The slot now on screen: -1 for the count face, else the message index. */
-    val shown: Int get() = if (flipped) backSlot else frontSlot
+    var index by mutableIntStateOf(0)
 
     fun reset() {
-        frontSlot = COUNT_SLOT
-        backSlot = 0
         flipped = false
-    }
-
-    /** Turns to [slot]: written into the face that is turned away, then a flip to it. */
-    fun turnTo(slot: Int) {
-        if (flipped) frontSlot = slot else backSlot = slot
-        flipped = !flipped
-    }
-
-    companion object {
-        const val COUNT_SLOT = -1
+        index = 0
     }
 }
 
@@ -64,14 +49,42 @@ internal fun rememberNotificationFlipper(packageName: String, active: Boolean, i
         if (!active || itemCount == 0) return@LaunchedEffect
         while (true) {
             delay(COUNT_HOLD_MS)
-            repeat(itemCount) { i ->
-                flipper.turnTo(i)
+            flipper.index = 0
+            flipper.flipped = true
+            delay(NOTIF_CYCLE_MS)
+            for (i in 1 until itemCount) {
+                flipper.index = i
                 delay(NOTIF_CYCLE_MS)
             }
-            flipper.turnTo(NotificationFlipper.COUNT_SLOT)
+            flipper.flipped = false
         }
     }
     return flipper
+}
+
+/**
+ * Shows message [index] with [content]; when the index changes the new message rises from the bottom while the old
+ * one leaves through the top (about 0.45 s), clipped to the tile — the way a Windows Phone tile steps through its
+ * messages without turning over.
+ */
+@Composable
+internal fun MessageSlide(index: Int, content: @Composable (Int) -> Unit) {
+    androidx.compose.animation.AnimatedContent(
+        targetState = index,
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            val spec = androidx.compose.animation.core.tween<androidx.compose.ui.unit.IntOffset>(
+                450,
+                easing = androidx.compose.animation.core.FastOutSlowInEasing,
+            )
+            androidx.compose.animation.ContentTransform(
+                targetContentEnter = androidx.compose.animation.slideInVertically(spec) { it },
+                initialContentExit = androidx.compose.animation.slideOutVertically(spec) { -it },
+                sizeTransform = androidx.compose.animation.SizeTransform(clip = true),
+            )
+        },
+        label = "notificationSlide",
+    ) { i -> content(i) }
 }
 
 /**
@@ -80,8 +93,8 @@ internal fun rememberNotificationFlipper(packageName: String, active: Boolean, i
  * package has an active notification.
  *
  * Front face: the tile's own static face (app glyph and name) — the count is the badge.
- * Back face: cycles through each pending notification in turn (newest first, one
- * every 2.6 s) so every message gets its moment. With a single notification the back
+ * Back face: each pending notification in turn (newest first, one every 2.6 s, sliding up
+ * from one to the next) so every message gets its moment. With a single notification the back
  * face shows it without cycling.
  *
  * The flip is self-managed: count shows for 3 s, then each notification is shown for
@@ -107,45 +120,41 @@ fun NotificationTileFace(
 
     val itemCount = preview.items.size
     val flipper = rememberNotificationFlipper(packageName, active, itemCount)
-    val shown = flipper.shown
-    val current = preview.items.getOrElse(shown.coerceAtLeast(0)) {
+    val current = preview.items.getOrElse(flipper.index) {
         ConversationItem(sender = preview.sender, snippet = preview.snippet)
     }
     // Report which notification is actually on screen so a tap opens *that* one
-    // (see NotificationCenter.openAndClear) — only while a message is showing; the
-    // count face reverts it to null so a tap there still opens the newest, as before.
+    // (see NotificationCenter.openAndClear) — only while the back face (a message) is showing; the
+    // front face reverts it to null so a tap there still opens the newest, as before.
     SideEffect {
         NotificationCenter.reportDisplayedKey(
             packageName,
-            if (shown >= 0) current.notificationKey.ifEmpty { null } else null,
+            if (flipper.flipped) current.notificationKey.ifEmpty { null } else null,
         )
     }
     Box(modifier = modifier.fillMaxSize()) {
-        // Each face shows its own slot: the count face (the tile's glyph and name, with the pending count as the
-        // badge) or one message.
-        val face: @Composable (Int) -> Unit = { slot ->
-            if (slot < 0) {
-                fallback()
-            } else {
-                val item = preview.items.getOrElse(slot) { current }
-                val itemImgs = itemImages[item.notificationKey] ?: fallbackImages[packageName]
-                NotificationFaceContent(
-                    item = item,
-                    avatar = itemImgs?.avatar?.asImageBitmap(),
-                    picture = itemImgs?.picture?.asImageBitmap(),
-                    size = size,
-                    packageName = packageName,
-                    homeStyle = homeStyle,
-                    iconShape = iconShape,
-                    themedIcons = themedIcons,
-                )
-            }
-        }
         FlipTile(
             flipped = flipper.flipped,
             modifier = Modifier.fillMaxSize(),
-            front = { face(flipper.frontSlot) },
-            back = { face(flipper.backSlot) },
+            // The tile's own face (app glyph + name), as on a Windows Phone flip tile; the
+            // pending count is the badge, and the back shows the notifications.
+            front = { fallback() },
+            back = {
+                MessageSlide(flipper.index) { slot ->
+                    val item = preview.items.getOrElse(slot) { current }
+                    val imgs = itemImages[item.notificationKey] ?: fallbackImages[packageName]
+                    NotificationFaceContent(
+                        item = item,
+                        avatar = imgs?.avatar?.asImageBitmap(),
+                        picture = imgs?.picture?.asImageBitmap(),
+                        size = size,
+                        packageName = packageName,
+                        homeStyle = homeStyle,
+                        iconShape = iconShape,
+                        themedIcons = themedIcons,
+                    )
+                }
+            },
         )
     }
 }

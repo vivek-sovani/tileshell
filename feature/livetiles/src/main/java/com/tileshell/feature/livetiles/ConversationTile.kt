@@ -78,29 +78,30 @@ fun ConversationTileFace(
     val itemImages by NotificationCenter.itemImages.collectAsState()
     val fallbackImages by NotificationCenter.images.collectAsState()
 
-    // The count face, then each pending notification in turn (newest first), every change a whole-tile flip — the
-    // sequence is the tile's own (see [rememberNotificationFlipper]), so the shared random flip that used to drive
-    // [flipped] here is no longer needed.
+    // The count face (front), then the whole tile flips to the back for the first pending notification, the next
+    // ones slide up inside it (newest first), and it flips back after the last — see [rememberNotificationFlipper].
+    // The tile runs this sequence itself, so the shared random flip that used to drive [flipped] here is not needed.
     val itemCount = preview.items.size
     val flipper = rememberNotificationFlipper(packageName, active, itemCount)
-    val shown = flipper.shown
-    val current = preview.items.getOrElse(shown.coerceAtLeast(0)) {
+    val current = preview.items.getOrElse(flipper.index) {
         ConversationItem(sender = preview.sender, snippet = preview.snippet)
     }
     // Report which notification is actually on screen so a tap opens *that* one
-    // (see NotificationCenter.openAndClear) — only while a message is showing; the
-    // count face reverts it to null so a tap there still opens the newest, as before.
+    // (see NotificationCenter.openAndClear) — only while the back face (a message) is showing; the
+    // front face reverts it to null so a tap there still opens the newest, as before.
     SideEffect {
         NotificationCenter.reportDisplayedKey(
             packageName,
-            if (shown >= 0) current.notificationKey.ifEmpty { null } else null,
+            if (flipper.flipped) current.notificationKey.ifEmpty { null } else null,
         )
     }
 
     val countWord = if (kind == LiveFace.MESSAGES) "new" else "unread"
     Box(modifier = modifier.fillMaxSize()) {
-        val face: @Composable androidx.compose.foundation.layout.BoxScope.(Int) -> Unit = { slot ->
-            if (slot < 0) {
+        FlipTile(
+            flipped = flipper.flipped,
+            modifier = Modifier.fillMaxSize(),
+            front = {
                 ConversationCountFace(preview.count, countWord, size)
                 AppIconCorner(
                     packageName = packageName,
@@ -109,27 +110,24 @@ fun ConversationTileFace(
                     themedIcons = themedIcons,
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 )
-            } else {
-                val item = preview.items.getOrElse(slot) { current }
-                // The per-notification image (correct group/sender avatar), else the package-level one.
-                val imgs = itemImages[item.notificationKey] ?: fallbackImages[packageName]
-                NotificationFaceContent(
-                    item = item,
-                    avatar = imgs?.avatar?.asImageBitmap(),
-                    picture = imgs?.picture?.asImageBitmap(),
-                    size = size,
-                    packageName = packageName,
-                    homeStyle = homeStyle,
-                    iconShape = iconShape,
-                    themedIcons = themedIcons,
-                )
-            }
-        }
-        FlipTile(
-            flipped = flipper.flipped,
-            modifier = Modifier.fillMaxSize(),
-            front = { face(flipper.frontSlot) },
-            back = { face(flipper.backSlot) },
+            },
+            back = {
+                MessageSlide(flipper.index) { slot ->
+                    val item = preview.items.getOrElse(slot) { current }
+                    // The per-notification image (correct group/sender avatar), else the package-level one.
+                    val imgs = itemImages[item.notificationKey] ?: fallbackImages[packageName]
+                    NotificationFaceContent(
+                        item = item,
+                        avatar = imgs?.avatar?.asImageBitmap(),
+                        picture = imgs?.picture?.asImageBitmap(),
+                        size = size,
+                        packageName = packageName,
+                        homeStyle = homeStyle,
+                        iconShape = iconShape,
+                        themedIcons = themedIcons,
+                    )
+                }
+            },
         )
     }
 }
