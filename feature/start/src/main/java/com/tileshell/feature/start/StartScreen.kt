@@ -1671,6 +1671,10 @@ fun StartScreen(
                     // long-press haptic — it's a light tap, not a fresh lift).
                     tilePickerRequests = viewModel.tilePicker,
                     tileOnlyEditFlow = viewModel.tileOnlyEdit,
+                    armedDragFlow = viewModel.armedDrag,
+                    dragEntryFlow = viewModel.dragEntry,
+                    onArmedDragHandled = viewModel::clearArmedDrag,
+                    onDragFromLongPress = viewModel::enterTileEditByDrag,
                     onTilePickerHandled = viewModel::clearTilePicker,
                     onOpenTileMenu = { tile, bounds ->
                         // A top-level app tile, folder or widget stack gets the cluster (an inline-expanded folder
@@ -2949,6 +2953,12 @@ private fun StartPage(
     tilePickerRequests: kotlinx.coroutines.flow.StateFlow<TilePickerRequest?>,
     // Edit mode opened from a tile's quick actions: that tile's own controls only (no page headers, add page, edit bar).
     tileOnlyEditFlow: kotlinx.coroutines.flow.StateFlow<Boolean>,
+    // Long press then drag: the tile whose drag the grid gesture should take over, whether move mode was entered that
+    // way, and the callbacks to start it and to say the handover happened.
+    armedDragFlow: kotlinx.coroutines.flow.StateFlow<String?>,
+    dragEntryFlow: kotlinx.coroutines.flow.StateFlow<Boolean>,
+    onArmedDragHandled: () -> Unit,
+    onDragFromLongPress: (String) -> Boolean,
     onTilePickerHandled: () -> Unit,
     onSelectTile: (String) -> Unit,
     onExitEdit: () -> Unit,
@@ -3087,6 +3097,8 @@ private fun StartPage(
         }
     }
     val tileOnlyEdit by tileOnlyEditFlow.collectAsState()
+    val armedDrag by armedDragFlow.collectAsState()
+    val dragEntry by dragEntryFlow.collectAsState()
     val pickerRequest by tilePickerRequests.collectAsState()
     LaunchedEffect(pickerRequest) {
         val request = pickerRequest ?: return@LaunchedEffect
@@ -3685,6 +3697,8 @@ private fun StartPage(
                 onResize = { id -> sizePickerFor = id },
                 onColor = { id -> colorPickerFor = id },
                 cornerButtons = !tileOnlyEdit,
+                armedDragId = { armedDrag },
+                onArmedDragTaken = onArmedDragHandled,
                 // Merging is disabled while a folder is expanded: its children
                 // are never valid merge participants, and without this a drag
                 // hovering over one would show a confusing "merge target"
@@ -3861,9 +3875,12 @@ private fun StartPage(
                     baseModel
                 }
                 val menuCoordinates = remember(model.id) { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+                // Stable per tile, so a recomposition during the long press does not restart the tile's gesture.
+                val dragStart = remember(model.id) { { onDragFromLongPress(model.id) } }
                 androidx.compose.runtime.CompositionLocalProvider(
                     com.tileshell.feature.livetiles.LocalNotificationMuted provides (model.id in mutedNotificationTiles),
                     LocalTileOnlyEdit provides tileOnlyEdit,
+                    LocalTileDragStart provides dragStart,
                 ) {
                 Box(
                     modifier = Modifier
@@ -3891,7 +3908,7 @@ private fun StartPage(
                         // After the offset and size above, so these are the tile's own bounds.
                         .onGloballyPositioned { menuCoordinates[0] = it }
                         // Tile-only edit: lift, pulse and show arrows once, so it's clear the tile can be moved now.
-                        .moveHint(tileOnlyEdit && editMode && model.id == selectedTileId)
+                        .moveHint(tileOnlyEdit && editMode && model.id == selectedTileId && !dragEntry)
                         .then(
                             if (sizePickerFor == model.id || colorPickerFor == model.id) {
                                 Modifier.onGloballyPositioned { c ->
@@ -5530,7 +5547,7 @@ internal fun TileView(
             // the outer gesture is suppressed for them too.
             .then(
                 if (editMode || isStackTile || readOnly) Modifier
-                else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
+                else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress, onLongPressDrag = LocalTileDragStart.current),
             )
             // Gesture-based resize (drag from the tile's bottom-right corner)
             // — for the selected tile in edit mode, including a widget stack
@@ -6780,7 +6797,9 @@ private fun Modifier.emptySpaceEnterEdit(
 internal fun Modifier.tileGesture(
     onTap: () -> Unit,
     onLongPress: () -> Unit,
-): Modifier = pointerInput(onTap, onLongPress) {
+    // Once the long press has fired, a drag past a small slop hands the finger to move mode (see LocalTileDragStart).
+    onLongPressDrag: (() -> Boolean)? = null,
+): Modifier = pointerInput(onTap, onLongPress, onLongPressDrag) {
     val slop = 7.dp.toPx()
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
@@ -6803,11 +6822,20 @@ internal fun Modifier.tileGesture(
         when (outcome) {
             null -> {
                 onLongPress()
+                val dragSlop = 10.dp.toPx()
+                var handedOver = false
                 // The long press is this tile's: swallow the rest of the gesture, in the first pass (before the children
                 // see it), so a link or button on the tile's face (the music tile's podcasts / radio rows) does not also
-                // read the release as a tap and open its hub.
+                // read the release as a tap and open its hub, and the page does not scroll under the finger.
                 while (true) {
                     val event = awaitPointerEvent(PointerEventPass.Initial)
+                    val change = event.changes.firstOrNull { it.id == down.id }
+                    // Dragging after the long press starts move mode: the edit-mode grid gesture takes this same finger.
+                    if (!handedOver && onLongPressDrag != null && change != null && change.pressed &&
+                        (change.position - down.position).getDistance() > dragSlop
+                    ) {
+                        handedOver = onLongPressDrag()
+                    }
                     event.changes.forEach { it.consume() }
                     if (event.changes.none { it.pressed }) break
                 }
@@ -6844,6 +6872,10 @@ private fun Modifier.editDragGesture(
     onColor: (String) -> Unit = {},
     // False in tile-only edit: the corner buttons (unpin, colour, size) are not drawn, so they must not respond either.
     cornerButtons: Boolean = true,
+    // The tile whose long press has just turned into a drag, with the finger still down: this gesture takes that
+    // finger over (instead of waiting for a new press) and drags the tile at once.
+    armedDragId: () -> String? = { null },
+    onArmedDragTaken: () -> Unit = {},
     onLift: (id: String, offset: IntOffset) -> Unit,
     onDrag: (offset: IntOffset) -> Unit,
     onReorderTo: (dragId: String, targetId: String) -> Unit,
@@ -7010,7 +7042,20 @@ private fun Modifier.editDragGesture(
     }
 
     awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
+        // A long press that turned into a drag: carry on with that same finger.
+        val armedId = armedDragId()
+        val down = if (armedId != null) {
+            var taken: androidx.compose.ui.input.pointer.PointerInputChange? = null
+            while (taken == null) {
+                val event = awaitPointerEvent()
+                taken = event.changes.firstOrNull { it.pressed }
+                if (taken == null) break // lifted before the handover: nothing to drag
+            }
+            onArmedDragTaken()
+            taken ?: return@awaitEachGesture
+        } else {
+            awaitFirstDown(requireUnconsumed = false)
+        }
 
         // Corner controls on the selected tile (FR-3.4/3.5/7): a tap in the
         // top-left zone unpins, bottom-right resizes, bottom-left recolours
@@ -7019,7 +7064,7 @@ private fun Modifier.editDragGesture(
         // never also fires.
         val sel = selectedId()
         val selPlacement = sel?.let { id -> placementsNow().firstOrNull { it.id == id } }
-        if (selPlacement != null && cornerButtons) {
+        if (selPlacement != null && cornerButtons && armedId == null) {
             val r = geom.rect(selPlacement)
             // Smaller on a small tile, where three 30dp corners would cover most of it and make every press a button.
             val zone = cornerZoneSize(r.width, r.height, 30.dp.toPx())
@@ -7075,9 +7120,9 @@ private fun Modifier.editDragGesture(
             }
         }
 
-        val startId = tileAt(placementsNow(), geom, down.position)
+        val startId = armedId ?: tileAt(placementsNow(), geom, down.position)
         var lifted = false
-        var moved = false
+        var moved = armedId != null
         var grab = Offset.Zero
         var lastTarget: String? = null
         var mergeId: String? = null

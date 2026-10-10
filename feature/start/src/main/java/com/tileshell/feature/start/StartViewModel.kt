@@ -808,6 +808,31 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         if (_editMode.value) _tileOnlyEdit.value = true
     }
 
+    private val _armedDrag = MutableStateFlow<String?>(null)
+
+    /** A tile whose long press turned into a drag: the edit-mode grid gesture takes over the finger that is still down. */
+    val armedDrag: StateFlow<String?> = _armedDrag.asStateFlow()
+
+    private val _dragEntry = MutableStateFlow(false)
+
+    /** True while move mode was entered by dragging after a long press (no "you can move it" hint then). */
+    val dragEntry: StateFlow<Boolean> = _dragEntry.asStateFlow()
+
+    /** Move mode for one tile, entered mid-gesture by dragging after a long press. False when the layout is locked. */
+    fun enterTileEditByDrag(tileId: String): Boolean {
+        if (settings.value.lockLayout) return false
+        closeTileMenu()
+        enterTileEdit(tileId)
+        if (!_editMode.value) return false
+        _armedDrag.value = tileId
+        _dragEntry.value = true
+        return true
+    }
+
+    fun clearArmedDrag() {
+        _armedDrag.value = null
+    }
+
     fun enterEdit(tileId: String?) {
         if (settings.value.lockLayout) return
         // Switching the selection while already editing keeps the mode; a fresh entry is a full edit.
@@ -826,6 +851,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         if (!_editMode.value) return
         _editMode.value = false
         _tileOnlyEdit.value = false
+        _armedDrag.value = null
+        _dragEntry.value = false
         _selectedTileId.value = null
         _swipeEnabled.value = true
     }

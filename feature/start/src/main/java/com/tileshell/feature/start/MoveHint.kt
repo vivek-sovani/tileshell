@@ -23,6 +23,13 @@ import kotlin.math.min
 val LocalTileOnlyEdit = staticCompositionLocalOf { false }
 
 /**
+ * Called when a long press on a tile (which opened its quick actions) turns into a drag: starts move mode for this
+ * tile and lets the edit-mode grid gesture carry on with the same finger. Returns false (nothing happens, the
+ * cluster stays) when the layout is locked. Null where a tile has no such handover.
+ */
+val LocalTileDragStart = staticCompositionLocalOf<(() -> Boolean)?> { null }
+
+/**
  * Tells the user the tile can be moved now: when [active] turns on, the tile lifts and pulses three times while a
  * four-way arrow glyph breathes over it, then it settles (the usual selected look stays). Draw-only.
  */

@@ -505,7 +505,7 @@ private fun IconCellChrome(
                 rotationZ = if (editMode && !dragging) (if (index % 2 == 0) jigglePhase() else -jigglePhase()) else 0f
             }
             .then(
-                if (editMode) Modifier else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress),
+                if (editMode) Modifier else Modifier.tileGesture(onTap = onTap, onLongPress = onLongPress, onLongPressDrag = LocalTileDragStart.current),
             )
             // Gesture-based resize (drag from the tile's bottom-right corner)
             // — see StartScreen.kt's tileStretchGesture doc comment.
