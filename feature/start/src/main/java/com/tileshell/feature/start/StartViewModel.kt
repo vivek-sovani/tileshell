@@ -1884,11 +1884,6 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(writeContext) { settingsRepository.setMonochromeIconTint(tint) }
     }
 
-    /** See [LauncherSettings.tileQuickMenu]'s doc comment. */
-    fun setTileQuickMenu(enabled: Boolean) {
-        viewModelScope.launch(writeContext) { settingsRepository.setTileQuickMenu(enabled) }
-    }
-
     /** See [LauncherSettings.appListStyle]'s doc comment. */
     fun setAppListStyle(style: AppListStyle) {
         viewModelScope.launch(writeContext) { settingsRepository.setAppListStyle(style) }

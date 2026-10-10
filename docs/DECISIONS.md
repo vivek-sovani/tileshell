@@ -11791,8 +11791,7 @@ multiplied by hand. Camera distance 4 screen heights (2 looked too skewed beside
 the video (flat → edge-on ≈ 0.15 s → settled ≈ 0.35 s).
 
 ## Tile quick actions on long press (branch tile-quick-actions)
-From a WP10 screenshot (a mail tile with its actions as mini tiles around it). Optional, default off, so a long press
-keeps entering edit mode for everyone who doesn't opt in. Actions are the app's own launcher shortcuts plus a fixed
+From a WP10 screenshot (a mail tile with its actions as mini tiles around it). It started as a Personalize option, default off, so a long press kept entering edit mode while it was developed; the option was removed once the feature settled and it is now always on (edit mode: long press on empty space, the quick panel's "edit tiles", or Personalize's "edit start"). Actions are the app's own launcher shortcuts plus a fixed
 set (size, colour, edit, app info, unpin; the size and colour pickers open directly, outside edit mode, since a separate "customize" step was not wanted), not per-app hand-written ones; hubs and live tiles (blank package) get customize and
 unpin only. Folders, stacks and expanded folder children are left on long-press-to-edit: their long press already means
 something else (stack: open the folder overlay). The overlay is its own composable (the register limit in StartScreen's

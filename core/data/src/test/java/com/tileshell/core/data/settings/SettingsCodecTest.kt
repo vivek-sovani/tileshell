@@ -29,7 +29,6 @@ class SettingsCodecTest {
             tilePackMode = TilePackMode.STICKY,
             themedIcons = true,
             appListStyle = AppListStyle.TILES,
-            tileQuickMenu = true,
             borderlessTiles = true,
             tileOutline = false,
         )
@@ -64,14 +63,6 @@ class SettingsCodecTest {
         assertEquals(AppListStyle.ICONS, SettingsCodec.decode("glass=true").appListStyle)
         assertEquals(AppListStyle.TILES, SettingsCodec.decode("appListStyle=TILES").appListStyle)
         assertEquals(AppListStyle.ICONS, SettingsCodec.decode("appListStyle=squares").appListStyle)
-    }
-
-    @Test
-    fun `tileQuickMenu is off by default, decodes on, and a bad value keeps the default`() {
-        assertEquals(false, LauncherSettings().tileQuickMenu)
-        assertEquals(false, SettingsCodec.decode("glass=true").tileQuickMenu)
-        assertEquals(true, SettingsCodec.decode("tileQuickMenu=true").tileQuickMenu)
-        assertEquals(false, SettingsCodec.decode("tileQuickMenu=sure").tileQuickMenu)
     }
 
     @Test

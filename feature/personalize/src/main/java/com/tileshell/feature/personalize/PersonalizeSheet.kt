@@ -266,8 +266,6 @@ fun PersonalizeSheet(
     lockLayout: Boolean,
     onLockLayoutChange: (Boolean) -> Unit,
     onEditStart: () -> Unit,
-    tileQuickMenu: Boolean,
-    onTileQuickMenuChange: (Boolean) -> Unit,
     hideStatusBar: Boolean,
     onHideStatusBarChange: (Boolean) -> Unit,
     doubleTapLock: Boolean = false,
@@ -1215,16 +1213,6 @@ fun PersonalizeSheet(
                         }
                         // ---- lock layout ----
                         SettingGroup(label = "layout", tokens.fgDim) {
-                            ToggleRow("tile quick actions", on = tileQuickMenu, accent = accent, tokens, onTileQuickMenuChange)
-                            Text(
-                                if (tileQuickMenu) {
-                                    "long-pressing a tile opens its shortcuts, customize, app info and unpin beside it — edit mode opens from empty space, the button below, or the quick panel's \"edit tiles\""
-                                } else {
-                                    "long-pressing a tile enters edit mode — turn on to open a Windows Phone-style cluster of quick actions instead"
-                                },
-                                color = tokens.fgDim,
-                                fontSize = 12.sp,
-                            )
                             if (!lockLayout) WallpaperNavRow("edit start", "edit ›", accent, tokens, onEditStart)
                             ToggleRow("lock layout", on = lockLayout, accent = accent, tokens, onLockLayoutChange)
                             Text(

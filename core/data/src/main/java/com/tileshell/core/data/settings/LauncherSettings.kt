@@ -311,12 +311,6 @@ data class LauncherSettings(
      * [themedIcons] (which, when on, only decides the glyph's tint here).
      */
     val appListStyle: AppListStyle = AppListStyle.ICONS,
-    /**
-     * Long-pressing a Start tile opens a cluster of quick actions beside it (the app's own shortcuts, customize,
-     * app info, unpin) instead of entering edit mode; edit mode is then entered from empty space, personalize or
-     * the quick panel. Off by default: long press enters edit mode, as in every release so far.
-     */
-    val tileQuickMenu: Boolean = false,
     /** Periodic background layout snapshot saves (for LayoutHistorySheet). */
     val autoBackupEnabled: Boolean = true,
     /** Hours between automatic snapshots: 1, 4, 6, 12, or 24. */
@@ -427,7 +421,6 @@ object SettingsCodec {
         append("themedIcons=").append(settings.themedIcons).append('\n')
         append("monochromeIconTint=").append(settings.monochromeIconTint.name).append('\n')
         append("appListStyle=").append(settings.appListStyle.name).append('\n')
-        append("tileQuickMenu=").append(settings.tileQuickMenu).append('\n')
         append("autoBackup=").append(settings.autoBackupEnabled).append('\n')
         append("autoBackupInterval=").append(settings.autoBackupIntervalHours).append('\n')
         append("edgeStripEnabled=").append(settings.edgeStripEnabled).append('\n')
@@ -488,7 +481,6 @@ object SettingsCodec {
         var themedIcons = d.themedIcons
         var monochromeIconTint = d.monochromeIconTint
         var appListStyle = d.appListStyle
-        var tileQuickMenu = d.tileQuickMenu
         var autoBackupEnabled = d.autoBackupEnabled
         var autoBackupIntervalHours = d.autoBackupIntervalHours
         var edgeStripEnabled = d.edgeStripEnabled
@@ -563,7 +555,6 @@ object SettingsCodec {
                     MonochromeIconTint.entries.find { it.name == value }?.let { monochromeIconTint = it }
                 "appListStyle" ->
                     AppListStyle.entries.find { it.name == value }?.let { appListStyle = it }
-                "tileQuickMenu" -> tileQuickMenu = value.toBooleanStrictOrNull() ?: tileQuickMenu
                 "autoBackup" -> autoBackupEnabled = value.toBooleanStrictOrNull() ?: autoBackupEnabled
                 "autoBackupInterval" -> value.toIntOrNull()?.let {
                     autoBackupIntervalHours = it.coerceIn(1, 24)
@@ -634,7 +625,6 @@ object SettingsCodec {
             themedIcons = themedIcons,
             monochromeIconTint = monochromeIconTint,
             appListStyle = appListStyle,
-            tileQuickMenu = tileQuickMenu,
             autoBackupEnabled = autoBackupEnabled,
             autoBackupIntervalHours = autoBackupIntervalHours,
             edgeStripEnabled = edgeStripEnabled,
