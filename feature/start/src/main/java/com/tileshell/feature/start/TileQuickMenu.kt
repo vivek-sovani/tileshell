@@ -12,6 +12,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -182,6 +184,18 @@ internal fun TileQuickMenuLayer(
                     Toast.makeText(context, "couldn't archive — open the app", Toast.LENGTH_SHORT).show()
                 }
             },
+            onOpenApp = {
+                viewModel.closeTileMenu()
+                // This very notification (not the newest), the way tapping the tile opens the one it shows.
+                NotificationCenter.reportDisplayedKey(packageName, item.notificationKey)
+                if (!NotificationCenter.openAndClear(context, packageName)) {
+                    // The notification can no longer be opened (cleared meanwhile): open the app itself.
+                    val activity = app?.activityName ?: childRef?.second?.activityName.orEmpty()
+                    if (activity.isBlank() || !AppLauncher.launch(context, packageName, activity)) {
+                        Toast.makeText(context, "couldn't open the app", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
             onOpenLink = { url ->
                 viewModel.closeTileMenu()
                 runCatching {
@@ -284,8 +298,13 @@ private class CardModel(
     val onArchive: () -> Unit,
     /** Opens a link tapped in the message (and closes the cluster). */
     val onOpenLink: (String) -> Unit,
+    /** Opens this notification in its app. */
+    val onOpenApp: () -> Unit,
 ) {
-    val hasButtons get() = canReply || canMarkRead || canArchive
+    /** "open app" is always offered, so a card always has buttons. */
+    val hasButtons get() = true
+    /** The buttons wrap onto a second row when all four would not fit across a phone. */
+    val buttonRows get() = if ((if (canReply) 1 else 0) + (if (canMarkRead) 1 else 0) + (if (canArchive) 1 else 0) >= 3) 2 else 1
 }
 
 private val CARD_TEXT_HEIGHT = 118.dp
@@ -311,7 +330,7 @@ private fun TileQuickMenu(
         val screenH = constraints.maxHeight.toFloat()
         // The card sits right next to the tile. Collapsed it shows the first lines of the message and its buttons;
         // expanded (or while replying) it grows to hold the whole message and the mini tiles step aside.
-        val collapsedHeight = CARD_TEXT_HEIGHT + 52.dp + if (card?.hasButtons == true) CARD_BUTTON_ROW else 0.dp
+        val collapsedHeight = CARD_TEXT_HEIGHT + 52.dp + CARD_BUTTON_ROW * (card?.buttonRows ?: 1)
         // Expanded: as tall as the message needs (about 30 characters a line), up to most of the screen.
         val messageLines = card?.let { c ->
             c.item.fullText.ifBlank { c.item.snippet }.split('\n').sumOf { ceil(it.length / 34f).toInt().coerceAtLeast(1) }
@@ -416,6 +435,7 @@ private fun MiniTile(action: MiniAction, accent: Color, modifier: Modifier) {
  * "more" to read all of it), and the buttons the app put on it — reply (opens a text box inside the card), mark
  * read, archive — so each one visibly belongs to this message.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NotificationCard(card: CardModel, accent: Color, modifier: Modifier) {
     val message = card.item.fullText.ifBlank { card.item.snippet }
@@ -486,10 +506,15 @@ private fun NotificationCard(card: CardModel, accent: Color, modifier: Modifier)
                     CardButton("send", null, accent, enabled = reply.isNotBlank()) { card.onSend(reply.trim()) }
                 }
             } else if (card.hasButtons) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 4.dp)) {
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(top = 4.dp),
+                ) {
                     if (card.canReply) CardButton("reply", TileIcons["messages"], accent, onClick = card.onToggleReply)
                     if (card.canMarkRead) CardButton("mark read", TileIcons["check"], accent, onClick = card.onMarkRead)
                     if (card.canArchive) CardButton("archive", TileIcons["download"], accent, onClick = card.onArchive)
+                    CardButton("open app", TileIcons["app"], accent, onClick = card.onOpenApp)
                 }
             }
         }
