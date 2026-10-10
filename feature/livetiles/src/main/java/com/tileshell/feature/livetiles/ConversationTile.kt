@@ -199,6 +199,24 @@ internal fun NotificationFaceContent(
     iconShape: IconShape = IconShape.ORIGINAL,
     themedIcons: Boolean = false,
 ) {
+    // Start draws tiles above 2x2 at a larger density; a notification keeps its 2x2 type there so the extra room
+    // holds more of the message (more lines) instead of bigger letters.
+    CancelLiveFaceScale {
+        NotificationFaceBody(item, avatar, picture, size, packageName, homeStyle, iconShape, themedIcons)
+    }
+}
+
+@Composable
+private fun NotificationFaceBody(
+    item: ConversationItem,
+    avatar: ImageBitmap?,
+    picture: ImageBitmap?,
+    size: TileSize,
+    packageName: String?,
+    homeStyle: HomeStyle,
+    iconShape: IconShape,
+    themedIcons: Boolean,
+) {
     val look = NotificationLook.of(size, LocalLiveFaceScale.current)
     if (picture != null && size != TileSize.SMALL) {
         NotificationPhotoFace(item, picture, look, packageName, homeStyle, iconShape, themedIcons)

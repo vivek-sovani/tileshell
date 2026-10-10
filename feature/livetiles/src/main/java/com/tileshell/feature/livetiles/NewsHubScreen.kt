@@ -996,8 +996,16 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
         }
         return
     }
+    // Start draws tiles above 2x2 at a larger density; the news tile keeps its 2x2 type there, so the extra room
+    // holds more of the headline (more lines) instead of bigger letters.
+    CancelLiveFaceScale { NewsHubTileStories(size, stories, index, color, modifier) }
+}
+
+@Composable
+private fun NewsHubTileStories(size: TileSize, stories: List<FeedArticle>, index: Int, color: Color, modifier: Modifier) {
     // One column wide: smaller type and more lines, so a word is rarely split to fit 64dp.
     val narrow = size.cols <= 1
+    val grown = !narrow && minOf(size.cols, size.rows) >= 3
     val lines = when {
         narrow -> if (size.rows >= 4) 9 else 5
         size == TileSize.LARGE || size == TileSize.XLARGE || size == TileSize.TALL_MEDIUM -> 4
@@ -1006,7 +1014,10 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
     }
     // The next story rises from the bottom while the old one leaves through the top, like every tile that shows
     // items one after another (see MessageSlide).
-    Box(modifier = modifier.fillMaxSize()) { MessageSlide(index.coerceIn(0, stories.lastIndex)) { i ->
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    // A tile above 2x2 fills its height with 2x2-sized lines: what is left under the padding and the source line.
+    val lines = if (grown) ((maxHeight - 16.dp - 16.dp) / 15.dp).toInt().coerceAtLeast(lines) else lines
+    MessageSlide(index.coerceIn(0, stories.lastIndex)) { i ->
         val a = stories[i.coerceIn(0, stories.lastIndex)]
         val photo = rememberRemoteImage(a.imageUrl)
         Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
@@ -1030,7 +1041,7 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
                 Text(
                     a.title,
                     color = if (photo != null) Color.White else color,
-                    fontSize = if (narrow) 10.sp else if (lines >= 3) 15.sp else 13.sp, lineHeight = if (narrow) 12.sp else if (lines >= 3) 18.sp else 15.sp,
+                    fontSize = if (narrow) 10.sp else if (grown) 13.sp else if (lines >= 3) 15.sp else 13.sp, lineHeight = if (narrow) 12.sp else if (grown) 15.sp else if (lines >= 3) 18.sp else 15.sp,
                     fontWeight = FontWeight.Light, maxLines = lines, overflow = TextOverflow.Ellipsis,
                 )
             }
