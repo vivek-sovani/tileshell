@@ -77,6 +77,7 @@ import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.TileModel
 import com.tileshell.core.data.shortcutIconDrawable
 import com.tileshell.core.design.TileAccents
+import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.TileIcons
 import com.tileshell.feature.livetiles.ConversationItem
 import com.tileshell.feature.livetiles.NotificationCenter
@@ -278,6 +279,7 @@ internal fun TileQuickMenuLayer(
         actions = actions,
         accent = accent,
         card = card,
+        dark = dark,
         onDismiss = viewModel::closeTileMenu,
     )
 }
@@ -316,6 +318,7 @@ private fun TileQuickMenu(
     actions: List<MiniAction>,
     accent: Color,
     card: CardModel?,
+    dark: Boolean,
     onDismiss: () -> Unit,
 ) {
     var shown by remember { mutableStateOf(false) }
@@ -368,6 +371,7 @@ private fun TileQuickMenu(
             NotificationCard(
                 card = card,
                 accent = accent,
+                dark = dark,
                 modifier = Modifier
                     .offset { IntOffset(cardRect.left.roundToInt(), cardRect.top.roundToInt()) }
                     .size(width = with(density) { cardRect.width.toDp() }, height = cardHeightDp)
@@ -437,29 +441,34 @@ private fun MiniTile(action: MiniAction, accent: Color, modifier: Modifier) {
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun NotificationCard(card: CardModel, accent: Color, modifier: Modifier) {
+private fun NotificationCard(card: CardModel, accent: Color, dark: Boolean, modifier: Modifier) {
+    // The card follows the app theme (dark / light / auto, already resolved into [dark]).
+    val tokens = colorTokens(dark)
+    val cardBackground = if (dark) Color(0xFF1C1C21) else Color(0xFFF4F2EE)
+    val inputBackground = if (dark) Color(0xFF2A2A31) else Color(0xFFE2DFDA)
+    val linkColor = if (dark) Color(0xFF7DB8FF) else Color(0xFF1452CC)
     val message = card.item.fullText.ifBlank { card.item.snippet }
-    val linked = remember(message) { linkifiedMessage(message, Color(0xFF7DB8FF), card.onOpenLink) }
+    val linked = remember(message, linkColor) { linkifiedMessage(message, linkColor, card.onOpenLink) }
     var overflowing by remember(card.item.notificationKey) { mutableStateOf(false) }
     var reply by remember(card.item.notificationKey) { mutableStateOf("") }
     val focus = remember { FocusRequester() }
     LaunchedEffect(card.replyOpen) { if (card.replyOpen) focus.requestFocus() }
     Row(
         modifier = modifier
-            .background(Color(0xFF1C1C21))
+            .background(cardBackground)
             .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) {},
     ) {
         Box(Modifier.fillMaxHeight().width(4.dp).background(accent))
         Column(modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 8.dp)) {
             Text(
                 text = card.appLabel.lowercase(),
-                color = Color(0x99FFFFFF),
+                color = tokens.fg.copy(alpha = 0.6f),
                 fontSize = 11.sp,
                 maxLines = 1,
             )
             Text(
                 text = card.item.sender.ifBlank { "someone" },
-                color = Color(0xCCFFFFFF),
+                color = tokens.fg.copy(alpha = 0.8f),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
@@ -469,7 +478,7 @@ private fun NotificationCard(card: CardModel, accent: Color, modifier: Modifier)
             Box(modifier = Modifier.weight(1f).padding(top = 4.dp)) {
                 Text(
                     text = linked,
-                    color = Color.White,
+                    color = tokens.fg,
                     fontSize = 17.sp,
                     lineHeight = 23.sp,
                     maxLines = if (card.expanded) Int.MAX_VALUE else 3,
@@ -491,14 +500,14 @@ private fun NotificationCard(card: CardModel, accent: Color, modifier: Modifier)
             }
             if (card.replyOpen && card.canReply) {
                 Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.weight(1f).background(Color(0xFF2A2A31)).padding(horizontal = 10.dp, vertical = 10.dp)) {
+                    Box(modifier = Modifier.weight(1f).background(inputBackground).padding(horizontal = 10.dp, vertical = 10.dp)) {
                         if (reply.isEmpty()) {
-                            Text("reply to ${card.item.sender.ifBlank { "someone" }}", color = Color(0x80FFFFFF), fontSize = 14.sp, maxLines = 1)
+                            Text("reply to ${card.item.sender.ifBlank { "someone" }}", color = tokens.fg.copy(alpha = 0.5f), fontSize = 14.sp, maxLines = 1)
                         }
                         BasicTextField(
                             value = reply,
                             onValueChange = { reply = it },
-                            textStyle = TextStyle(color = Color.White, fontSize = 15.sp),
+                            textStyle = TextStyle(color = tokens.fg, fontSize = 15.sp),
                             cursorBrush = SolidColor(accent),
                             modifier = Modifier.fillMaxWidth().focusRequester(focus),
                         )
