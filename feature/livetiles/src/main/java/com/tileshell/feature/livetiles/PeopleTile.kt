@@ -10,6 +10,9 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -67,8 +70,8 @@ private class BubbleSim(x0: Float, y0: Float, var vx: Float, var vy: Float, val 
  * small elastic physics sim, not a fixed grid or fixed slots — user-requested,
  * see DECISIONS.md). Only contacts that have a photo are used (no initials
  * avatars). While [active], each bubble independently swaps to a different
- * contact every ~4.5 s (staggered per bubble, instant cut — no fade/crossfade;
- * the animation here is the bubbles' own motion, not the photo transition). No
+ * contact every ~4.5 s (staggered per bubble; the bubble turns over about its
+ * horizontal axis like a Windows Phone tile, or cuts instantly when Personalize's "flip people photos" is off). No
  * flip — this tile never turns to a back face. When the permission is denied or
  * no favourite contact has a photo it renders [fallback] (the static glyph).
  */
@@ -212,6 +215,11 @@ private fun stepBubbleSimulation(bubbles: List<BubbleSim>, widthPx: Float, heigh
     }
 }
 
+/** Whether the people tile's photos turn over when they change (Personalize › live tiles › "flip people photos"). */
+val LocalPeoplePhotoFlip = androidx.compose.runtime.compositionLocalOf { true }
+
+private const val BUBBLE_FLIP_HALF_MS = 150
+
 @Composable
 private fun PeopleBubble(
     people: List<Person>,
@@ -221,22 +229,45 @@ private fun PeopleBubble(
     modifier: Modifier,
 ) {
     var person by remember(initial) { mutableStateOf(initial) }
-    // Staggered per-bubble timer (offset by [seed]) so bubbles swap photos at
-    // different moments — an instant cut, not a fade, so the only animation is
-    // the bubble's own motion.
-    LaunchedEffect(active, people) {
+    // The next photo, composed out of sight while the old one turns away so it has decoded by the time it shows.
+    var pending by remember(initial) { mutableStateOf<Person?>(null) }
+    val turn = remember { androidx.compose.animation.core.Animatable(0f) }
+    val flip = LocalPeoplePhotoFlip.current
+    // Staggered per-bubble timer (offset by [seed]) so bubbles swap photos at different moments. A swap turns the
+    // bubble over about its horizontal axis (as a Windows Phone tile does: the old photo turns edge-on, the new one
+    // turns up from the other side); with the setting off it is an instant cut.
+    LaunchedEffect(active, people, flip) {
         if (!active || people.size <= 1) return@LaunchedEffect
         delay(300L + seed * 260L)
         while (true) {
             delay(BUBBLE_REFRESH_MS)
             val candidates = people.filter { it != person }
             if (candidates.isEmpty()) continue
-            person = candidates.random()
+            val next = candidates.random()
+            if (flip) {
+                pending = next
+                turn.animateTo(90f, androidx.compose.animation.core.tween(BUBBLE_FLIP_HALF_MS, easing = androidx.compose.animation.core.FastOutLinearInEasing))
+                person = next
+                pending = null
+                turn.snapTo(-90f)
+                turn.animateTo(0f, androidx.compose.animation.core.tween(BUBBLE_FLIP_HALF_MS, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+            } else {
+                person = next
+            }
         }
     }
 
-    Box(modifier = modifier.clip(CircleShape)) {
+    val density = LocalDensity.current
+    Box(
+        modifier = modifier
+            .graphicsLayer {
+                rotationX = turn.value
+                cameraDistance = 10f * density.density
+            }
+            .clip(CircleShape),
+    ) {
         Avatar(person)
+        pending?.let { Box(Modifier.size(1.dp).alpha(0f)) { Avatar(it) } }
     }
 }
 

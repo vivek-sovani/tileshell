@@ -271,6 +271,8 @@ fun PersonalizeSheet(
     onHideStatusBarChange: (Boolean) -> Unit,
     doubleTapLock: Boolean = false,
     onDoubleTapLockChange: (Boolean) -> Unit = {},
+    peoplePhotoFlip: Boolean = true,
+    onPeoplePhotoFlipChange: (Boolean) -> Unit = {},
     onClearPhotos: () -> Unit,
     onRemovePhoto: (String) -> Unit,
     /** Master on/off switch for live-tile flipping/updates. */
@@ -1239,6 +1241,18 @@ fun PersonalizeSheet(
                                 )
                                 Text(
                                     text = "pauses clock/weather/notification flipping when off — badges and counts keep updating",
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                                ToggleRow(
+                                    "flip people photos",
+                                    on = peoplePhotoFlip,
+                                    accent = accent,
+                                    tokens = tokens,
+                                    onChange = onPeoplePhotoFlipChange,
+                                )
+                                Text(
+                                    text = "the people tile's photos turn over when they change, like a windows phone tile. off = a plain cut",
                                     color = tokens.fgDim,
                                     fontSize = 12.sp,
                                 )

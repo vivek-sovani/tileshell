@@ -3062,6 +3062,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Toggle "hide status bar" (Personalize): hides the system status bar over TileShell. */
+    fun setPeoplePhotoFlip(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setPeoplePhotoFlip(enabled) }
+    }
+
     fun setDoubleTapLock(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setDoubleTapLock(enabled) }
     }

@@ -78,40 +78,29 @@ fun ConversationTileFace(
     val itemImages by NotificationCenter.itemImages.collectAsState()
     val fallbackImages by NotificationCenter.images.collectAsState()
 
-    // Cycle through notifications on the back face.
+    // The count face, then each pending notification in turn (newest first), every change a whole-tile flip — the
+    // sequence is the tile's own (see [rememberNotificationFlipper]), so the shared random flip that used to drive
+    // [flipped] here is no longer needed.
     val itemCount = preview.items.size
-    val itemIndex = remember(packageName) { mutableIntStateOf(0) }
-    LaunchedEffect(active, itemCount) {
-        itemIndex.intValue = 0
-        if (!active || itemCount <= 1) return@LaunchedEffect
-        while (true) {
-            delay(NOTIF_CYCLE_MS)
-            itemIndex.intValue = (itemIndex.intValue + 1) % itemCount
-        }
-    }
-    val current = preview.items.getOrElse(itemIndex.intValue) {
+    val flipper = rememberNotificationFlipper(packageName, active, itemCount)
+    val shown = flipper.shown
+    val current = preview.items.getOrElse(shown.coerceAtLeast(0)) {
         ConversationItem(sender = preview.sender, snippet = preview.snippet)
     }
     // Report which notification is actually on screen so a tap opens *that* one
-    // (see NotificationCenter.openAndClear) — only while the back face (this
-    // specific notification) is showing; the front/count face reverts it to null
-    // so a tap there still opens the newest, as before.
+    // (see NotificationCenter.openAndClear) — only while a message is showing; the
+    // count face reverts it to null so a tap there still opens the newest, as before.
     SideEffect {
         NotificationCenter.reportDisplayedKey(
             packageName,
-            if (flipped) current.notificationKey.ifEmpty { null } else null,
+            if (shown >= 0) current.notificationKey.ifEmpty { null } else null,
         )
     }
-    // Use the per-notification image (correct group/sender avatar) falling back to
-    // the package-level image for notifications whose key predates this change.
-    val imgs = itemImages[current.notificationKey] ?: fallbackImages[packageName]
 
     val countWord = if (kind == LiveFace.MESSAGES) "new" else "unread"
     Box(modifier = modifier.fillMaxSize()) {
-        FlipTile(
-            flipped = flipped,
-            modifier = Modifier.fillMaxSize(),
-            front = {
+        val face: @Composable androidx.compose.foundation.layout.BoxScope.(Int) -> Unit = { slot ->
+            if (slot < 0) {
                 ConversationCountFace(preview.count, countWord, size)
                 AppIconCorner(
                     packageName = packageName,
@@ -120,10 +109,12 @@ fun ConversationTileFace(
                     themedIcons = themedIcons,
                     modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
                 )
-            },
-            back = {
+            } else {
+                val item = preview.items.getOrElse(slot) { current }
+                // The per-notification image (correct group/sender avatar), else the package-level one.
+                val imgs = itemImages[item.notificationKey] ?: fallbackImages[packageName]
                 NotificationFaceContent(
-                    item = current,
+                    item = item,
                     avatar = imgs?.avatar?.asImageBitmap(),
                     picture = imgs?.picture?.asImageBitmap(),
                     size = size,
@@ -132,7 +123,13 @@ fun ConversationTileFace(
                     iconShape = iconShape,
                     themedIcons = themedIcons,
                 )
-            },
+            }
+        }
+        FlipTile(
+            flipped = flipper.flipped,
+            modifier = Modifier.fillMaxSize(),
+            front = { face(flipper.frontSlot) },
+            back = { face(flipper.backSlot) },
         )
     }
 }

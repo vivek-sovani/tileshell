@@ -283,6 +283,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(doubleTapLock = enabled) }
     }
 
+    /** See [LauncherSettings.peoplePhotoFlip]. */
+    suspend fun setPeoplePhotoFlip(enabled: Boolean) {
+        store.updateData { it.copy(peoplePhotoFlip = enabled) }
+    }
+
     suspend fun setHideStatusBar(hidden: Boolean) {
         store.updateData { it.copy(hideStatusBar = hidden) }
     }

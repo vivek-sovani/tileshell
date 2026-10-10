@@ -1229,6 +1229,7 @@ fun StartScreen(
         LocalTileFaceColor provides Glass.faceTextColor(
             (settings.glass || tiledWallpaper || settings.borderlessTiles) && chosenWallpaperIsLight,
         ),
+        com.tileshell.feature.livetiles.LocalPeoplePhotoFlip provides settings.peoplePhotoFlip,
     ) {
     BoxWithConstraints(
         modifier = modifier.fillMaxSize()
@@ -10040,6 +10041,8 @@ private fun PersonalizeSheetLayer(
         onHideStatusBarChange = viewModel::setHideStatusBar,
         doubleTapLock = settings.doubleTapLock,
         onDoubleTapLockChange = viewModel::setDoubleTapLock,
+        peoplePhotoFlip = settings.peoplePhotoFlip,
+        onPeoplePhotoFlipChange = viewModel::setPeoplePhotoFlip,
         onAbout = viewModel::openAbout,
         onPersonalizeGuide = viewModel::openPersonalizeGuide,
         onFolders = viewModel::openFolders,
