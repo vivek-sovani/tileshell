@@ -244,15 +244,15 @@ fun CalendarSystemTileFace(
         // settings change, or when the location resolves (Sankashti uses moonrise).
         val obsSettings by PanchangPrefs.settings(context).collectAsState()
         val dayKey = PanchangObservances.startOfDay(nowMillis, java.util.TimeZone.getDefault())
-        val strip by produceState<String?>(initialValue = null, dayKey, obsSettings, location) {
+        val strip by produceState<ObservanceStrip?>(initialValue = null, dayKey, obsSettings, location) {
             val settings = obsSettings ?: return@produceState
             value = withContext(Dispatchers.Default) {
                 runCatching {
                     val moon = moonriseAfter(location.first, location.second)
-                    observanceStripText(
-                        PanchangObservances.on(dayKey, settings, moonriseAfter = moon, location = location),
-                        eveningMoonrise(dayKey, location.first, location.second),
-                    )
+                    val observances = PanchangObservances.on(dayKey, settings, moonriseAfter = moon, location = location)
+                    observanceStripText(observances, eveningMoonrise(dayKey, location.first, location.second))?.let { text ->
+                        ObservanceStrip(text, observanceStripTone(observances, HinduPanchang.panchangFor(dayKey).tithi.displayNumber))
+                    }
                 }.getOrNull()
             }
         }
@@ -265,12 +265,8 @@ fun CalendarSystemTileFace(
                 }
             },
             back = {
-                // A 2×2 back face has no room for the strip as well as its four
-                // times; the front already shows it, every other flip.
-                val roomy = size.cols >= 4 || size.rows >= 3
-                ObservanceStripped(if (roomy) strip else null, size) {
-                    PanchangBackFace(panchang = panchang, size = size, sunTimes = sunTimes, moonTimes = moonTimes, nowMillis = nowMillis)
-                }
+                // No strip on the back (user-requested): the front already shows it.
+                PanchangBackFace(panchang = panchang, size = size, sunTimes = sunTimes, moonTimes = moonTimes, nowMillis = nowMillis)
             },
         )
         return
@@ -578,11 +574,12 @@ private fun PanchangFace(
 }
 
 /**
- * A face with the day's highlight (see [observanceStripText]) as an amber
- * strip along the bottom; unchanged when there's none.
+ * A face with the day's highlight (see [observanceStripText]) as a strip
+ * along the bottom — amber, black for amavasya, white for purnima (see
+ * [observanceStripTone]); unchanged when there's none.
  */
 @Composable
-private fun ObservanceStripped(strip: String?, size: TileSize, content: @Composable () -> Unit) {
+private fun ObservanceStripped(strip: ObservanceStrip?, size: TileSize, content: @Composable () -> Unit) {
     if (strip == null) {
         content()
         return
@@ -591,8 +588,12 @@ private fun ObservanceStripped(strip: String?, size: TileSize, content: @Composa
     Column(modifier = Modifier.fillMaxSize()) {
         Box(modifier = Modifier.weight(1f).fillMaxWidth()) { content() }
         Text(
-            text = strip,
-            color = Color(0xFF3A2600),
+            text = strip.text,
+            color = when (strip.tone) {
+                StripTone.AMBER -> Color(0xFF3A2600)
+                StripTone.BLACK -> Color.White
+                StripTone.WHITE -> Color(0xFF14141A)
+            },
             fontSize = if (tiny) 10.sp else if (size == TileSize.LARGE) 14.sp else 12.sp,
             fontWeight = FontWeight.Medium,
             // Two lines on a 2-column tile: "अंगारकी संकष्टी चतुर्थी · चंद्रोदय ७:४७" doesn't fit on one.
@@ -602,7 +603,13 @@ private fun ObservanceStripped(strip: String?, size: TileSize, content: @Composa
             textAlign = if (size.narrowLive) TextAlign.Center else TextAlign.Start,
             modifier = Modifier
                 .fillMaxWidth()
-                .background(TileAccents.Amber)
+                .background(
+                    when (strip.tone) {
+                        StripTone.AMBER -> TileAccents.Amber
+                        StripTone.BLACK -> Color.Black
+                        StripTone.WHITE -> Color.White
+                    },
+                )
                 .padding(horizontal = if (tiny) 4.dp else 10.dp, vertical = if (tiny) 2.dp else 4.dp),
         )
     }

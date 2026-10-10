@@ -85,6 +85,31 @@ internal fun observanceStripText(all: List<Observance>, sankashtiMoonrise: Long?
     return names + moon
 }
 
+/** The colour of the day's highlight strip: black for amavasya, white for purnima, amber for everything else. */
+internal enum class StripTone { AMBER, BLACK, WHITE }
+
+/**
+ * The strip's tone for the day's [all] observances: the amavasya highlight is black, the purnima highlight white,
+ * and a festival that falls on the new or full moon (Guru Purnima, Lakshmi Pujan, …) takes the same colours, judged
+ * by [sunriseTithiNumber] (30 = amavasya, 15 = purnima, as [com.tileshell.core.data.TithiInfo.displayNumber]).
+ * Ekadashi and every other highlight keep the amber. Pure, unit-tested.
+ */
+internal fun observanceStripTone(all: List<Observance>, sunriseTithiNumber: Int): StripTone {
+    val shown = all.filter { !it.grahan || it.visibleHere }
+    if (shown.any { it.id == "amavasya" }) return StripTone.BLACK
+    if (shown.any { it.id == "purnima" }) return StripTone.WHITE
+    if (shown.any { it.festival }) {
+        when (sunriseTithiNumber) {
+            30 -> return StripTone.BLACK
+            15 -> return StripTone.WHITE
+        }
+    }
+    return StripTone.AMBER
+}
+
+/** The text and tone of the day's highlight strip. */
+internal data class ObservanceStrip(val text: String, val tone: StripTone)
+
 /** Today's moonrise for the Sankashti strip: the first after 5 pm today. */
 internal fun eveningMoonrise(nowMillis: Long, latitude: Double, longitude: Double): Long? {
     val day = PanchangObservances.startOfDay(nowMillis, java.util.TimeZone.getDefault())
