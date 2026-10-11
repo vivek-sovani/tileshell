@@ -337,4 +337,50 @@ class ShoppingParserTest {
         val old = ShoppingCodec.encode(o).split("\t").take(10).joinToString("\t")
         assertEquals("", ShoppingCodec.decode(old)!!.message)
     }
+    @Test
+    fun `chinese order messages are read`() {
+        assertEquals(OrderStatus.SHIPPED, parse("淘宝", "您的订单已发货，快递单号 SF1234567890", "淘宝")?.status)
+        assertEquals("SF1234567890", parse("淘宝", "您的订单已发货，快递单号：SF1234567890", "淘宝")?.ref)
+        assertEquals(OrderStatus.OUT_FOR_DELIVERY, parse("京东", "快递员正在派送，预计今天送达", "京东")?.status)
+        assertEquals("today", parse("京东", "快递员正在派送，预计今天送达", "京东")?.eta)
+        assertEquals(OrderStatus.DELIVERED, parse("天猫", "您的包裹已签收，感谢购物", "天猫")?.status)
+        assertEquals(OrderStatus.PLACED, parse("拼多多", "下单成功，商家正在备货", "拼多多")?.status)
+        assertEquals(OrderStatus.CANCELLED, parse("淘宝", "您的订单已取消", "淘宝")?.status)
+        assertEquals(OrderStatus.RETURNED, parse("淘宝", "退货成功，退款将原路返回", "淘宝")?.status)
+        assertEquals("in 25 min", parse("美团", "骑手正在配送，预计25分钟送达", "美团", food = true)?.eta)
+        // Traditional characters.
+        assertEquals(OrderStatus.SHIPPED, parse("蝦皮購物", "您的訂單已發貨", "Shopee")?.status)
+    }
+
+    @Test
+    fun `a chinese pickup code keeps the parcel open and is shown as the otp`() {
+        val u = parse("菜鸟驿站", "您的快递已到达小区驿站，请及时取件，取件码 3-2-1234", "Cainiao")!!
+        assertEquals(OrderStatus.OUT_FOR_DELIVERY, u.status)
+        assertEquals("3-2-1234", u.otp) // pickup codes carry hyphens
+    }
+
+    @Test
+    fun `chinese promotions and a not yet delivered estimate are not orders`() {
+        assertNull(parse("淘宝", "双十一红包来啦，领券满减最高立减100元", "淘宝"))
+        // "预计明天送达" (expected tomorrow) is not "delivered".
+        assertEquals(OrderStatus.SHIPPED, parse("京东", "您的订单已发货，预计明天送达", "京东")?.status)
+    }
+
+    @Test
+    fun `chinese stores couriers and app labels are known`() {
+        assertEquals("Taobao", storeIn("淘宝：您的订单已发货")?.name)
+        assertEquals("Tmall", storeIn("Your Tmall order")?.name)
+        assertEquals("JD Logistics", storeIn("京东物流 快递派送中")?.name) // not JD.com
+        assertEquals("JD.com", storeIn("京东 订单已发货")?.name)
+        assertEquals("Pinduoduo", storeIn("拼多多")?.name)
+        assertEquals("SF Express", storeIn("顺丰速运 已揽收")?.name)
+        assertEquals("Meituan", storeIn("美团外卖")?.name)
+        assertEquals(ShoppingAppKind.SHOPPING, builtInShoppingKind("com.taobao.taobao", "Taobao"))
+        assertEquals(ShoppingAppKind.SHOPPING, builtInShoppingKind("x.y", "淘宝"))
+        assertEquals(ShoppingAppKind.FOOD, builtInShoppingKind("me.ele", "饿了么"))
+        assertEquals(ShoppingAppKind.FOOD, builtInShoppingKind("x.y", "美团外卖"))
+        assertEquals(ShoppingAppKind.COURIER, builtInShoppingKind("com.cainiao.wireless", "菜鸟"))
+        assertEquals(ShoppingAppKind.COURIER, builtInShoppingKind("x.y", "快递100"))
+        assertEquals(ShoppingAppKind.SHOPPING, builtInShoppingKind("com.shopee.id", "Shopee"))
+    }
 }

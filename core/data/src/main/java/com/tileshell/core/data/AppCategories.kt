@@ -104,13 +104,14 @@ object AppCategories {
      * come up empty. Ordered so the distinctive, OS-unmodelled buckets win first.
      */
     private val TOKEN_RULES: List<Pair<String, List<String>>> = listOf(
-        "banking" to listOf("bank", "banking", "finance", "financial"),
-        "payments" to listOf("wallet", "upi", "payment", "paytm", "gpay", " pay", "paisa"),
+        "banking" to listOf("bank", "banking", "finance", "financial", "银行", "銀行"),
+        "payments" to listOf("wallet", "upi", "payment", "paytm", "gpay", " pay", "paisa", "alipay", "unionpay", "支付", "钱包", "錢包"),
         "shopping" to listOf(
             "shop", "shopping", "store", "mall", "mart", "cart", "bazaar",
             "commerce", "ecommerce", "retail", "grocery", "grocer",
+            "taobao", "tmall", "pinduoduo", "jingdong", "购物", "購物", "商城",
         ),
-        "food" to listOf("food", "restaurant", "kitchen", "recipe", "cafe", "meal", "delivery", "diner"),
+        "food" to listOf("food", "restaurant", "kitchen", "recipe", "cafe", "meal", "delivery", "diner", "meituan", "外卖", "外賣"),
         "travel" to listOf(
             "travel", "trip", "flight", "hotel", "airline", "taxi", "cab", "train",
             "railway", "metro", "tour", "booking", "transit", "rail",

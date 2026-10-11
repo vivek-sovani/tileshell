@@ -280,7 +280,7 @@ import com.tileshell.feature.livetiles.PhotosData
 import com.tileshell.feature.livetiles.PhotosStore
 import com.tileshell.core.data.settings.LauncherSettings
 import com.tileshell.feature.livetiles.PhotosTileFace
-import com.tileshell.feature.livetiles.SELECTABLE_COUNTRIES
+import com.tileshell.feature.livetiles.NEWS_REGION_GROUPS
 import com.tileshell.feature.livetiles.SportsLinks
 import com.tileshell.feature.livetiles.SportsTileFace
 import com.tileshell.feature.livetiles.StepsSmallFace
@@ -2420,8 +2420,9 @@ fun StartScreen(
             rightHalf = isLandscape,
             dark = dark,
             accentId = settings.accentId,
-            regions = (listOf(INDIA_COUNTRY_CODE, INTERNATIONAL_REGION_CODE) + SELECTABLE_COUNTRIES.map { it.code })
-                .map { code -> RegionOption(code, regionDisplayName(code), code in feedRegions) },
+            regions = NEWS_REGION_GROUPS.flatMap { (group, codes) ->
+                codes.map { code -> RegionOption(code, regionDisplayName(code), code in feedRegions, group) }
+            },
             onToggleRegion = viewModel::setFeedRegionEnabled,
             onDismiss = viewModel::closeNewsRegion,
         )
@@ -10053,7 +10054,7 @@ private fun PersonalizeSheetLayer(
         onOpenBackup = viewModel::openBackup,
         onPermissions = viewModel::openPermissions,
         onNewsRegion = viewModel::openNewsRegion,
-        newsRegionCount = 1 + SELECTABLE_COUNTRIES.size,
+        newsRegionCount = NEWS_REGION_GROUPS.sumOf { it.second.size },
         onDismiss = viewModel::closePersonalize,
     )
 }

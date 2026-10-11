@@ -99,7 +99,7 @@ import com.tileshell.feature.livetiles.FeedRefreshWorker
 import com.tileshell.feature.livetiles.FeedStore
 import com.tileshell.feature.livetiles.INDIA_COUNTRY_CODE
 import com.tileshell.feature.livetiles.INTERNATIONAL_REGION_CODE
-import com.tileshell.feature.livetiles.SELECTABLE_COUNTRIES
+import com.tileshell.feature.livetiles.NEWS_REGION_GROUPS
 import com.tileshell.feature.livetiles.regionDisplayName
 import com.tileshell.feature.livetiles.feedAgo
 import com.tileshell.feature.livetiles.MediaCenter
@@ -1256,10 +1256,11 @@ private fun FeedSettingsSheet(
             // News region: swaps the whole subscribed-feed list for a curated preset
             // (India vs a generic international set) — an explicit override of the
             // locale-detected default seeded on first run (StartViewModel.init).
-            FeedSheetGroup(label = "news regions (select any number)", labelColor = tokens.fgDim) {
+            FeedSheetGroup(label = "news regions and languages (select any number)", labelColor = tokens.fgDim) {
                 RegionChipGrid(
-                    regions = (listOf(INDIA_COUNTRY_CODE, INTERNATIONAL_REGION_CODE) + SELECTABLE_COUNTRIES.map { it.code })
-                        .map { code -> RegionOption(code, regionDisplayName(code), code in feedRegions) },
+                    regions = NEWS_REGION_GROUPS.flatMap { (group, codes) ->
+                        codes.map { code -> RegionOption(code, regionDisplayName(code), code in feedRegions, group) }
+                    },
                     accent = accent,
                     tokens = tokens,
                     onToggle = onFeedRegionToggle,

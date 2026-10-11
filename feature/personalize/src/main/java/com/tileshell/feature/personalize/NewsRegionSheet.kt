@@ -45,7 +45,7 @@ import com.tileshell.core.design.colorTokens
  * doesn't need a new cross-module dependency; the caller resolves region
  * codes to display names and builds this list.
  */
-data class RegionOption(val code: String, val label: String, val enabled: Boolean)
+data class RegionOption(val code: String, val label: String, val enabled: Boolean, val group: String = "")
 
 /**
  * The region multi-select chip grid — shared by [NewsRegionSheet] (reached from
@@ -60,19 +60,30 @@ fun RegionChipGrid(
     tokens: ColorTokens,
     onToggle: (code: String, enabled: Boolean) -> Unit,
 ) {
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        regions.forEach { region ->
-            RegionChip(
-                label = region.label,
-                on = region.enabled,
-                accent = accent,
-                tokens = tokens,
-                onClick = { onToggle(region.code, !region.enabled) },
-            )
+    // Options that carry a group (countries, languages…) get a small heading over their chips.
+    val groups = regions.groupBy { it.group }
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        groups.forEach { (group, options) ->
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (group.isNotBlank() && groups.size > 1) {
+                    Text(group, color = tokens.fgDim.copy(alpha = 0.8f), fontSize = 12.sp, letterSpacing = 0.5.sp)
+                }
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    options.forEach { region ->
+                        RegionChip(
+                            label = region.label,
+                            on = region.enabled,
+                            accent = accent,
+                            tokens = tokens,
+                            onClick = { onToggle(region.code, !region.enabled) },
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -173,7 +184,7 @@ fun NewsRegionSheet(
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
                 )
                 Text(
-                    text = "select any number",
+                    text = "countries and languages · select any number",
                     color = tokens.fgDim,
                     fontSize = 13.sp,
                     modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),

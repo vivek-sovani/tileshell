@@ -185,7 +185,7 @@ fun NewsHubScreen(
         }
     }
 
-    val regions = remember(feed.regions) { feed.regions.ifEmpty { setOf(INTERNATIONAL_REGION_CODE) }.toList().sorted() }
+    val regions = remember(feed.regions) { feed.regions.filterNot(::isNewsLanguage).ifEmpty { setOf(INTERNATIONAL_REGION_CODE) }.toList().sorted() }
     val regionNow = liveRegion?.takeIf { it in regions } ?: regions.first()
     val customChannels = remember(prefsTick) { NewsLivePrefs.custom(context) }
     val chosen = remember(prefsTick) { NewsLivePrefs.chosen(context) }
@@ -852,7 +852,6 @@ private fun NewsSettingsScreen(feed: FeedData, tokens: ColorTokens, accent: Colo
             FeedRefreshWorker.refreshNow(context)
         }
     }
-    val regionCodes = remember { listOf(INDIA_COUNTRY_CODE, INTERNATIONAL_REGION_CODE) + SELECTABLE_COUNTRIES.map { it.code } }
     var url by remember { mutableStateOf("") }
     val custom = feed.sources.filter { it.category !in TOPIC_LABELS }
 
@@ -860,21 +859,26 @@ private fun NewsSettingsScreen(feed: FeedData, tokens: ColorTokens, accent: Colo
         Text("NEWS", color = tokens.fg, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 1.sp, modifier = Modifier.padding(start = 18.dp, top = 18.dp))
         Text("news settings", color = tokens.fg, fontSize = 34.sp, fontWeight = FontWeight.Light, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp))
         LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
-            item(key = "regions-h") { Text("news regions (select any number)", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) }
-            item(key = "regions") {
-                androidx.compose.foundation.layout.FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    regionCodes.forEach { code ->
-                        val on = code in feed.regions
-                        Text(
-                            (if (on) "▣ " else "▢ ") + regionDisplayName(code).lowercase(),
-                            color = if (on) accent else tokens.fgDim,
-                            fontSize = 15.sp,
-                            modifier = Modifier.clickable { change { store.toggleRegion(code, !on) } },
-                        )
+            item(key = "regions-h") { Text("news regions and languages (select any number)", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)) }
+            NEWS_REGION_GROUPS.forEach { (group, codes) ->
+                item(key = "regions-$group") {
+                    Column(modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                        Text(group, color = tokens.fgDim.copy(alpha = 0.8f), fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
+                        androidx.compose.foundation.layout.FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            codes.forEach { code ->
+                                val on = code in feed.regions
+                                Text(
+                                    (if (on) "▣ " else "▢ ") + regionDisplayName(code).lowercase(),
+                                    color = if (on) accent else tokens.fgDim,
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.clickable { change { store.toggleRegion(code, !on) } },
+                                )
+                            }
+                        }
                     }
                 }
             }

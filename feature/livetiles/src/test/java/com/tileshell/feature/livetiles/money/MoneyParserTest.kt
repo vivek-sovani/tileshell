@@ -87,6 +87,16 @@ class MoneyParserTest {
         assertEquals(MoneyAppKind.BANK, moneyAppKind("com.snapwork.hdfc", "HDFC Bank"))
         assertEquals(MoneyAppKind.BANK, moneyAppKind("com.sbi.lotusintouch", "YONO SBI"))
         assertEquals(MoneyAppKind.BANK, moneyAppKind("com.csam.icici.bank.imobile", "iMobile Pay"))
+        // China, Hong Kong, Taiwan: by package, and by an English or Chinese label.
+        assertEquals(MoneyAppKind.PAYMENT, moneyAppKind("com.eg.android.AlipayGphone", "Alipay"))
+        assertEquals(MoneyAppKind.PAYMENT, moneyAppKind("x.y", "支付宝"))
+        assertEquals(MoneyAppKind.PAYMENT, moneyAppKind("x.y", "云闪付"))
+        assertEquals(MoneyAppKind.PAYMENT, moneyAppKind("com.unionpay", "UnionPay"))
+        assertEquals(MoneyAppKind.BANK, moneyAppKind("com.icbc", "中国工商银行"))
+        assertEquals(MoneyAppKind.BANK, moneyAppKind("cmb.pb", "招商银行"))
+        assertEquals(MoneyAppKind.BANK, moneyAppKind("x.y", "ICBC"))
+        assertNull(moneyAppKind("com.abc.news", "ABC News"))
+        assertNull(moneyAppKind("com.tencent.mm", "WeChat")) // a chat app; add it by hand for WeChat Pay
         assertNull(moneyAppKind("com.biology.app", "Biology Notes"))
         assertNull(moneyAppKind("com.spotify.music", "Spotify"))
         assertNotNull(moneyAppKind("in.org.npci.upiapp", "BHIM"))

@@ -183,6 +183,43 @@ internal val KNOWN_STORES: List<KnownStore> = listOf(
     KnownStore(listOf("swiss post", "die post"), "Swiss Post", ShoppingAppKind.COURIER),
     KnownStore(listOf("packlink"), "Packlink", ShoppingAppKind.COURIER),
     KnownStore(listOf("17track"), "17TRACK", ShoppingAppKind.COURIER),
+    // China and its neighbours, by their English names and the Chinese ones (simplified and traditional) the apps
+    // are labelled with on a Chinese-language phone. The logistics arms come before their parents: the earliest
+    // word of a text wins and a tie goes to the first entry ("京东物流" is JD Logistics, not JD.com).
+    KnownStore(listOf("jd logistics", "jingdong logistics", "京东物流", "京東物流"), "JD Logistics", ShoppingAppKind.COURIER),
+    KnownStore(listOf("sf express", "sf-express", "顺丰", "順豐"), "SF Express", ShoppingAppKind.COURIER),
+    KnownStore(listOf("cainiao", "菜鸟", "菜鳥"), "Cainiao", ShoppingAppKind.COURIER),
+    KnownStore(listOf("yto express", "yto", "圆通", "圓通"), "YTO Express", ShoppingAppKind.COURIER),
+    KnownStore(listOf("zto express", "zto", "中通"), "ZTO Express", ShoppingAppKind.COURIER),
+    KnownStore(listOf("sto express", "申通"), "STO Express", ShoppingAppKind.COURIER),
+    KnownStore(listOf("yunda", "韵达", "韻達"), "Yunda", ShoppingAppKind.COURIER),
+    KnownStore(listOf("j&t express", "j&t", "极兔", "極兔"), "J&T Express", ShoppingAppKind.COURIER),
+    KnownStore(listOf("best express", "百世"), "Best Express", ShoppingAppKind.COURIER),
+    KnownStore(listOf("deppon", "德邦"), "Deppon", ShoppingAppKind.COURIER),
+    KnownStore(listOf("china post", "ems china", "中国邮政", "中國郵政"), "China Post", ShoppingAppKind.COURIER),
+    KnownStore(listOf("4px", "递四方", "遞四方"), "4PX", ShoppingAppKind.COURIER),
+    KnownStore(listOf("yunexpress", "云途", "雲途"), "YunExpress", ShoppingAppKind.COURIER),
+    KnownStore(listOf("yanwen", "燕文"), "Yanwen", ShoppingAppKind.COURIER),
+    KnownStore(listOf("taobao", "淘宝", "淘寶"), "Taobao", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("tmall", "天猫", "天貓"), "Tmall", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("jd.com", "jingdong", "京东", "京東"), "JD.com", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("pinduoduo", "拼多多"), "Pinduoduo", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("xianyu", "闲鱼", "閒魚"), "Xianyu", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("alibaba", "1688", "阿里巴巴"), "Alibaba", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("suning", "苏宁", "蘇寧"), "Suning", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("vipshop", "唯品会", "唯品會"), "Vipshop", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("dangdang", "当当", "噹噹"), "Dangdang", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("dewu", "poizon", "得物"), "Dewu", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("yanxuan", "网易严选", "網易嚴選"), "Yanxuan", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("mi store", "xiaomi store", "小米商城"), "Mi Store", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("lazada"), "Lazada", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("shopee", "虾皮", "蝦皮"), "Shopee", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("tokopedia"), "Tokopedia", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("coupang"), "Coupang", ShoppingAppKind.SHOPPING),
+    KnownStore(listOf("meituan", "美团", "美團"), "Meituan", ShoppingAppKind.FOOD),
+    KnownStore(listOf("ele.me", "eleme", "饿了么", "餓了麼"), "Ele.me", ShoppingAppKind.FOOD),
+    KnownStore(listOf("hema", "盒马", "盒馬"), "Hema", ShoppingAppKind.FOOD),
+    KnownStore(listOf("dingdong", "叮咚买菜", "叮咚買菜"), "Dingdong", ShoppingAppKind.FOOD),
 )
 
 private val SHOPPING_PACKAGES = setOf(
@@ -192,6 +229,11 @@ private val SHOPPING_PACKAGES = setOf(
     "com.ebay.mobile", "com.walmart.android", "com.target.ui", "com.etsy.android", "com.contextlogic.wish", "com.zzkko",
     "com.einnovation.temu", "com.alibaba.aliexpresshd", "de.zalando.mobile", "com.asos.app", "com.bestbuy.android",
     "com.thehomedepot", "com.lowes.android", "com.costco.app.android", "com.wayfair.wayfair", "com.ikea.app",
+    // China and its neighbours.
+    "com.taobao.taobao", "com.tmall.wireless", "com.jingdong.app.mall", "com.xunmeng.pinduoduo", "com.taobao.idlefish",
+    "com.suning.mobile.ebuy", "com.achievo.vipshop", "com.dangdang.buy2", "com.shizhuang.duapp", "com.alibaba.wireless",
+    "com.lazada.android", "com.shopee.id", "com.shopee.ph", "com.shopee.sg", "com.shopee.my", "com.shopee.th",
+    "com.shopee.vn", "com.shopee.tw", "com.tokopedia.tkpd", "com.coupang.mobile",
 )
 private val FOOD_PACKAGES = setOf(
     "in.swiggy.android", "com.application.zomato", "com.grofers.customerapp", "com.zeptoconsumerapp", "com.bigbasket.mobileapp",
@@ -199,10 +241,14 @@ private val FOOD_PACKAGES = setOf(
     // United States and Europe.
     "com.dd.doordash", "com.grubhub.android", "com.ubercab.eats", "com.instacart.client", "com.deliveroo.orderapp",
     "com.justeat.app.uk", "com.glovoapp.glovo", "com.wolt.android", "com.tesco.grocery.view",
+    // China.
+    "com.sankuai.meituan", "com.sankuai.meituan.takeoutnew", "me.ele", "com.wudaokou.hippo", "com.yaya.zone",
 )
 private val COURIER_PACKAGES = setOf(
     "com.delhivery.app", "com.bluedart.bluedartapp",
     "com.ups.mobile.android", "com.fedex.ida.android", "com.usps.mobile", "com.royalmail.mobile", "de.dhl.paket",
+    // China.
+    "com.cainiao.wireless", "com.sf.activity",
 )
 
 private fun hasWord(lower: String, word: String) = com.tileshell.feature.livetiles.cachedRegex("""(^|[^a-z])${Regex.escape(word)}([^a-z]|$)""").containsMatchIn(lower)
@@ -222,9 +268,9 @@ internal fun storeIn(text: String): KnownStore? {
 /** Amazon's shopping entries; every other Amazon app (Music, Prime Video, Alexa, Kindle, Audible, Pay, Photos…) is not shopping. */
 private val AMAZON_SHOPPING_WORDS = listOf("shopping", "now", "fresh", "business")
 
-private val CATEGORY_SHOPPING_WORDS = listOf("shopping", "shop", "shops", "mart", "marketplace", "outlet", "boutique", "pharmacy", "webshop", "winkel", "einkaufen", "compras", "achats", "acquisti")
-private val CATEGORY_FOOD_WORDS = listOf("grocery", "groceries", "supermarket", "takeaway", "food delivery", "meal delivery", "pizza", "lieferdienst", "livraison", "supermercado", "supermercato", "supermarkt")
-private val CATEGORY_COURIER_WORDS = listOf("parcel", "parcels", "courier", "shipment", "shipments", "package tracker", "paket", "colis", "paquete", "pacco", "pakket")
+private val CATEGORY_SHOPPING_WORDS = listOf("shopping", "shop", "shops", "mart", "marketplace", "outlet", "boutique", "pharmacy", "webshop", "winkel", "einkaufen", "compras", "achats", "acquisti", "购物", "購物", "商城", "网购", "網購")
+private val CATEGORY_FOOD_WORDS = listOf("grocery", "groceries", "supermarket", "takeaway", "food delivery", "meal delivery", "pizza", "lieferdienst", "livraison", "supermercado", "supermercato", "supermarkt", "外卖", "外賣", "超市", "生鲜", "生鮮", "买菜", "買菜")
+private val CATEGORY_COURIER_WORDS = listOf("parcel", "parcels", "courier", "shipment", "shipments", "package tracker", "paket", "colis", "paquete", "pacco", "pakket", "快递", "快遞", "物流", "包裹")
 
 /** The built-in kind of an installed app, ignoring the user's choices: a known package or a store named in its label. */
 internal fun builtInShoppingKind(packageName: String, label: String): ShoppingAppKind? {

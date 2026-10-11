@@ -183,7 +183,8 @@ class RssFeedTest {
     @Test
     fun `all built-in feed source urls are https (cleartext is blocked on-device)`() {
         val all = DEFAULT_FEED_SOURCES + INTERNATIONAL_FEED_SOURCES +
-            SELECTABLE_COUNTRIES.flatMap { countryFeedSources(it.code) }
+            SELECTABLE_COUNTRIES.flatMap { countryFeedSources(it.code) } +
+            NEWS_LANGUAGES.flatMap { defaultFeedSourcesForCountry(it.code) }
         val cleartext = all.filterNot { it.url.startsWith("https://") }
         assertTrue("cleartext feed URLs found (blocked by default on-device): ${cleartext.map { it.url }}", cleartext.isEmpty())
     }
@@ -194,5 +195,61 @@ class RssFeedTest {
         assertEquals("International", regionDisplayName("INTL"))
         assertEquals("United States", regionDisplayName("US"))
         assertEquals("XX", regionDisplayName("XX")) // unknown code falls back to itself
+    }
+    @Test
+    fun `china hong kong and taiwan have their own outlets since google news cannot serve them`() {
+        listOf("CN", "HK", "TW").forEach { code ->
+            val sources = defaultFeedSourcesForCountry(code)
+            assertEquals(sources, countryFeedSources(code))
+            assertTrue("$code needs several sources", sources.size >= 2)
+            assertTrue("$code must not use google news", sources.none { it.url.contains("news.google.com") })
+            assertTrue("$code needs an enabled nation source", sources.any { it.category == "nation" && it.enabled })
+        }
+        assertEquals("China", regionDisplayName("CN"))
+        assertEquals("Hong Kong", regionDisplayName("HK"))
+        assertEquals("Taiwan", regionDisplayName("TW"))
+    }
+
+    @Test
+    fun `every news language has feeds and a display name and is a language region`() {
+        assertEquals(13, NEWS_LANGUAGES.size)
+        NEWS_LANGUAGES.forEach { lang ->
+            assertTrue("${lang.code} is a language region", isNewsLanguage(lang.code))
+            assertTrue(isNewsLanguage(lang.code.lowercase())) // stored upper-case, but matched either way
+            val feeds = defaultFeedSourcesForCountry(lang.code)
+            assertTrue("${lang.code} needs feeds", feeds.isNotEmpty())
+            assertTrue("${lang.code} needs an enabled nation source", feeds.any { it.category == "nation" && it.enabled })
+            assertEquals(feeds.size, feeds.map { it.url }.toSet().size) // no duplicate feed in one preset
+            assertTrue(regionDisplayName(lang.code).contains("("))
+        }
+        assertTrue("Hindi (हिन्दी)" == regionDisplayName("LANG_HI"))
+        assertTrue("Chinese (中文)" == regionDisplayName("lang_zh"))
+    }
+
+    @Test
+    fun `language codes never collide with a country code or the india and international codes`() {
+        val countries = SELECTABLE_COUNTRIES.map { it.code } + INDIA_COUNTRY_CODE + INTERNATIONAL_REGION_CODE
+        assertTrue(NEWS_LANGUAGES.none { it.code in countries })
+        assertTrue(countries.none { isNewsLanguage(it) })
+    }
+
+    @Test
+    fun `google news is only used for languages it serves`() {
+        // Kannada, Odia, Urdu and Assamese fall back to Hindi on Google (checked live), so they use no Google feed.
+        listOf("LANG_KN", "LANG_OR", "LANG_UR", "LANG_AS").forEach { code ->
+            assertTrue(defaultFeedSourcesForCountry(code).none { it.url.contains("news.google.com") })
+        }
+        listOf("LANG_HI", "LANG_MR", "LANG_GU", "LANG_BN", "LANG_TA", "LANG_TE", "LANG_ML", "LANG_PA", "LANG_ZH").forEach { code ->
+            assertTrue(defaultFeedSourcesForCountry(code).any { it.url.contains("news.google.com") && it.category == "sports" })
+        }
+    }
+
+    @Test
+    fun `region groups list every region once and the language group last`() {
+        val codes = NEWS_REGION_GROUPS.flatMap { it.second }
+        assertEquals(codes.size, codes.toSet().size)
+        assertTrue(codes.containsAll(listOf("IN", "INTL", "CN", "HK", "TW", "LANG_HI", "LANG_ZH")))
+        assertEquals("languages", NEWS_REGION_GROUPS.last().first)
+        assertEquals(NEWS_LANGUAGES.map { it.code }, NEWS_REGION_GROUPS.last().second)
     }
 }

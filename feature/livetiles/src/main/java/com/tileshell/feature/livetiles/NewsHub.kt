@@ -102,7 +102,8 @@ fun channelsForRegion(region: String): List<LiveChannel> =
  * (those of the catalog and the [custom] ones), in catalog order, no repeats. Pure.
  */
 fun effectiveLiveChannels(regions: Set<String>, chosen: Set<String>?, custom: List<LiveChannel>): List<LiveChannel> {
-    val shownRegions = regions.ifEmpty { setOf(INTERNATIONAL_REGION_CODE) }
+    // Live tv follows countries; a language (Hindi, Chinese…) has no channels of its own here.
+    val shownRegions = regions.filterNot(::isNewsLanguage).toSet().ifEmpty { setOf(INTERNATIONAL_REGION_CODE) }
     val pool = (LIVE_CHANNELS + custom).distinctBy { it.region.uppercase() + "/" + it.handle.lowercase() }
     val picked = if (chosen == null) {
         pool.filter { it.default && shownRegions.any { r -> r.equals(it.region, ignoreCase = true) } }

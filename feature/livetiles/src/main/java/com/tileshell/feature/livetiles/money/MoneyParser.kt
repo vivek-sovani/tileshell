@@ -355,8 +355,16 @@ private val PAYMENT_PACKAGES = setOf(
     "com.samsung.android.spay", "com.paypal.android.p2pmobile", "com.amazon.mShop.android.shopping",
     "in.amazon.mShop.android.shopping", "money.jupiter", "com.bharatpe.app", "com.whatsapp.w4b.pay",
     "com.axis.mobile.upi", "com.sbi.upi", "com.naviapp", "com.slice", "com.fampay.in", "com.upi.axispay",
+    // China, Hong Kong and Taiwan. WeChat (com.tencent.mm) is left out: it is a chat app first and is in the people
+    // hub; add it to the payment apps by hand to have it here too.
+    "com.eg.android.AlipayGphone", "hk.alipay.wallet", "com.unionpay", "com.jd.jrapp", "com.octopuscards.nfc_reader",
+    "com.tencent.wechatpay.hk", "com.linepay.tw", "com.jkos.app",
 )
-private val PAYMENT_WORDS = listOf("pay", "wallet", "upi", "bhim", "mobikwik", "freecharge")
+private val PAYMENT_WORDS = listOf(
+    "pay", "wallet", "upi", "bhim", "mobikwik", "freecharge",
+    // Chinese: Alipay, WeChat Pay, UnionPay "QuickPass", wallet, payment (simplified and traditional).
+    "alipay", "unionpay", "支付宝", "支付寶", "微信支付", "云闪付", "雲閃付", "钱包", "錢包", "支付", "八达通", "八達通",
+)
 /** CRED (card bills) and card issuers' own apps. */
 private val CARD_PACKAGES = setOf("com.dreamplug.androidapp")
 private val CARD_BRAND_WORDS = listOf(
@@ -366,6 +374,8 @@ private val CARD_BRAND_WORDS = listOf(
 private val BANK_WORDS = listOf(
     "bank", "yono", "imobile", "icici", "hdfc", "kotak", "axis mobile", "bob world", "pnb one", "canara", "fedmobile",
     "indusind", "idfc", "union", "ippb", "iob", "uco", "baroda", "sbi",
+    // China's banks, by name and by the Chinese ones on a Chinese-language phone ("银行" / "銀行" is "bank").
+    "icbc", "ccb", "cmb", "psbc", "银行", "銀行", "工商银行", "建设银行", "中国银行", "农业银行", "招商银行", "交通银行", "邮储银行", "平安口袋银行",
 )
 
 /**

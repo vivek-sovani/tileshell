@@ -1399,7 +1399,7 @@ fun PersonalizeSheet(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(text = "choose news regions", color = tokens.fg, fontSize = 14.sp)
                                     Text(
-                                        text = "$newsRegionCount countries available",
+                                        text = "$newsRegionCount countries and languages",
                                         color = tokens.fgDim,
                                         fontSize = 12.sp,
                                     )

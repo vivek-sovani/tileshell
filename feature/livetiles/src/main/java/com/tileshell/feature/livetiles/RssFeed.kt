@@ -140,6 +140,9 @@ val SELECTABLE_COUNTRIES: List<CountryPreset> = listOf(
     CountryPreset("DE", "Germany"),
     CountryPreset("FR", "France"),
     CountryPreset("JP", "Japan"),
+    CountryPreset("CN", "China"),
+    CountryPreset("HK", "Hong Kong"),
+    CountryPreset("TW", "Taiwan"),
     CountryPreset("BR", "Brazil"),
     CountryPreset("SG", "Singapore"),
     CountryPreset("AE", "United Arab Emirates"),
@@ -187,6 +190,44 @@ private val CURATED_TOP_STORIES: Map<String, FeedSource> = mapOf(
     "AE" to FeedSource("https://www.gulftoday.ae/rssFeed/0/", "Gulf Today", "nation", enabled = true),
 )
 
+private fun src(url: String, name: String, category: String = "nation", enabled: Boolean = true) =
+    FeedSource(url, name, category, enabled)
+
+/**
+ * Whole hand-picked feed sets for countries Google News cannot template: its English edition for CN / HK / TW
+ * answers with the US one (checked live), so these are real outlets instead. Every URL was fetched over https
+ * and returned items (the SCMP section numbers are its own: 4 China, 2 Hong Kong, 92 Business, 36 Tech, 95 Sport,
+ * 322296 Culture, 318421 China Economy).
+ */
+private val CURATED_COUNTRY_FEEDS: Map<String, List<FeedSource>> = mapOf(
+    "CN" to listOf(
+        src("https://www.cgtn.com/subscribe/rss/section/china.xml", "CGTN China"),
+        src("https://www.scmp.com/rss/4/feed/", "SCMP China"),
+        src("https://english.news.cn/rss/chinarss.xml", "Xinhua"),
+        src("https://en.people.cn/rss/90785.xml", "People's Daily", enabled = false),
+        src("https://www.globaltimes.cn/rss/outbrain.xml", "Global Times", enabled = false),
+        src("https://api.sixthtone.com/cont/output/rssApi", "Sixth Tone", enabled = false),
+        src("https://www.cgtn.com/subscribe/rss/section/culture.xml", "CGTN Culture", "entertainment"),
+        src("https://www.cgtn.com/subscribe/rss/section/sports.xml", "CGTN Sports", "sports"),
+        src("https://www.scmp.com/rss/36/feed/", "SCMP Tech", "tech"),
+        src("https://www.scmp.com/rss/318421/feed/", "SCMP China Economy", "business", enabled = false),
+        src("https://www.cgtn.com/subscribe/rss/section/business.xml", "CGTN Business", "business", enabled = false),
+    ),
+    "HK" to listOf(
+        src("https://www.scmp.com/rss/2/feed/", "SCMP Hong Kong"),
+        src("https://hongkongfp.com/feed/", "Hong Kong Free Press"),
+        src("https://rthk9.rthk.hk/rthk/news/rss/e_expressnews_elocal.xml", "RTHK News"),
+        src("https://www.scmp.com/rss/322296/feed/", "SCMP Culture", "entertainment"),
+        src("https://www.scmp.com/rss/95/feed/", "SCMP Sport", "sports"),
+        src("https://www.scmp.com/rss/36/feed/", "SCMP Tech", "tech"),
+        src("https://www.scmp.com/rss/92/feed/", "SCMP Business", "business", enabled = false),
+    ),
+    "TW" to listOf(
+        src("https://feeds.feedburner.com/rsscna/engnews", "Focus Taiwan"),
+        src("https://www.taipeitimes.com/xml/index.rss", "Taipei Times"),
+    ),
+)
+
 /**
  * Generates a small feed set for a [SELECTABLE_COUNTRIES] entry, purely from its ISO
  * [countryCode] for most countries — no per-country manual curation, so there's no
@@ -198,6 +239,7 @@ private val CURATED_TOP_STORIES: Map<String, FeedSource> = mapOf(
  */
 fun countryFeedSources(countryCode: String): List<FeedSource> {
     val cc = countryCode.uppercase()
+    CURATED_COUNTRY_FEEDS[cc]?.let { return it }
     val name = SELECTABLE_COUNTRIES.firstOrNull { it.code == cc }?.displayName ?: cc
     val nation = CURATED_TOP_STORIES[cc] ?: FeedSource(googleNewsFeed(cc), "Google News · $name", "nation", enabled = true)
     return listOf(
@@ -209,16 +251,155 @@ fun countryFeedSources(countryCode: String): List<FeedSource> {
     )
 }
 
-/** Display name for any region code the picker/settings UI shows (India/International/a named country). */
+/** Region codes of the picker's "languages" group start with this, so they can never collide with an ISO country code. */
+const val NEWS_LANGUAGE_PREFIX = "LANG_"
+
+/** Whether [regionCode] is a news language (Hindi, Tamil, Chinese…) rather than a country or "international". */
+fun isNewsLanguage(regionCode: String): Boolean = regionCode.uppercase().startsWith(NEWS_LANGUAGE_PREFIX)
+
+/**
+ * News in a language rather than a country: the Indian regional languages and Chinese. Each is a region like any
+ * other (several can be on at once, each adds its own feeds), shown under "languages" in the pickers.
+ */
+val NEWS_LANGUAGES: List<CountryPreset> = listOf(
+    CountryPreset("LANG_HI", "Hindi (हिन्दी)"),
+    CountryPreset("LANG_MR", "Marathi (मराठी)"),
+    CountryPreset("LANG_GU", "Gujarati (ગુજરાતી)"),
+    CountryPreset("LANG_BN", "Bengali (বাংলা)"),
+    CountryPreset("LANG_TA", "Tamil (தமிழ்)"),
+    CountryPreset("LANG_TE", "Telugu (తెలుగు)"),
+    CountryPreset("LANG_KN", "Kannada (ಕನ್ನಡ)"),
+    CountryPreset("LANG_ML", "Malayalam (മലയാളം)"),
+    CountryPreset("LANG_PA", "Punjabi (ਪੰਜਾਬੀ)"),
+    CountryPreset("LANG_OR", "Odia (ଓଡ଼ିଆ)"),
+    CountryPreset("LANG_UR", "Urdu (اردو)"),
+    CountryPreset("LANG_AS", "Assamese (অসমীয়া)"),
+    CountryPreset("LANG_ZH", "Chinese (中文)"),
+)
+
+/**
+ * Google News in a language: top stories plus its entertainment / sports / tech / business sections. Google only
+ * serves some languages (Kannada, Odia, Urdu and Assamese fall back to Hindi, checked live), so those get none.
+ * [ceid] is Google's edition id ("IN:hi", "CN:zh-Hans"). Text only, like every Google News feed.
+ */
+private fun googleNewsInLanguage(hl: String, gl: String, ceid: String, name: String): List<FeedSource> {
+    fun url(topic: String? = null): String {
+        val section = topic?.let { "/headlines/section/topic/$it" }.orEmpty()
+        return "https://news.google.com/rss$section?hl=$hl&gl=$gl&ceid=$ceid"
+    }
+    return listOf(
+        src(url(), "Google News · $name"),
+        src(url("ENTERTAINMENT"), "Google News · $name · entertainment", "entertainment"),
+        src(url("SPORTS"), "Google News · $name · sports", "sports"),
+        src(url("TECHNOLOGY"), "Google News · $name · tech", "tech"),
+        src(url("BUSINESS"), "Google News · $name · business", "business", enabled = false),
+    )
+}
+
+/**
+ * The feeds of each [NEWS_LANGUAGES] entry, all fetched over https with items in the language when they were
+ * checked: the BBC's language services, the TV9 / ABP / News18 / Asianet / OneIndia regional sites and the big
+ * regional papers that publish RSS, with Google News added where it supports the language. Several are plain
+ * text; the rest carry pictures. The first few are on by default, the rest are opt-in from the feed list.
+ */
+private val LANGUAGE_FEEDS: Map<String, List<FeedSource>> = mapOf(
+    "LANG_HI" to listOf(
+        src("https://www.bhaskar.com/rss-v1--category-1061.xml", "Dainik Bhaskar"),
+        src("https://hindi.news18.com/rss/khabar/nation/nation.xml", "News18 Hindi"),
+        src("https://feeds.bbci.co.uk/hindi/rss.xml", "BBC Hindi"),
+        src("https://api.livehindustan.com/feeds/rss/national/rssfeed.xml", "Live Hindustan", enabled = false),
+        src("https://www.abplive.com/home/feed", "ABP Live", enabled = false),
+    ) + googleNewsInLanguage("hi", "IN", "IN:hi", "Hindi"),
+    "LANG_MR" to listOf(
+        src("https://feeds.bbci.co.uk/marathi/rss.xml", "BBC Marathi"),
+        src("https://www.tv9marathi.com/feed", "TV9 Marathi"),
+        src("https://saamtv.esakal.com/stories.rss", "Saam TV"),
+        src("https://marathi.abplive.com/home/feed", "ABP Majha", enabled = false),
+        src("https://marathi.oneindia.com/rss/marathi-news-fb.xml", "OneIndia Marathi", enabled = false),
+    ) + googleNewsInLanguage("mr", "IN", "IN:mr", "Marathi"),
+    "LANG_GU" to listOf(
+        src("https://feeds.bbci.co.uk/gujarati/rss.xml", "BBC Gujarati"),
+        src("https://tv9gujarati.com/feed", "TV9 Gujarati"),
+        src("https://gujarati.oneindia.com/rss/gujarati-news-fb.xml", "OneIndia Gujarati", enabled = false),
+    ) + googleNewsInLanguage("gu", "IN", "IN:gu", "Gujarati"),
+    "LANG_BN" to listOf(
+        src("https://feeds.bbci.co.uk/bengali/rss.xml", "BBC Bengali"),
+        src("https://tv9bangla.com/feed", "TV9 Bangla"),
+        src("https://bengali.abplive.com/home/feed", "ABP Ananda", enabled = false),
+        src("https://www.prothomalo.com/stories.rss", "Prothom Alo", enabled = false),
+        src("https://bengali.oneindia.com/rss/bengali-news-fb.xml", "OneIndia Bengali", enabled = false),
+    ) + googleNewsInLanguage("bn", "IN", "IN:bn", "Bengali"),
+    "LANG_TA" to listOf(
+        src("https://feeds.bbci.co.uk/tamil/rss.xml", "BBC Tamil"),
+        src("https://www.hindutamil.in/stories.rss", "Hindu Tamil Thisai"),
+        src("https://tamil.abplive.com/home/feed", "ABP Nadu", enabled = false),
+        src("https://tamil.oneindia.com/rss/tamil-news-fb.xml", "OneIndia Tamil", enabled = false),
+    ) + googleNewsInLanguage("ta", "IN", "IN:ta", "Tamil"),
+    "LANG_TE" to listOf(
+        src("https://feeds.bbci.co.uk/telugu/rss.xml", "BBC Telugu"),
+        src("https://tv9telugu.com/feed", "TV9 Telugu"),
+        src("https://www.sakshi.com/rss.xml", "Sakshi", enabled = false),
+        src("https://telugu.abplive.com/home/feed", "ABP Desam", enabled = false),
+        src("https://telugu.oneindia.com/rss/telugu-news-fb.xml", "OneIndia Telugu", enabled = false),
+    ) + googleNewsInLanguage("te", "IN", "IN:te", "Telugu"),
+    "LANG_KN" to listOf(
+        src("https://kannada.asianetnews.com/rss", "Asianet Suvarna News"),
+        src("https://tv9kannada.com/feed", "TV9 Kannada"),
+        src("https://kannada.oneindia.com/rss/kannada-news-fb.xml", "OneIndia Kannada", enabled = false),
+    ),
+    "LANG_ML" to listOf(
+        src("https://www.mathrubhumi.com/rss", "Mathrubhumi"),
+        src("https://www.asianetnews.com/rss", "Asianet News"),
+        src("https://malayalam.oneindia.com/rss/malayalam-news-fb.xml", "OneIndia Malayalam", enabled = false),
+    ) + googleNewsInLanguage("ml", "IN", "IN:ml", "Malayalam"),
+    "LANG_PA" to listOf(
+        src("https://feeds.bbci.co.uk/punjabi/rss.xml", "BBC Punjabi"),
+        src("https://punjabi.abplive.com/home/feed", "ABP Sanjha"),
+    ) + googleNewsInLanguage("pa", "IN", "IN:pa", "Punjabi"),
+    "LANG_OR" to listOf(
+        src("https://odishatv.in/rss", "OdishaTV"),
+        src("https://www.dharitri.com/feed/", "Dharitri"),
+        src("https://odia.oneindia.com/rss/odia-news-fb.xml", "OneIndia Odia", enabled = false),
+    ),
+    "LANG_UR" to listOf(
+        src("https://feeds.bbci.co.uk/urdu/rss.xml", "BBC Urdu"),
+    ),
+    "LANG_AS" to listOf(
+        src("https://www.pratidintime.com/rss", "Pratidin Time"),
+    ),
+    "LANG_ZH" to listOf(
+        src("https://feeds.bbci.co.uk/zhongwen/simp/rss.xml", "BBC 中文"),
+        src("https://www.rfi.fr/cn/rss", "RFI 中文"),
+        src("https://rss.dw.com/xml/rss-chi-all", "DW 中文"),
+        src("https://cn.nytimes.com/rss/", "纽约时报中文网", enabled = false),
+        src("https://www.ftchinese.com/rss/news", "FT 中文网", enabled = false),
+        src("https://www.people.com.cn/rss/politics.xml", "人民网", enabled = false),
+        src("https://news.ltn.com.tw/rss/all.xml", "自由時報", enabled = false),
+        src("https://feeds.feedburner.com/rsscna/politics", "中央社", enabled = false),
+    ) + googleNewsInLanguage("zh-CN", "CN", "CN:zh-Hans", "中文"),
+)
+
+/**
+ * The picker's groups in display order, each a heading and its region codes: India and the world-wide edition, the
+ * named countries, then the languages. One list so every picker (personalize, the feed page's settings, the news
+ * hub's settings) shows the same options in the same order.
+ */
+val NEWS_REGION_GROUPS: List<Pair<String, List<String>>> = listOf(
+    "india and world" to listOf(INDIA_COUNTRY_CODE, INTERNATIONAL_REGION_CODE),
+    "countries" to SELECTABLE_COUNTRIES.map { it.code },
+    "languages" to NEWS_LANGUAGES.map { it.code },
+)
+
+/** Display name for any region code the picker/settings UI shows (India/International/a named country/a language). */
 fun regionDisplayName(regionCode: String): String = when {
     regionCode.equals(INDIA_COUNTRY_CODE, ignoreCase = true) -> "India"
     regionCode.equals(INTERNATIONAL_REGION_CODE, ignoreCase = true) -> "International"
-    else -> SELECTABLE_COUNTRIES.firstOrNull { it.code.equals(regionCode, ignoreCase = true) }?.displayName ?: regionCode
+    else -> (SELECTABLE_COUNTRIES + NEWS_LANGUAGES).firstOrNull { it.code.equals(regionCode, ignoreCase = true) }?.displayName ?: regionCode
 }
 
 /**
  * Picks the default feed preset for a device/locale or manually-chosen [countryCode]:
- * the curated India list for `IN`, a generated [countryFeedSources] set for any of
+ * the curated India list for `IN`, a language's own list for a [NEWS_LANGUAGES] code, a generated [countryFeedSources] set for any of
  * [SELECTABLE_COUNTRIES], else the generic [INTERNATIONAL_FEED_SOURCES] fallback (also
  * what an unrecognised/blank locale resolves to). Pure + exhaustive so it's
  * unit-testable without Android's Locale machinery.
@@ -227,6 +408,7 @@ fun defaultFeedSourcesForCountry(countryCode: String): List<FeedSource> {
     val cc = countryCode.uppercase()
     return when {
         cc == INDIA_COUNTRY_CODE -> DEFAULT_FEED_SOURCES
+        cc in LANGUAGE_FEEDS -> LANGUAGE_FEEDS.getValue(cc)
         SELECTABLE_COUNTRIES.any { it.code == cc } -> countryFeedSources(cc)
         else -> INTERNATIONAL_FEED_SOURCES
     }

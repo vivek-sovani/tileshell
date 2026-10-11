@@ -62,8 +62,10 @@ internal fun messageOf(title: String, text: String): String {
     return joined.take(1000)
 }
 
-private val NOT_YET_DELIVERED = Regex("""will be delivered|to be delivered|be delivered (?:by|on|today|tomorrow)|expected (?:to be )?deliver|delivery (?:is )?expected|delivered by|wird (?:voraussichtlich )?(?:am |bis )|sera livr[ée]e? (?:le|demain|entre)|ser[áa] entregado|sar[àa] consegnat|wordt (?:morgen|vandaag) bezorgd|zal (?:morgen|vandaag) worden bezorgd""")
-private val DELIVERED = Regex("""(?:has been|was|is|been|successfully) delivered|delivered (?:to|at|on|successfully|by)|(?:^|[.:!]\s*)delivered\b|order delivered|handed (?:it )?over|your package (?:was |has been )?(?:left|delivered)|your (?:package|parcel|order) has arrived|was left (?:at|in|on|with)|left (?:at|in|on|with) (?:your|the) (?:front|door|porch|mailbox|neighbo)|(?:wurde|ist|erfolgreich) zugestellt|wurde geliefert|ist angekommen|a [ée]t[ée] livr[ée]e?|est livr[ée]e?|livr[ée]e? (?:le|à|chez)|ha sido entregado|fue entregado|entregado en|[èe] stato consegnato|consegnato|is bezorgd|werd bezorgd|pakket bezorgd""")
+private val NOT_YET_DELIVERED = Regex("""will be delivered|to be delivered|be delivered (?:by|on|today|tomorrow)|expected (?:to be )?deliver|delivery (?:is )?expected|delivered by|wird (?:voraussichtlich )?(?:am |bis )|sera livr[ée]e? (?:le|demain|entre)|ser[áa] entregado|sar[àa] consegnat|wordt (?:morgen|vandaag) bezorgd|zal (?:morgen|vandaag) worden bezorgd|预计.{0,10}(?:送达|到达|送達|到達)|預計.{0,10}(?:送達|到達)|将于.{0,10}送达|將於.{0,10}送達""")
+private val DELIVERED = Regex("""(?:has been|was|is|been|successfully) delivered|delivered (?:to|at|on|successfully|by)|(?:^|[.:!]\s*)delivered\b|order delivered|handed (?:it )?over|your package (?:was |has been )?(?:left|delivered)|your (?:package|parcel|order) has arrived|was left (?:at|in|on|with)|left (?:at|in|on|with) (?:your|the) (?:front|door|porch|mailbox|neighbo)|(?:wurde|ist|erfolgreich) zugestellt|wurde geliefert|ist angekommen|a [ée]t[ée] livr[ée]e?|est livr[ée]e?|livr[ée]e? (?:le|à|chez)|ha sido entregado|fue entregado|entregado en|[èe] stato consegnato|consegnato|is bezorgd|werd bezorgd|pakket bezorgd|""" +
+        // Chinese (simplified and traditional): signed for, delivered.
+        """已签收|已簽收|签收成功|簽收成功|已送达|已送達|已妥投|已投递|已投遞|已收货|已收貨""")
 private val OUT_FOR_DELIVERY = Regex(
     """out for delivery|arriving today|arrives today|will be delivered today|on (?:its|the) way to you|is on the way|is on its way to you|""" +
         """(?:delivery )?(?:partner|agent|executive|rider|person) (?:is |has )?(?:on the way|nearby|reaching|arriving|assigned|picked)|reaching you|arriving in \d+|picked up your order|""" +
@@ -72,9 +74,13 @@ private val OUT_FOR_DELIVERY = Regex(
         """in zustellung|wird heute (?:geliefert|zugestellt)|zustellung heute|heute (?:bei ihnen|zugestellt)|""" +
         """en cours de livraison|livraison pr[ée]vue aujourd|sera livr[ée]e? aujourd|""" +
         """en reparto|llegar[áa] hoy|reparto hoy|in consegna|consegna prevista oggi|oggi in consegna|""" +
-        """onderweg naar u|wordt vandaag bezorgd|bezorger is onderweg""",
+        """onderweg naar u|wordt vandaag bezorgd|bezorger is onderweg|""" +
+        // Chinese (simplified and traditional): out for delivery, a rider on the way.
+        """派送中|正在派送|派件中|正在配送|配送中|即将送达|即將送達|快递员.{0,8}(?:派送|配送)|骑手.{0,10}(?:配送|送餐|正在|已取餐|已到达)|外卖员|騎手.{0,10}(?:配送|送餐)|正在送货|今日送达|今日送達|""" +
+        // Waiting at a pickup point or parcel locker for its pickup code: still open, the code is the point.
+        """已到达.{0,12}(?:驿站|快递柜|代收点|自提|櫃|站)|请及时取件|請及時取件|取件码|取件碼""",
 )
-private val SHIPPED = Regex("""(?:has been |is |was |just )?(?:shipped|dispatched)\b|in transit|left the (?:hub|facility|warehouse)|handed over to (?:the )?(?:courier|delivery)|on its way|has shipped|was shipped|label created|picked up by (?:the )?carrier|departed (?:from )?(?:facility|hub)|arrived at (?:facility|hub)|versandt|versendet|auf dem weg|exp[ée]di[ée]e?|pris en charge|enviado|en camino|spedito|in viaggio|verzonden|onderweg""")
+private val SHIPPED = Regex("""(?:has been |is |was |just )?(?:shipped|dispatched)\b|in transit|left the (?:hub|facility|warehouse)|handed over to (?:the )?(?:courier|delivery)|on its way|has shipped|was shipped|label created|picked up by (?:the )?carrier|departed (?:from )?(?:facility|hub)|arrived at (?:facility|hub)|versandt|versendet|auf dem weg|exp[ée]di[ée]e?|pris en charge|enviado|en camino|spedito|in viaggio|verzonden|onderweg|已发货|已發貨|已出库|已出庫|已揽收|已攬收|运输中|運輸中|已发出|已發出|已寄出|发货啦|已離開|已离开""")
 private val PLACED = Regex(
     """order (?:has been |is )?(?:placed|confirmed|received|accepted)|thank you for (?:your )?order|we(?:'|’)?ve received your order|""" +
         """your order (?:is|has been) (?:confirmed|placed|accepted)|being prepared|preparing your order|order summary|""" +
@@ -88,11 +94,12 @@ private val PLACED = Regex(
         """commande (?:bien )?(?:re[çc]ue|confirm[ée]e|valid[ée]e)|merci pour votre commande|""" +
         """pedido (?:recibido|confirmado)|gracias por tu pedido|""" +
         """ordine (?:ricevuto|confermato)|grazie per il tuo ordine|""" +
-        """bestelling (?:ontvangen|bevestigd)|bedankt voor je bestelling""",
+        """bestelling (?:ontvangen|bevestigd)|bedankt voor je bestelling|""" +
+        """下单成功|下單成功|订单已提交|訂單已提交|已下单|已下單|支付成功|付款成功|商家已接单|商家已接單|已接单|正在备货|备货中|備貨中|订单已确认|訂單已確認|订单确认|拼单成功|拼單成功|预订成功|預訂成功|商家正在制作|订单已受理""",
 )
-private val CANCELLED = Regex("""order (?:has been |was |is )?cancel+ed|cancel+ation of your order|your order (?:has been |was )?cancel+ed|bestellung (?:wurde )?storniert|storniert|commande (?:a [ée]t[ée] )?annul[ée]e|pedido (?:ha sido )?cancelado|ordine (?:[èe] stato )?annullato|bestelling (?:is )?geannuleerd""")
-private val RETURNED = Regex("""return (?:has been |is )?(?:picked up|completed|successful|received)|has been returned|returned to (?:seller|warehouse)|r[üu]cksendung|retour (?:re[çc]u|effectu)|devoluci[óo]n (?:recibida|completada)|reso (?:ricevuto|completato)|retour ontvangen""")
-private val PROMO = Regex("""\b(?:offer|offers|% off|sale|coupon|cashback|discount|deal|deals|reorder|order now|order again|use code|win|promo|promotion|save up to|angebot|rabatt|gutschein|soldes|promotion|r[ée]duction|oferta|descuento|cup[óo]n|sconto|offerta|aanbieding|korting)\b""")
+private val CANCELLED = Regex("""order (?:has been |was |is )?cancel+ed|cancel+ation of your order|your order (?:has been |was )?cancel+ed|bestellung (?:wurde )?storniert|storniert|commande (?:a [ée]t[ée] )?annul[ée]e|pedido (?:ha sido )?cancelado|ordine (?:[èe] stato )?annullato|bestelling (?:is )?geannuleerd|订单已取消|訂單已取消|已取消订单|已取消訂單|交易关闭|交易關閉|订单关闭|訂單關閉""")
+private val RETURNED = Regex("""return (?:has been |is )?(?:picked up|completed|successful|received)|has been returned|returned to (?:seller|warehouse)|r[üu]cksendung|retour (?:re[çc]u|effectu)|devoluci[óo]n (?:recibida|completada)|reso (?:ricevuto|completato)|retour ontvangen|退货成功|退貨成功|退款成功|退款已到账|退款已到賬|退款完成|已退回|已退款|退货已签收""")
+private val PROMO = Regex("""\b(?:offer|offers|% off|sale|coupon|cashback|discount|deal|deals|reorder|order now|order again|use code|win|promo|promotion|save up to|angebot|rabatt|gutschein|soldes|promotion|r[ée]duction|oferta|descuento|cup[óo]n|sconto|offerta|aanbieding|korting)\b|优惠|優惠|折扣|红包|紅包|领券|領券|满减|滿減|满\d+减|秒杀|秒殺|限时|限時|促销|促銷|特价|特價|特賣|双11|双十一|雙十一|618|百亿补贴|立减|立減|返现|返現""")
 
 /** The status a message names, strongest first, or null when it names none. */
 internal fun statusOf(lower: String): OrderStatus? = when {
@@ -111,12 +118,15 @@ private val LABELLED_REF = Regex(
     """(?i)(?:order\s*(?:id|no\.?|number|#)|awb|tracking\s*(?:id|no\.?|number)|consignment\s*(?:no\.?|number))\s*[:#\-]?\s*([A-Z0-9][A-Z0-9\-]{5,24})""",
 )
 private val HASH_REF = Regex("""#(\d{5,})""")
+/** "订单号：123456789012", "快递单号 SF1234567890": the Chinese labels for an order or waybill number. */
+private val CJK_REF = Regex("""(?:订单号|訂單號|订单编号|訂單編號|快递单号|快遞單號|运单号|運單號|物流单号|物流單號|单号|單號)\s*[:：#]?\s*([A-Za-z0-9]{6,24})""")
 
 /** An order or tracking number named in the message (upper-cased), or null. */
 internal fun refOf(original: String): String? {
     AMAZON_REF.find(original)?.let { return it.value }
     FLIPKART_REF.find(original)?.let { return it.value }
     LABELLED_REF.find(original)?.groupValues?.get(1)?.takeIf { v -> v.any(Char::isDigit) }?.let { return it.uppercase() }
+    CJK_REF.find(original)?.groupValues?.get(1)?.takeIf { v -> v.any(Char::isDigit) }?.let { return it.uppercase() }
     HASH_REF.find(original)?.let { return it.groupValues[1] }
     return null
 }
@@ -151,6 +161,8 @@ private fun clip(s: String): String = s.trim().trim('.', ',', '!', ':', '-', ' '
 private val IN_MINUTES = Regex("""\bin (\d{1,3})(?:\s?-\s?\d{1,3})? ?min(?:ute)?s?\b""")
 private val BY_TIME = Regex("""\bby (\d{1,2})(?::(\d{2}))?\s?(am|pm)\b""")
 private val BETWEEN = Regex("""\bbetween (\d{1,2}(?::\d{2})?)\s?(am|pm)?\s?(?:-|–|to|and)\s?(\d{1,2}(?::\d{2})?)\s?(am|pm)\b""")
+private val IN_MINUTES_CJK = Regex("""(\d{1,3})\s?分钟""")
+private val DAY_WORD_CJK = Regex("""今天|今日|明天|明日""")
 private val DAY_WORD = Regex("""\b(today|tomorrow|tonight)\b""")
 private val WEEKDAY = Regex("""\b(mon|tues|wednes|thurs|fri|satur|sun)day\b""")
 private val DATE = Regex("""\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b""")
@@ -158,6 +170,7 @@ private val DATE = Regex("""\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan|feb|mar|apr|may|j
 /** When it should arrive, in a few words ("in 12 min", "by 8 pm", "today"), or null. */
 internal fun etaOf(lower: String): String? {
     IN_MINUTES.find(lower)?.let { return "in ${it.groupValues[1]} min" }
+    IN_MINUTES_CJK.find(lower)?.let { return "in ${it.groupValues[1]} min" }
     BY_TIME.find(lower)?.let { m ->
         val minutes = m.groupValues[2].takeIf { it.isNotEmpty() }?.let { ":$it" }.orEmpty()
         return "by ${m.groupValues[1]}$minutes ${m.groupValues[3]}"
@@ -167,6 +180,7 @@ internal fun etaOf(lower: String): String? {
         return "$first–${m.groupValues[3]} ${m.groupValues[4]}"
     }
     DAY_WORD.find(lower)?.let { return it.groupValues[1] }
+    DAY_WORD_CJK.find(lower)?.let { return if (it.value == "明天" || it.value == "明日") "tomorrow" else "today" }
     WEEKDAY.find(lower)?.let { return it.value }
     DATE.find(lower)?.let { return "${it.groupValues[1]} ${it.groupValues[2]}" }
     return null
@@ -174,13 +188,15 @@ internal fun etaOf(lower: String): String? {
 
 private val OTP_AFTER = Regex("""otp\D{0,25}(\d{4,6})\b""")
 private val OTP_BEFORE = Regex("""\b(\d{4,6}) is (?:your|the) (?:delivery )?otp""")
-private val DELIVERY_CONTEXT = Regex("""deliver|hand\s?over|rider|agent|partner|share (?:this|the) otp""")
-private val NOT_DELIVERY_OTP = Regex("""login|log in|sign in|verify your (?:mobile|phone|number|account)|registration|transaction|payment|bank|card|upi""")
+private val DELIVERY_CONTEXT = Regex("""deliver|hand\s?over|rider|agent|partner|share (?:this|the) otp|快递|快遞|配送|骑手|騎手|派送|取件|收货|收貨|签收|簽收""")
+private val NOT_DELIVERY_OTP = Regex("""login|log in|sign in|verify your (?:mobile|phone|number|account)|registration|transaction|payment|bank|card|upi|登录|登錄|验证码|驗證碼|银行|銀行|支付|转账|轉賬""")
+/** A Chinese pickup / receiving code ("取件码 3-2-1234", "收货码 5821"). */
+private val CJK_PICKUP_CODE = Regex("""(?:取件码|取件碼|取货码|取貨碼|收货码|收貨碼|签收码|簽收碼|提货码)\D{0,6}(\d[\d\-]{2,11}\d)""")
 
 /** A delivery OTP ("share OTP 4821 with the delivery partner"), never a login or payment one. */
 internal fun otpOf(lower: String): String? {
     if (!DELIVERY_CONTEXT.containsMatchIn(lower) || NOT_DELIVERY_OTP.containsMatchIn(lower)) return null
-    return OTP_AFTER.find(lower)?.groupValues?.get(1) ?: OTP_BEFORE.find(lower)?.groupValues?.get(1)
+    return OTP_AFTER.find(lower)?.groupValues?.get(1) ?: OTP_BEFORE.find(lower)?.groupValues?.get(1) ?: CJK_PICKUP_CODE.find(lower)?.groupValues?.get(1)
 }
 
 /**
