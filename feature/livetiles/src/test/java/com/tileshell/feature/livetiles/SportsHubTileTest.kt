@@ -41,17 +41,10 @@ class SportsHubTileTest {
     }
 
     @Test
-    fun `pages hold what fits and an empty list has none`() {
-        assertEquals(listOf(listOf(1, 2), listOf(3, 4), listOf(5)), sportsHubTilePages(listOf(1, 2, 3, 4, 5), 2))
-        assertTrue(sportsHubTilePages(emptyList<Int>(), 3).isEmpty())
-        assertEquals(1, sportsHubTilePages(listOf(1, 2), 0).first().size) // never a page of nothing
-    }
-
-    @Test
-    fun `rows that fit grow with the height and are never fewer than one`() {
-        assertEquals(1, sportsHubTileRows(60f))
-        assertEquals(1, sportsHubTileRows(0f))
-        assertTrue(sportsHubTileRows(180f) >= 2)
-        assertTrue(sportsHubTileRows(360f) > sportsHubTileRows(180f))
+    fun `the tile reads a match from the followed team's side, else the home side`() {
+        val m = match("a", "in", now, home = "7", away = "8")
+        val fav = SportsFavorites(teams = listOf(SportsTile.Selection("soccer/eng.1", "8", "Away FC")))
+        assertEquals("8" to "Away FC", sportsHubTileViewpoint(m, fav))
+        assertEquals("7" to "Home", sportsHubTileViewpoint(m, SportsFavorites()))
     }
 }

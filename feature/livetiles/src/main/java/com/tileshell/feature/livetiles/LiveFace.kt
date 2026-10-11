@@ -58,7 +58,8 @@ enum class LiveFace(val flips: Boolean) {
     MONEY(flips = false),
     // Static glyph (markets also shows the NIFTY line); no back face.
     MARKETS(flips = false),
-    SPORTSHUB(flips = false),
+    // Front: the match's score; back: the players in it (batters at the crease and bowling figures in cricket).
+    SPORTSHUB(flips = true),
     NEWSHUB(flips = false),
     SHOPHUB(flips = false),
     HEALTHHUB(flips = false),

@@ -292,7 +292,7 @@ private fun NoDataFace(size: TileSize, teamLabel: String, modifier: Modifier) {
  * columns there.
  */
 @Composable
-private fun SportsFront(snapshot: SportsSnapshot, size: TileSize, turn: String? = null) {
+internal fun SportsFront(snapshot: SportsSnapshot, size: TileSize, turn: String? = null) {
     // "1/2 · today · Live · …" — which of today's matches, its day, its state.
     val status = listOfNotNull(turn, sportsStatusLine(snapshot)).joinToString(" · ")
     val narrow = size.narrowLive
@@ -455,7 +455,7 @@ private fun TeamScoreColumn(
 }
 
 @Composable
-private fun SportsBack(
+internal fun SportsBack(
     snapshot: SportsSnapshot,
     teamLabel: String,
     scorerLines: List<String>,
