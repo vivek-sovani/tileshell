@@ -195,7 +195,8 @@ private fun src(url: String, name: String, category: String = "nation", enabled:
 
 /**
  * Whole hand-picked feed sets for countries Google News cannot template: its English edition for CN / HK / TW
- * answers with the US one (checked live), so these are real outlets instead. Every URL was fetched over https
+ * answers with the US one (checked live), so these are real outlets instead, in English and in the local Chinese
+ * (a country is followed for its own news, so its language comes with it; the Chinese language region adds more). Every URL was fetched over https
  * and returned items (the SCMP section numbers are its own: 4 China, 2 Hong Kong, 92 Business, 36 Tech, 95 Sport,
  * 322296 Culture, 318421 China Economy).
  */
@@ -212,6 +213,12 @@ private val CURATED_COUNTRY_FEEDS: Map<String, List<FeedSource>> = mapOf(
         src("https://www.scmp.com/rss/36/feed/", "SCMP Tech", "tech"),
         src("https://www.scmp.com/rss/318421/feed/", "SCMP China Economy", "business", enabled = false),
         src("https://www.cgtn.com/subscribe/rss/section/business.xml", "CGTN Business", "business", enabled = false),
+        // In Chinese (simplified).
+        src("https://feeds.bbci.co.uk/zhongwen/simp/rss.xml", "BBC 中文"),
+        src("https://rss.dw.com/xml/rss-chi-all", "DW 中文"),
+        src("https://www.rfi.fr/cn/rss", "RFI 中文"),
+        src("https://www.people.com.cn/rss/politics.xml", "人民网"),
+        src("https://news.google.com/rss?hl=zh-CN&gl=CN&ceid=CN:zh-Hans", "Google 新闻"),
     ),
     "HK" to listOf(
         src("https://www.scmp.com/rss/2/feed/", "SCMP Hong Kong"),
@@ -221,10 +228,18 @@ private val CURATED_COUNTRY_FEEDS: Map<String, List<FeedSource>> = mapOf(
         src("https://www.scmp.com/rss/95/feed/", "SCMP Sport", "sports"),
         src("https://www.scmp.com/rss/36/feed/", "SCMP Tech", "tech"),
         src("https://www.scmp.com/rss/92/feed/", "SCMP Business", "business", enabled = false),
+        // In Chinese (traditional).
+        src("https://feeds.bbci.co.uk/zhongwen/trad/rss.xml", "BBC 中文"),
+        src("https://rthk9.rthk.hk/rthk/news/rss/c_expressnews_clocal.xml", "香港電台"),
     ),
     "TW" to listOf(
         src("https://feeds.feedburner.com/rsscna/engnews", "Focus Taiwan"),
         src("https://www.taipeitimes.com/xml/index.rss", "Taipei Times"),
+        // In Chinese (traditional).
+        src("https://news.ltn.com.tw/rss/all.xml", "自由時報"),
+        src("https://feeds.feedburner.com/rsscna/politics", "中央社"),
+        src("https://feeds.bbci.co.uk/zhongwen/trad/rss.xml", "BBC 中文"),
+        src("https://news.google.com/rss?hl=zh-TW&gl=TW&ceid=TW:zh-Hant", "Google 新聞"),
     ),
 )
 
@@ -381,13 +396,14 @@ private val LANGUAGE_FEEDS: Map<String, List<FeedSource>> = mapOf(
 
 /**
  * The picker's groups in display order, each a heading and its region codes: India and the world-wide edition, the
- * named countries, then the languages. One list so every picker (personalize, the feed page's settings, the news
- * hub's settings) shows the same options in the same order.
+ * languages, then the named countries (languages come second so they are not lost behind two dozen countries). One
+ * list so every picker (personalize, the feed page's settings, the news hub's settings) shows the same options in the
+ * same order.
  */
 val NEWS_REGION_GROUPS: List<Pair<String, List<String>>> = listOf(
     "india and world" to listOf(INDIA_COUNTRY_CODE, INTERNATIONAL_REGION_CODE),
-    "countries" to SELECTABLE_COUNTRIES.map { it.code },
     "languages" to NEWS_LANGUAGES.map { it.code },
+    "countries" to SELECTABLE_COUNTRIES.map { it.code },
 )
 
 /** Display name for any region code the picker/settings UI shows (India/International/a named country/a language). */

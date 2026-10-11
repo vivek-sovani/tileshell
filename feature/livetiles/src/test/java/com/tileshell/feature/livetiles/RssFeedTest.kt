@@ -202,7 +202,8 @@ class RssFeedTest {
             val sources = defaultFeedSourcesForCountry(code)
             assertEquals(sources, countryFeedSources(code))
             assertTrue("$code needs several sources", sources.size >= 2)
-            assertTrue("$code must not use google news", sources.none { it.url.contains("news.google.com") })
+            assertTrue("$code must not use google news in english", sources.none { it.url.contains("news.google.com") && it.url.contains("hl=en") })
+            assertTrue("$code has news in Chinese", sources.any { f -> f.name.any { it.code in 0x4E00..0x9FFF } })
             assertTrue("$code needs an enabled nation source", sources.any { it.category == "nation" && it.enabled })
         }
         assertEquals("China", regionDisplayName("CN"))
@@ -245,11 +246,11 @@ class RssFeedTest {
     }
 
     @Test
-    fun `region groups list every region once and the language group last`() {
+    fun `region groups list every region once with the languages right after india and world`() {
         val codes = NEWS_REGION_GROUPS.flatMap { it.second }
         assertEquals(codes.size, codes.toSet().size)
         assertTrue(codes.containsAll(listOf("IN", "INTL", "CN", "HK", "TW", "LANG_HI", "LANG_ZH")))
-        assertEquals("languages", NEWS_REGION_GROUPS.last().first)
-        assertEquals(NEWS_LANGUAGES.map { it.code }, NEWS_REGION_GROUPS.last().second)
+        assertEquals("languages", NEWS_REGION_GROUPS[1].first)
+        assertEquals(NEWS_LANGUAGES.map { it.code }, NEWS_REGION_GROUPS[1].second)
     }
 }
