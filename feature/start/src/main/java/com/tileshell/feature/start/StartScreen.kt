@@ -7997,7 +7997,7 @@ private fun AppTileContent(
             return
         }
         LiveFace.SPORTSHUB -> {
-            com.tileshell.feature.livetiles.SportsHubTileFace(size = tile.size, modifier = Modifier.fillMaxSize())
+            com.tileshell.feature.livetiles.SportsHubTileFace(size = tile.size, active = liveActive, refreshRate = sportsRefreshRate, modifier = Modifier.fillMaxSize())
             return
         }
         LiveFace.PRODUCTIVITY -> {

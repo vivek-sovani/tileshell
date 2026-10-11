@@ -96,7 +96,7 @@ private val ResultLoss = Color(0xFFFF453A)
 private val boardGate = Semaphore(4)
 
 /** Today's matches in the sports being read, as of [nowMillis]. */
-private data class LiveState(val matches: List<HubMatch> = emptyList(), val nowMillis: Long = 0L, val loaded: Boolean = false)
+internal data class LiveState(val matches: List<HubMatch> = emptyList(), val nowMillis: Long = 0L, val loaded: Boolean = false)
 
 /** Finished matches read so far for the current scope and range; [loading] while more days are still being read. */
 private data class ResultsState(val matches: List<HubMatch> = emptyList(), val nowMillis: Long = 0L, val loading: Boolean = false, val started: Boolean = false)
@@ -266,7 +266,7 @@ fun SportsHubScreen(
 }
 
 /** Today's boards for [leagues], read once. */
-private suspend fun loadToday(leagues: List<String>): LiveState = coroutineScope {
+internal suspend fun loadToday(leagues: List<String>): LiveState = coroutineScope {
     val now = System.currentTimeMillis()
     val boards = leagues.map { slug ->
         async {
@@ -402,7 +402,7 @@ private fun MatchCard(
     }
 }
 
-private fun matchStatus(match: HubMatch, nowMillis: Long): String {
+internal fun matchStatus(match: HubMatch, nowMillis: Long): String {
     val e = match.event
     if (e.state == "pre") {
         return listOfNotNull(kickoffLabel(e.epochMillis, nowMillis, ZoneId.systemDefault()), e.matchLabel).joinToString(" · ")

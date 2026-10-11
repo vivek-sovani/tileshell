@@ -167,15 +167,3 @@ private fun rowsFor(size: TileSize): Int = when {
 
 /** `▲ +0.37%` / `▼ -1.20%`, so up and down read without colour on a coloured tile. */
 private fun arrowed(q: StockQuote): String = (if (q.changePercent >= 0) "▲ " else "▼ ") + formatStockChangePercent(q.changePercent).removePrefix("+")
-
-/** The sports hub's tile: the sports glyph and its name; tapping opens the hub. */
-@Composable
-fun SportsHubTileFace(size: TileSize, modifier: Modifier = Modifier) {
-    val color = LocalTileFaceColor.current
-    Box(modifier = modifier.fillMaxSize()) {
-        Icon(TileIcons["sportshub"], contentDescription = null, tint = color, modifier = Modifier.align(Alignment.Center).size(if (size == TileSize.SMALL) 28.dp else 44.dp))
-        if (size != TileSize.SMALL) {
-            Text("sports", color = color, fontSize = 12.sp, modifier = Modifier.align(Alignment.BottomStart).padding(8.dp))
-        }
-    }
-}
