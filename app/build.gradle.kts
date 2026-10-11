@@ -648,6 +648,11 @@ android {
         //   5.1.0 (510): Android Auto — TileShell Music in the car (library, playlists, podcasts
         //   and radio with favorites + recently played, podcast episodes, voice search); People hub
         //   "what's new" shows a notification's full text (big text / chat messages) when expanded.
+        //   Re-cut 2026-10-11 (510 never uploaded): folds in everything added after 5.0.0 — markets,
+        //   sports, news, clock, shopping and health hubs; long-press quick actions on tiles; the
+        //   whole-tile Windows Phone flip and flip-style notification tiles; the app list's rail and
+        //   square tiles style; panchang in eight languages; news in 13 languages plus China / Hong
+        //   Kong / Taiwan; Chinese stores, couriers and wallets; battery audit (see docs/PLAY_STORE.md).
         versionCode = 510
         versionName = "5.1.0"
     }

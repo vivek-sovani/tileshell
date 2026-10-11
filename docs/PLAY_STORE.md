@@ -284,12 +284,48 @@ original format as the historical record, unchanged). Still capped at Play's 500
 
 ## Release notes (v5.1.0)
 
-*Android Auto. versionCode 510. Not yet built/uploaded — see the checklist below.*
+*Everything added after 5.0.0, folded into one release. versionCode 510. Re-cut 2026-10-11 (never uploaded to Play, so the versionCode is unchanged). See the checklist below.*
 
 ### Play-facing blurb (500 chars max)
 ```
-New: Android Auto. Your music library, playlists, favourite podcasts (with episodes) and favourite radio stations show on the car screen, with recently played under each; ask the assistant to play a show, station, artist or song. Also new: add, move or remove apps on the People, Money and Productivity pages; group-chat messages listed one by one; backup now includes notes, tasks and favourites, with optional auto-export to a folder.
+TileShell 5.1.0
+
+New features:
+• Android Auto: music, podcasts, radio
+• New hubs: markets, sports, news, clock, shopping, health
+• Long-press a tile for quick actions
+• Real Windows Phone flip on live tiles
+• App list: left rail, square tiles
+• Panchang in 8 languages
+• News in 13 languages, China, Taiwan
+• Chinese stores and wallets
+
+Bugs fixed:
+• Less battery use from live tiles
+• Dragging, resizing and backup fixes
 ```
+
+### Full changelog since v5.0.0 (for reference — not the Play-facing blurb above)
+
+**Android Auto.** TileShell Music in the car: library, playlists, favourite podcasts (with episodes) and favourite radio stations with recently played under each; voice search ("play a show, station, artist or song", also through the assistant); a heart on now playing for shows and stations. One media session shared with the lock screen and Bluetooth controls. Behind the `tileshell.androidAuto` switch.
+
+**New hubs and tiles.** Markets (watchlist, indices with day / week / month / year charts, movers, on-tile marks); sports (live and results pages, favourite sports and teams, match status and scorecards); news (top stories, topics, saved stories, live tv with in-place playback, rolling news tile with photos); clock (alarms dial, world clocks with day / night discs, timers, stopwatch, timer sets that can be pinned to Start with start / pause / stop); shopping (arriving orders with progress and delivery OTP, deals, past orders, shopping apps; US, European and Chinese stores); health (steps today, week, apps). "Add live tiles" is organised into hubs and widgets. Calendar systems tile enriched (structured date, month facts, observances, month grid); panchang month calendar on the big tile.
+
+**Long-press quick actions on a tile.** A cluster of small squares beside the tile: the app's own shortcuts, tile settings (size and colour), move, app info, unpin; folders and widget stacks get open / ungroup; apps inside an expanded folder get take out. A pending notification shows in a card next to the tile with reply, mark read, archive and open app; links and email addresses in it are tappable. Long press then drag picks the tile up and carries it. The size picker is a 4x4 cell grid with a live preview, opening next to the tile; panels ease in and out.
+
+**Live tiles.** The whole tile flips under one global 3D camera, like a Windows Phone tile. Notification tiles are laid out like a Windows Phone flip tile (sender, message, app name and icon) and keep their 2x2 type on bigger tiles so the extra room holds more text. Messages step through with a slide-up; the news, what's-new and photos tiles slide the same way. People photos flip. A notification with a picture fills the tile. Live tiles fill every size, with overflow fixes on narrow and one-row sizes. Outlined-circle notification badge everywhere, hubs and apps pages included.
+
+**App list.** A fixed left rail with a back arrow over a round search button, like Windows Phone. Optional square "tiles" style showing each app's original icon on a plate of its surrounding colour.
+
+**Panchang.** Eight languages (English, Hindi, Marathi, Gujarati, Tamil, Malayalam, Kannada, Telugu) with each region's festivals; black banner on amavasya, white on purnima, no banner on the back face; the home-screen widget matches; tithi numbers kept at a large system font. Translations and festival names need a native speaker's review.
+
+**News in your language.** New "languages" group in all three news settings: Hindi, Marathi, Gujarati, Bengali, Tamil, Telugu, Kannada, Malayalam, Punjabi, Odia, Urdu, Assamese and Chinese, each with its own feeds plus Google News in the language where it exists. China, Hong Kong and Taiwan added as countries, with English and Chinese outlets. Live tv follows countries only.
+
+**Money, shopping and people.** Chinese stores, couriers and food delivery (Taobao, Tmall, JD.com, Pinduoduo, Meituan, SF Express, Cainiao and more, by English and Chinese names) with Chinese order wording and parcel-locker pickup codes; Alipay, UnionPay and Chinese bank apps recognised as payment and bank apps (payments in yuan are not captured as transactions). People hub: what's new shows the whole notification and lists a chat's messages one by one, attached photos shown whole, add / move / drop apps on the People, Money and Productivity apps pages (an app can sit in several sections), a store's notification shows in shopping or people, not both.
+
+**Personalize and system.** Personalize is a panorama; Windows Phone-style switches; theme choices preview Start; "dock" is the new name of the edge strip; double tap on empty space turns the screen off (opt-in); a personalize tile for the system's quick settings; about and the guide are panoramas; hubs fill the whole screen in landscape; backup is three clear groups (snapshots, backup file, reset), covers notes, tasks, music favourites and glance widgets, with optional auto-export to a folder; setup screens scroll with a big font.
+
+**Fixes and battery.** Battery audit of the background work (battery log, Bing, health sampler, weather, notification capture, animations, icons); opening an app clears its notification count; dragging tiles no longer carries a small tile to the next page by accident and small tiles drag from anywhere; a wallpaper type keeps its own pick; "play X" voice requests reach TileShell; timer chime plays on the alarm stream; Bluetooth music resumes after a disconnect.
 
 ### Play Console checklist for 5.1.0 (Android Auto)
 - [ ] Add **Android Auto** to the app's form factors (Release → Setup → Advanced settings).
