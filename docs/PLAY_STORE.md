@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*Updated for v5.1.0 (Android Auto) — release notes and checklist below*
+*Updated for v5.1.0 (everything since 5.0.0) — listing texts refreshed 2026-10-11; release notes and checklist below*
 
 ---
 
@@ -14,72 +14,64 @@ unchanged, since that's a separate `android:label` change with much broader
 visible impact for existing users and wasn't part of this ask.)*
 
 ### Short description (80 chars max)
-`Windows Phone style launcher with live tiles, hubs, real widgets and themes`
+`Windows Phone style launcher with live tiles and full screen hubs`
 
-*(No hyphens, dashes or symbols: Play said it cannot promote an app whose short description has them. Updated 2026-10-08.)*
+*(65 characters. Words only: no hyphens, dashes, ampersands, symbols, emoji or commas. Play said it cannot promote an app whose short description has them (rejection, 2026-10-08); this one has none, so it should not trip that check again. Updated 2026-10-11.)*
 
 ### Full description (4 000 chars max)
 
-*Updated 2026-10-08 — added the Accessibility Service section (Play rejection: description must reflect AccessibilityService use). Based on v5.0.0 — hubs (weather, music, calendar, people, productivity, battery, money), Panchang highlights, festivals and grahan, quick setup.*
+*Updated 2026-10-11 for 5.1.0. Written against the two earlier rejections and Play's metadata policy: the optional Accessibility Service is disclosed in its own section and names exactly the three actions it performs (rejection 2026-10-08); headings are plain words with no star symbols, no ALL CAPS gimmicks, no repeated keywords and no claims that are not in the app; a line says TileShell is independent of Microsoft; every feature that reads notifications, messages or usage says so. If Play objects again, shorten the hubs list first.*
 
 ```
-TileShell brings the iconic Windows Phone / Windows 10 Mobile Start screen to Android — rebuilt in Kotlin, faithful to the original, with full-screen hubs, real Android widgets and deep personalization.
+TileShell is a launcher for Android that recreates the Start screen of Windows Phone and Windows 10 Mobile, built from scratch in Kotlin with original icons. It is an independent app and is not affiliated with or endorsed by Microsoft.
 
-★ START SCREEN
-4, 5 or 6 columns. Small, Medium, Wide and Large live tiles. Long-press to drag, merge into folders or widget stacks, resize, recolour or unpin. Prefer icons? Switch to Icons home style with your choice of icon shape. A quick setup on first run picks style, theme, colours and apps.
+Start screen
+Live tiles in 4, 5 or 6 columns: small, medium, wide and large. Drag to rearrange, merge tiles into folders or widget stacks, resize, recolour or unpin. Press and hold a tile for quick actions: the app's own shortcuts, size and colour, move, app info, and for a notification, reply, mark read or open. Prefer icons? Switch to the Icons home style with your choice of icon shape. A short setup on first run picks the style, theme, colours and apps.
 
-★ HUBS
-Tap a tile for its full-screen hub, with swipeable pages:
-• Weather — now, hourly, 7-day, UV, sunrise and sunset
-• Music — your library and playlists, podcasts and internet radio, gapless playback with cross-fade
-• Calendar — your events by day, week and month
-• People — chats, SMS and mail in one list, with inline reply
-• Productivity — next meeting with a join button, notes and task lists
-• Battery — drain, time left, daily curve and screen time per app
-• Money — bank, UPI and card transactions from new bank SMS, card bills by due date, locked with your fingerprint
-Music, People, Productivity and Money gather their related apps in one apps page.
+Hubs
+Tap a tile to open its full screen hub with swipeable pages:
+• Weather: now, hourly, daily, UV, sunrise and sunset
+• Music: your library and playlists, podcasts and internet radio, also in Android Auto
+• Calendar: events by day, week and month
+• People: chats, SMS and mail in one list with inline reply
+• Productivity: next meeting with a join button, notes and tasks
+• Markets and Sports: your watchlist, indices, live scores and results
+• News: top stories, topics, saved stories and live tv
+• Clock: alarms, world clocks, timers, stopwatch and timer sets
+• Shopping: orders on their way, deals and past orders
+• Health: steps today and this week
+• Battery: drain, time left and screen time per app
+• Money: bank, UPI and card messages, bills by due date, locked with your fingerprint
 
-★ PANCHANG
-Tithi, paksha, nakshatra, sunrise, moonrise and more, in Devanagari. Highlights Sankashti (Angaraki), named Ekadashis (Smarta and Vaishnava), Mahashivaratri, 28 Hindu festivals, eclipses visible from where you are, and any tithi you pick — with month and year views.
+News in your language
+Choose countries or languages for the news feed: Hindi, Marathi, Gujarati, Bengali, Tamil, Telugu, Kannada, Malayalam, Punjabi, Odia, Urdu, Assamese and Chinese, plus India, China, Hong Kong, Taiwan and about twenty other countries. Add any RSS feed of your own.
 
-★ LIVE TILES
-Clock with your next alarm. Live weather. Next calendar event. Now playing with controls. Contact photos. Photo slideshow. Notification previews on every tile. They pause in battery saver.
+Panchang
+Tithi, paksha, nakshatra, sunrise and moonrise, with festivals, Ekadashi, Sankashti and eclipses, in English, Hindi, Marathi, Gujarati, Tamil, Malayalam, Kannada or Telugu.
 
-★ 14 REAL HOME-SCREEN WIDGETS
-Weather, battery, alarm, moon phase, steps, Hindu Panchang, flashlight, stocks, commodities & currencies, sports scores, tasks, notes, sticky note and countdown — real Android widgets for any launcher.
+Live tiles and widgets
+Tiles flip like the originals: clock, weather, next event, now playing, contact photos, photos and notification previews. They pause in battery saver. Fourteen real home screen widgets work with any launcher. Merge same size tiles or widgets into a swipeable stack.
 
-★ WIDGET STACKS
-Merge same-size tiles or Android widgets into a swipeable carousel; every live face stays interactive.
+Everything else
+A feed page with a greeting, agenda and news. A quick panel with resizable toggles and a quick search for apps, contacts and the web. An app list with an A to Z jump grid, a back and search rail and an optional square tile style. Fourteen accents, wallpaper colours, dark and light themes, glass or widget card tiles, photo, slideshow or daily wallpapers. Backup to your phone or to a file, with optional automatic export to a folder.
 
-★ FEED PAGE (swipe right)
-A greeting, weather and today's agenda, now playing and any widget. News across 8 categories from India and ~20 other countries, or any RSS feed.
+Notification access (optional)
+If you allow it, TileShell reads notifications on your phone to show badges and previews on tiles, to list messages in People, and to read order updates and bank messages for the Shopping and Money hubs. This stays on your phone. Everything else works without it.
 
-★ QUICK PANEL & QUICK SEARCH
-Two-finger swipe down opens resizable toggles, brightness, volume and theme; two-finger swipe up searches apps, contacts and the web at once.
+Accessibility Service (optional)
+TileShell offers an optional Accessibility Service, off until you turn it on in Android Settings after an in app explanation. It is not an assistive technology app. It is used only to perform three system actions you ask for, as a launcher feature:
+• Lock the screen: the quick panel lock tile
+• Open recent apps: the dock button
+• Open the notification shade: swipe down along the left screen edge
+It uses Android's global action API only. It does not read your screen, other apps, passwords or anything you type, collects and shares no data, and changes no settings. You can switch it off any time in Settings, Accessibility.
 
-★ APP LIST (swipe left)
-A–Z jump grid and instant search, recent and new apps with badges. Long-press to pin, hide, uninstall, or reach shortcuts and widgets.
-
-★ PERSONALIZATION
-14 accents or one from your wallpaper · multicolour tiles · dark/light/auto · glass, widget-card or borderless tiles · blur · photo, slideshow or daily Bing wallpapers · fonts, corners and spacing · built-in guide.
-
-★ BACKUP & RESTORE
-Auto-save, a visual layout history, and export to a file for your next phone.
-
-★ ACCESSIBILITY SERVICE (optional)
-TileShell offers an optional Accessibility Service, off until you turn it on in Android Settings after an in-app explanation. It is not an assistive-technology app; it is used only to perform three system actions you ask for, as a launcher feature:
-• Lock the screen — the Quick Panel "lock screen" tile
-• Open recent apps — the edge-strip button
-• Open the notification shade — swipe down along the left screen edge
-It uses Android's global-action API only. It does not read your screen, other apps, passwords or anything you type, collects and shares no data, and changes no settings. Everything else in TileShell works without it, and you can switch it off any time in Settings › Accessibility.
-
-★ PRIVACY FIRST
-No accounts. No analytics. No ads. Your data stays on your phone. Online features (weather, news, markets, sports, podcasts, radio) only fetch what they show — nothing about you is sent.
+Privacy
+No accounts, no analytics and no ads. Your data stays on your phone. Weather, news, markets, sports, podcasts and radio fetch only what they show, and only your approximate location is sent for the weather.
 
 Requires Android 8.0 or higher.
 ```
 
-*(3808 chars, under Play's 4 000 limit.)*
+*(3909 chars, under Play's 4 000 limit. Short description 65 of 80.)*
 
 ### Category
 Personalization
@@ -261,7 +253,7 @@ cert SHA-256 1a904ad5…), keyboard left out. Permissions new since 4.5.0:
 9. **Usage access / device admin / battery exemption** — usage access and battery exemption
    are user-granted special access, explained in the policy; the device-admin receiver (screen
    lock on Android 8–9) and battery exemption shipped in 4.5.0 unchanged.
-10. **Store listing** — description 3808 / 4000 chars, release notes under 500 (below), no
+10. **Store listing** — (5.0.0 figures; the 5.1.0 texts are 65 / 80 and 3909 / 4000 chars) release notes under 500 (below), no
     keyboard mentions; app icon and screenshots use original glyphs, no Microsoft assets.
     Consider adding hub screenshots (not required).
 11. **Upload** — `release-out/tileshell-5.0.0-release.aab` (signed; Play App Signing re-signs).
