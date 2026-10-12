@@ -1595,12 +1595,14 @@ fun PersonalizeSheet(
                     }
                 }
             }
+            // The device's own Settings icon, as on the sheet's "android settings" row (the gear glyph until it loads).
+            val settingsAppIcon = rememberAndroidSettingsIcon()
             HubAppBar(
                 tokens = tokens,
                 actions = listOf(
                     HubAppBarAction("back", "close personalize", "back", onDismiss),
                     HubAppBarAction("help", "how to personalize", "guide", onPersonalizeGuide),
-                    HubAppBarAction("settings", "android settings", "android settings", onSystemSettings),
+                    HubAppBarAction("settings", "android settings", "android settings", onSystemSettings).withIcon(settingsAppIcon),
                 ),
             )
         }

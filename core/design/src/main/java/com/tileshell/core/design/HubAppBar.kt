@@ -1,6 +1,7 @@
 package com.tileshell.core.design
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -27,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
@@ -48,6 +51,13 @@ class HubAppBarAction(
     val label: String,
     val onClick: () -> Unit,
 ) {
+    /** Drawn in place of the [iconKey] glyph, e.g. another app's own launcher icon (set with [withIcon]). */
+    var icon: ImageBitmap? = null
+        private set
+
+    /** This button with [icon] drawn in place of its glyph; unchanged while [icon] is null. */
+    fun withIcon(icon: ImageBitmap?): HubAppBarAction = apply { this.icon = icon }
+
     /** The label is the description itself. */
     constructor(iconKey: String, description: String, onClick: () -> Unit) :
         this(iconKey, description, description, onClick)
@@ -163,7 +173,12 @@ private fun ActionRow(
                         .clip(CircleShape)
                         .border(BorderStroke(1.5.dp, tokens.fg), CircleShape),
                 ) {
-                    Icon(TileIcons[action.iconKey], contentDescription = null, tint = tokens.fg, modifier = Modifier.size(18.dp))
+                    val realIcon = action.icon
+                    if (realIcon != null) {
+                        Image(bitmap = realIcon, contentDescription = null, contentScale = ContentScale.Fit, modifier = Modifier.size(26.dp))
+                    } else {
+                        Icon(TileIcons[action.iconKey], contentDescription = null, tint = tokens.fg, modifier = Modifier.size(18.dp))
+                    }
                 }
                 if (expanded) {
                     Spacer(Modifier.height(4.dp))
