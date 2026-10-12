@@ -7,12 +7,18 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import com.tileshell.feature.livetiles.widget.EXTRA_OPEN_HUB
+import com.tileshell.feature.system.QuickSettingsTile
 
 /**
  * A "personalize" tile for the system's quick settings panel (add it from the panel's edit mode, under TileShell).
  * Tapping it closes the panel and opens TileShell's personalize sheet. It is a button, not a switch: always off.
  */
 class PersonalizeTileService : TileService() {
+
+    // Kept so personalize and the first-run offer know whether the tile is already on the panel.
+    override fun onTileAdded() = QuickSettingsTile.markAdded(this, true)
+
+    override fun onTileRemoved() = QuickSettingsTile.markAdded(this, false)
 
     override fun onStartListening() {
         qsTile?.apply {

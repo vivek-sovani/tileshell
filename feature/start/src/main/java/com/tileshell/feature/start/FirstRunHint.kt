@@ -33,6 +33,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.design.TileAccents
+import com.tileshell.feature.system.QuickSettingsTile
 
 /**
  * First-run hint overlay (S19): a one-time card leading with a brief feature
@@ -59,6 +60,12 @@ fun FirstRunHint(accentId: String, modifier: Modifier = Modifier) {
         fun dismiss() {
             FirstRunHintPrefs.markShown(context)
             visible = false
+            // Once, on a fresh install: ask the system to add the personalize button to the quick settings panel
+            // (Android 13+; the user answers the system's own dialog).
+            if (QuickSettingsTile.shouldOfferFirstRun(context)) {
+                QuickSettingsTile.markAsked(context)
+                QuickSettingsTile.request(context)
+            }
         }
         Box(
             modifier = Modifier

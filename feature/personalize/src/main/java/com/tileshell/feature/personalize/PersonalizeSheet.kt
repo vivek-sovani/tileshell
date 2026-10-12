@@ -13,6 +13,8 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import com.tileshell.core.design.HubAppBarAction
+import com.tileshell.core.design.ColorTokens
+import com.tileshell.feature.system.QuickSettingsTile
 import com.tileshell.core.design.HubAppBar
 import com.tileshell.core.design.HubPanorama
 import android.content.ComponentName
@@ -1531,6 +1533,7 @@ fun PersonalizeSheet(
                                 }
                                 Text(text = "open ›", color = accent, fontSize = 13.sp)
                             }
+                            QuickSettingsTileRow(tokens, accent)
                         }
                         // ---- backup & restore ----
                         SettingGroup(label = "backups, snapshots & reset", tokens.fgDim) {
@@ -1885,6 +1888,34 @@ private fun rememberAndroidSettingsIcon(): ImageBitmap? {
             }.getOrNull()
         }
     }.value
+}
+
+/**
+ * "add to quick settings": asks the system to put TileShell's personalize button on the swipe-down panel (Android 13+,
+ * the user answers the system's dialog). Shown only where that can be asked and the button is not already there.
+ */
+@Composable
+private fun QuickSettingsTileRow(tokens: ColorTokens, accent: Color) {
+    val context = LocalContext.current
+    var offer by remember { mutableStateOf(QuickSettingsTile.showInPersonalize(context)) }
+    if (!offer) return
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { QuickSettingsTile.request(context) { added -> if (added) offer = false } }
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = "add to quick settings", color = tokens.fg, fontSize = 14.sp)
+            Text(
+                text = "a personalize button in the swipe-down panel",
+                color = tokens.fgDim,
+                fontSize = 12.sp,
+            )
+        }
+        Text(text = "add ›", color = accent, fontSize = 13.sp)
+    }
 }
 
 /** Which Start-screen preview a [ThemeTile] draws. */
