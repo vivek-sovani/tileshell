@@ -34,6 +34,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -65,12 +66,15 @@ fun HubAppBar(
     actions: List<HubAppBarAction>,
     modifier: Modifier = Modifier,
     menuItems: List<HubAppBarAction> = emptyList(),
+    // For the section on the second screen of a split window ([rememberRightScreenPage], [rightScreenActions]).
+    rightActions: List<HubAppBarAction> = emptyList(),
 ) {
     var expanded by remember { mutableStateOf(false) }
     val density = LocalDensity.current
-    val firstScreen = LocalHinge.current
+    val split = LocalHinge.current
         ?.splitOf(vertical = true, extent = LocalWindowInfo.current.containerSize.width.toFloat())
-        ?.let { with(density) { it.first.toDp() } }
+    val firstScreen = split?.let { with(density) { it.first.toDp() } }
+    val hingeGap = split?.let { with(density) { it.gap.toDp() } } ?: 0.dp
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -78,50 +82,15 @@ fun HubAppBar(
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
             val usable = firstScreen ?: maxWidth
-            // Buttons shrink to leave the "···" corner (and a matching space on the left) clear, so the
-            // last button is never under it on a narrow screen.
-            val buttonWidth = minOf(64.dp, (usable - 104.dp - 12.dp * (actions.size - 1).coerceAtLeast(0)) / actions.size.coerceAtLeast(1))
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .width(usable)
-                    .wrapContentWidth(Alignment.CenterHorizontally)
-                    .padding(top = 8.dp, bottom = if (expanded) 6.dp else 8.dp),
-            ) {
-                actions.forEach { action ->
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .width(buttonWidth)
-                            .clickable {
-                                expanded = false
-                                action.onClick()
-                            }
-                            .semantics { contentDescription = action.description },
-                    ) {
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .border(BorderStroke(1.5.dp, tokens.fg), CircleShape),
-                        ) {
-                            Icon(TileIcons[action.iconKey], contentDescription = null, tint = tokens.fg, modifier = Modifier.size(18.dp))
-                        }
-                        if (expanded) {
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                action.label,
-                                color = tokens.fg,
-                                fontSize = 11.sp,
-                                textAlign = TextAlign.Center,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
+            val onSecond = rightActions.isNotEmpty() && firstScreen != null
+            ActionRow(actions, usable, tokens, expanded, Modifier.align(Alignment.TopStart)) { expanded = false }
+            if (onSecond) {
+                // The second screen's own buttons, clear of the hinge and of the "···" corner.
+                val start = firstScreen!! + hingeGap
+                ActionRow(
+                    rightActions, maxWidth - start, tokens, expanded,
+                    Modifier.align(Alignment.TopStart).padding(start = start),
+                ) { expanded = false }
             }
             Box(
                 contentAlignment = Alignment.Center,
@@ -154,3 +123,67 @@ fun HubAppBar(
         }
     }
 }
+
+/**
+ * A row of round buttons centred in [width], shrunk to leave the "···" corner and a matching space on the
+ * other side clear. [onClicked] runs before an action does (it lowers an expanded bar).
+ */
+@Composable
+private fun ActionRow(
+    actions: List<HubAppBarAction>,
+    width: Dp,
+    tokens: ColorTokens,
+    expanded: Boolean,
+    modifier: Modifier,
+    onClicked: () -> Unit,
+) {
+    val buttonWidth = minOf(64.dp, (width - 104.dp - 12.dp * (actions.size - 1).coerceAtLeast(0)) / actions.size.coerceAtLeast(1))
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = modifier
+            .width(width)
+            .wrapContentWidth(Alignment.CenterHorizontally)
+            .padding(top = 8.dp, bottom = if (expanded) 6.dp else 8.dp),
+    ) {
+        actions.forEach { action ->
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .width(buttonWidth)
+                    .clickable {
+                        onClicked()
+                        action.onClick()
+                    }
+                    .semantics { contentDescription = action.description },
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(38.dp)
+                        .clip(CircleShape)
+                        .border(BorderStroke(1.5.dp, tokens.fg), CircleShape),
+                ) {
+                    Icon(TileIcons[action.iconKey], contentDescription = null, tint = tokens.fg, modifier = Modifier.size(18.dp))
+                }
+                if (expanded) {
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        action.label,
+                        color = tokens.fg,
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * The buttons for the second screen of a split window: what the section there offers, minus "back" and anything
+ * the first screen's bar already has (the same description).
+ */
+fun rightScreenActions(left: List<HubAppBarAction>, right: List<HubAppBarAction>?): List<HubAppBarAction> =
+    right.orEmpty().filter { it.iconKey != "back" && left.none { l -> l.description == it.description } }

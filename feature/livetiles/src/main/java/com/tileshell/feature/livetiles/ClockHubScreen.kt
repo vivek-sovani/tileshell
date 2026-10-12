@@ -91,6 +91,8 @@ import com.tileshell.core.data.clock.totalMs
 import com.tileshell.core.data.clock.worldRow
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.HubAppBar
+import com.tileshell.core.design.rightScreenActions
+import com.tileshell.core.design.rememberRightScreenPage
 import com.tileshell.core.design.HubAppBarAction
 import com.tileshell.core.design.HubFilter
 import com.tileshell.core.design.HubPanorama
@@ -252,23 +254,30 @@ fun ClockHubScreen(
             // With the keyboard up the app bar would only eat the room the field needs.
             val keyboardUp = WindowInsets.ime.getBottom(LocalDensity.current) > 0
             if (!(keyboardUp && draft != null)) HubPinNote(pinMessages, tokens, accent)
-            if (!(keyboardUp && draft != null)) HubAppBar(
-                tokens = tokens,
-                actions = buildList {
+            // The bar's buttons for a section; the second screen of a split window gets the ones for its own section.
+            val barActions: (Int) -> List<HubAppBarAction> = { forPage ->
+                buildList {
                     add(HubAppBarAction("back", "back") { back() })
                     val onPanorama = editor == null && runningId == null && !settingsOpen
-                    if (onPanorama && pagerState.currentPage == 1) {
+                    if (onPanorama && forPage == 1) {
                         add(HubAppBarAction("plus", "add a city", "add") { addingCity = true; editWorld = false })
                         add(HubAppBarAction(if (editWorld) "check" else "edit", "edit cities", if (editWorld) "done" else "edit") { editWorld = !editWorld })
                     }
-                    if (onPanorama && pagerState.currentPage == 4) {
+                    if (onPanorama && forPage == 4) {
                         add(HubAppBarAction("plus", "new timer set", "new set") {
                             editor = TimerSet(System.currentTimeMillis().toString(), "", listOf(TimerPart("", listOf(TimerStep(seconds = 120)))))
                         })
                     }
                     add(HubAppBarAction("settings", "clock settings", "settings") { settingsOpen = !settingsOpen })
                     add(HubAppBarAction("pin", "pin clock to start", "pin to start", onPinHub))
-                },
+                }
+            }
+            val leftBar = barActions(pagerState.currentPage)
+            val rightBar = rightScreenActions(leftBar, rememberRightScreenPage(pagerState)?.let(barActions))
+            if (!(keyboardUp && draft != null)) HubAppBar(
+                tokens = tokens,
+                actions = leftBar,
+                rightActions = rightBar,
             )
         }
     }

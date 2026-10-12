@@ -3,6 +3,8 @@ package com.tileshell.feature.livetiles
 import com.tileshell.core.design.HubPanorama
 import com.tileshell.core.design.HubAppBarAction
 import com.tileshell.core.design.HubAppBar
+import com.tileshell.core.design.rightScreenActions
+import com.tileshell.core.design.rememberRightScreenPage
 import com.tileshell.core.design.HubFilter
 import android.Manifest
 import androidx.activity.compose.BackHandler
@@ -222,9 +224,9 @@ fun PeopleHubScreen(
                 }
             }
 
-            HubAppBar(
-                tokens = tokens,
-                actions = when (pagerState.currentPage) {
+            // The bar's buttons for a section; the second screen of a split window gets the ones for its own section.
+            val barActions: (Int) -> List<HubAppBarAction> = { forPage ->
+                when (forPage) {
                     0 -> listOf(
                         HubAppBarAction("back", "back", onDismiss),
                         HubAppBarAction("plus", "add contact", "add") { openAddContact(context) },
@@ -251,7 +253,7 @@ fun PeopleHubScreen(
                         }
                     }
                     else -> {
-                        val page = HUB_PIVOTS[pagerState.currentPage]
+                        val page = HUB_PIVOTS[forPage]
                         listOf(
                             HubAppBarAction("back", "back", onDismiss),
                             HubAppBarAction("pin", "pin this page to start", "pin to start") { onPinPage(page, page) },
@@ -262,7 +264,14 @@ fun PeopleHubScreen(
                             },
                         )
                     }
-                },
+                }
+            }
+            val leftBar = barActions(pagerState.currentPage)
+            val rightBar = rightScreenActions(leftBar, rememberRightScreenPage(pagerState)?.let(barActions))
+            HubAppBar(
+                tokens = tokens,
+                actions = leftBar,
+                rightActions = rightBar,
             )
         }
     }

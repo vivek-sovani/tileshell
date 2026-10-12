@@ -84,6 +84,8 @@ import com.tileshell.core.data.topMovers
 import com.tileshell.core.data.watchKind
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.HubAppBar
+import com.tileshell.core.design.rightScreenActions
+import com.tileshell.core.design.rememberRightScreenPage
 import com.tileshell.core.design.HubAppBarAction
 import com.tileshell.core.design.HubFilter
 import com.tileshell.core.design.HubPanorama
@@ -205,30 +207,37 @@ fun MarketsHubScreen(
                 }
             }
             HubPinNote(pinMessages, tokens, accent)
-            HubAppBar(
-                tokens = tokens,
-                actions = buildList {
+            // The bar's buttons for a section; the second screen of a split window gets the ones for its own section.
+            val barActions: (Int) -> List<HubAppBarAction> = { forPage ->
+                buildList {
                     add(HubAppBarAction("back", "back") { if (adding) adding = false else onDismiss() })
                     // Adds to the section showing (a stock, commodity, currency pair or crypto), stocks otherwise.
-                    val addFor = if (pagerState.currentPage == 0 && !adding) kind ?: "stocks" else "stocks"
+                    val addFor = if (forPage == 0 && !adding) kind ?: "stocks" else "stocks"
                     add(HubAppBarAction("plus", "add a ${kindLabel(addFor)}", "add ${kindLabel(addFor)}") {
                         editing = false
                         addKind = addFor
                         adding = true
                         scope.launch { pagerState.animateScrollToPage(0) }
                     })
-                    if (pagerState.currentPage == 0 && !adding && watch.isNotEmpty()) {
+                    if (forPage == 0 && !adding && watch.isNotEmpty()) {
                         add(HubAppBarAction(if (editing) "check" else "edit", "edit watchlist", if (editing) "done" else "edit") { editing = !editing })
                     }
                     add(HubAppBarAction("refresh", "refresh prices", "refresh") { refreshTick++ })
                     // Pins the tile for what is showing: the kind chosen on the watchlist, else the markets (indices) tile.
-                    val pinKind = if (pagerState.currentPage == 0 && !adding) kind else null
+                    val pinKind = if (forPage == 0 && !adding) kind else null
                     add(
                         HubAppBarAction("pin", "pin ${pinKind ?: "markets"} tile to start", "pin ${pinKind ?: "markets"}") {
                             onPinTile(pinKind ?: MarketsTile.INDICES)
                         },
                     )
-                },
+                }
+            }
+            val leftBar = barActions(pagerState.currentPage)
+            val rightBar = rightScreenActions(leftBar, rememberRightScreenPage(pagerState)?.let(barActions))
+            HubAppBar(
+                tokens = tokens,
+                actions = leftBar,
+                rightActions = rightBar,
                 menuItems = buildList {
                     val current = if (pagerState.currentPage == 0 && !adding) kind else null
                     kinds.filter { it != current }.forEach { k -> add(HubAppBarAction("pin", "pin $k tile", "pin $k tile") { onPinTile(k) }) }

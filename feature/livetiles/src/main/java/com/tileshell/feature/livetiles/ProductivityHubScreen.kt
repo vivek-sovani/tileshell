@@ -3,6 +3,8 @@ package com.tileshell.feature.livetiles
 import com.tileshell.core.design.HubPanorama
 import com.tileshell.core.design.HubAppBarAction
 import com.tileshell.core.design.HubAppBar
+import com.tileshell.core.design.rightScreenActions
+import com.tileshell.core.design.rememberRightScreenPage
 import com.tileshell.core.data.TaskItem
 import com.tileshell.core.data.reminders.TaskReminders
 import com.tileshell.core.data.reminders.reminderClock
@@ -263,9 +265,9 @@ fun ProductivityHubScreen(
                 }
             }
 
-            HubAppBar(
-                tokens = tokens,
-                actions = when (pagerState.currentPage) {
+            // The bar's buttons for a section; the second screen of a split window gets the ones for its own section.
+            val barActions: (Int) -> List<HubAppBarAction> = { forPage ->
+                when (forPage) {
                     1 -> listOf(
                         HubAppBarAction("back", "back", onDismiss),
                         HubAppBarAction("plus", "new note", "new note", onNewNote),
@@ -286,7 +288,14 @@ fun ProductivityHubScreen(
                         HubAppBarAction("back", "back", onDismiss),
                         HubAppBarAction("pin", "pin productivity to start", "pin to start", onPinHub),
                     )
-                },
+                }
+            }
+            val leftBar = barActions(pagerState.currentPage)
+            val rightBar = rightScreenActions(leftBar, rememberRightScreenPage(pagerState)?.let(barActions))
+            HubAppBar(
+                tokens = tokens,
+                actions = leftBar,
+                rightActions = rightBar,
             )
         }
     }

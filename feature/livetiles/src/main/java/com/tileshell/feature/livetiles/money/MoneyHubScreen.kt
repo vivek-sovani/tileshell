@@ -3,6 +3,8 @@ package com.tileshell.feature.livetiles.money
 import com.tileshell.core.design.HubPanorama
 import com.tileshell.core.design.HubAppBarAction
 import com.tileshell.core.design.HubAppBar
+import com.tileshell.core.design.rightScreenActions
+import com.tileshell.core.design.rememberRightScreenPage
 import com.tileshell.core.design.HubFilter
 import android.app.Activity
 import androidx.activity.compose.BackHandler
@@ -178,17 +180,24 @@ fun MoneyHubScreen(
                     }
                 }
             }
-            HubAppBar(
-                tokens = tokens,
-                actions = buildList {
+            // The bar's buttons for a section; the second screen of a split window gets the ones for its own section.
+            val barActions: (Int) -> List<HubAppBarAction> = { forPage ->
+                buildList {
                     add(HubAppBarAction("back", "back") { if (settingsOpen) settingsOpen = false else onDismiss() })
-                    if (!settingsOpen && pagerState.currentPage == 1) {
+                    if (!settingsOpen && forPage == 1) {
                         add(HubAppBarAction(if (appsEditing) "check" else "edit", "edit apps", if (appsEditing) "done" else "edit apps") { appsEditing = !appsEditing })
                     } else {
                         add(HubAppBarAction("settings", "money settings", "settings") { settingsOpen = !settingsOpen })
                     }
                     add(HubAppBarAction("pin", "pin money to start", "pin to start", onPinHub))
-                },
+                }
+            }
+            val leftBar = barActions(pagerState.currentPage)
+            val rightBar = rightScreenActions(leftBar, rememberRightScreenPage(pagerState)?.let(barActions))
+            HubAppBar(
+                tokens = tokens,
+                actions = leftBar,
+                rightActions = rightBar,
             )
         }
     }

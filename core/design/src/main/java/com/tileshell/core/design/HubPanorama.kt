@@ -6,6 +6,10 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +46,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -221,5 +226,51 @@ fun HubPanorama(
                 }
             }
         }
+        // Beside a hinge the title keeps to the first screen, which leaves the top of the second one bare:
+        // the section names go there, the ones on show bright, so it is plain that more sections lie
+        // beyond and a tap jumps to one.
+        if (sideBySide != null && sections.size > 2 * geometry.perScreen) {
+            val onShow = pagerState.currentPage until pagerState.currentPage + 2 * geometry.perScreen
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(18.dp),
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .width(with(density) { sideBySide.second.toDp() })
+                    .horizontalScroll(rememberScrollState())
+                    .padding(start = PANORAMA_MARGIN, end = 12.dp, top = 22.dp),
+            ) {
+                sections.forEachIndexed { i, name ->
+                    Text(
+                        text = name,
+                        color = if (i in onShow) tokens.fg else tokens.fgDim,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Light,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClickLabel = "show $name",
+                        ) { scope.launch { pagerState.animateScrollToPage(i) } },
+                    )
+                }
+            }
+        }
     }
+}
+
+/**
+ * Beside a hinge, the section on the second screen while [pagerState] is on its
+ * current page, or null when the window is whole or no section lies there. A hub
+ * uses it to give the second screen its own bottom bar actions
+ * ([HubAppBar]'s `rightActions`): the first screen's are for `currentPage`.
+ */
+@Composable
+fun rememberRightScreenPage(pagerState: PagerState): Int? {
+    val hinge = LocalHinge.current ?: return null
+    val window = LocalWindowInfo.current.containerSize
+    val density = LocalDensity.current
+    val split = hinge.splitOf(vertical = true, extent = window.width.toFloat()) ?: return null
+    val perScreen = panoramaGeometry(window.width / density.density, split.scaled(1f / density.density)).perScreen
+    return (pagerState.currentPage + perScreen).takeIf { it < pagerState.pageCount }
 }

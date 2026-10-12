@@ -71,7 +71,8 @@ const val TWO_PANEL_MIN_WIDTH_DP = 600
 fun useTwoPanel(landscape: Boolean, widthDp: Int): Boolean = landscape || widthDp >= TWO_PANEL_MIN_WIDTH_DP
 
 /** One section's width and the space between sections in a hub panorama (dp). */
-data class PanoramaGeometry(val sectionDp: Float, val spacingDp: Float)
+/** [perScreen] is how many sections fit on one screen (1 on an unsplit window, where they simply scroll). */
+data class PanoramaGeometry(val sectionDp: Float, val spacingDp: Float, val perScreen: Int = 1)
 
 /** How much of the next section shows at the right edge of a single, unsplit screen. */
 const val PANORAMA_PEEK_DP = 56f
@@ -97,5 +98,5 @@ fun panoramaGeometry(widthDp: Float, split: PanelSplit?): PanoramaGeometry {
     val screen = minOf(split.first, split.second)
     val perScreen = kotlin.math.ceil(screen / SPLIT_SECTION_MAX_DP).toInt().coerceAtLeast(1)
     val section = (screen - split.gap * (perScreen - 1)) / perScreen
-    return PanoramaGeometry(section, split.gap)
+    return PanoramaGeometry(section, split.gap, perScreen)
 }

@@ -91,6 +91,8 @@ import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.TileSize
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.HubAppBar
+import com.tileshell.core.design.rightScreenActions
+import com.tileshell.core.design.rememberRightScreenPage
 import com.tileshell.core.design.HubAppBarAction
 import com.tileshell.core.design.HubFilter
 import com.tileshell.core.design.HubPanorama
@@ -311,12 +313,12 @@ fun NewsHubScreen(
             val keyboardUp = WindowInsets.ime.getBottom(LocalDensity.current) > 0
             val typing = keyboardUp && (picking || settingsOpen)
             if (!typing) HubPinNote(pinMessages, tokens, accent)
-            if (!typing) HubAppBar(
-                tokens = tokens,
-                actions = buildList {
+            // The bar's buttons for a section; the second screen of a split window gets the ones for its own section.
+            val barActions: (Int) -> List<HubAppBarAction> = { forPage ->
+                buildList {
                     add(HubAppBarAction("back", "back") { if (settingsOpen) settingsOpen = false else if (picking) picking = false else onDismiss() })
                     if (!settingsOpen) add(HubAppBarAction("settings", "news settings", "settings") { picking = false; settingsOpen = true })
-                    if ((onLivePage || picking) && !settingsOpen) {
+                    if (((forPage == LIVE_PAGE) || picking) && !settingsOpen) {
                         add(HubAppBarAction("plus", "choose channels", "channels") { picking = true })
                     }
                     add(
@@ -327,7 +329,14 @@ fun NewsHubScreen(
                         },
                     )
                     add(HubAppBarAction("pin", "pin news to start", "pin to start", onPinHub))
-                },
+                }
+            }
+            val leftBar = barActions(pagerState.currentPage)
+            val rightBar = rightScreenActions(leftBar, rememberRightScreenPage(pagerState)?.let(barActions))
+            if (!typing) HubAppBar(
+                tokens = tokens,
+                actions = leftBar,
+                rightActions = rightBar,
             )
         }
       }
