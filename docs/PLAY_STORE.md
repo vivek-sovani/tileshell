@@ -276,13 +276,14 @@ original format as the historical record, unchanged). Still capped at Play's 500
 
 ## Release notes (v5.1.0)
 
-*Everything added after 5.0.0, folded into one release. versionCode 510. Re-cut 2026-10-11 (never uploaded to Play, so the versionCode is unchanged). See the checklist below.*
+*Everything added after 5.0.0, folded into one release. versionCode 510. Re-cut 2026-10-11 and again 2026-10-12 (never uploaded to Play, so the versionCode is unchanged). See the checklist below.*
 
 ### Play-facing blurb (500 chars max)
 ```
 TileShell 5.1.0
 
 New features:
+• Dual-screen and foldable layouts (Surface Duo, Galaxy Z Fold)
 • Android Auto: music, podcasts, radio
 • New hubs: markets, sports, news, clock, shopping, health
 • Long-press a tile for quick actions
@@ -290,7 +291,7 @@ New features:
 • App list: left rail, square tiles
 • Panchang in 8 languages
 • News in 13 languages, China, Taiwan
-• Chinese stores and wallets
+• Add personalize to quick settings
 
 Bugs fixed:
 • Less battery use from live tiles
@@ -314,6 +315,10 @@ Bugs fixed:
 **News in your language.** New "languages" group in all three news settings: Hindi, Marathi, Gujarati, Bengali, Tamil, Telugu, Kannada, Malayalam, Punjabi, Odia, Urdu, Assamese and Chinese, each with its own feeds plus Google News in the language where it exists. China, Hong Kong and Taiwan added as countries, with English and Chinese outlets. Live tv follows countries only.
 
 **Money, shopping and people.** Chinese stores, couriers and food delivery (Taobao, Tmall, JD.com, Pinduoduo, Meituan, SF Express, Cainiao and more, by English and Chinese names) with Chinese order wording and parcel-locker pickup codes; Alipay, UnionPay and Chinese bank apps recognised as payment and bank apps (payments in yuan are not captured as transactions). People hub: what's new shows the whole notification and lists a chat's messages one by one, attached photos shown whole, add / move / drop apps on the People, Money and Productivity apps pages (an app can sit in several sections), a store's notification shows in shopping or people, not both.
+
+**Dual-screen and foldable devices.** Surface Duo and Galaxy Z Fold (half open) are handled: Start and the glance page sit one per screen beside a vertical hinge, or glance on top and Start below a horizontal one, and any window 600dp wide or more (an unfolded Fold, a tablet) shows them side by side. Hubs, personalize, the guide and about span both screens with whole sections on each screen and nothing under the hinge; the bar's buttons sit on the first screen and the second screen has its own for the section it shows (adding a task from the right-hand section); the second screen's top lists the sections, tappable. Other sheets stay on one screen. The setup wizard and the welcome cards keep to one screen, with a filled "got it" button. The Personalize bar's android settings button shows the phone's own Settings icon.
+
+**Quick settings.** On Android 13 and later TileShell asks the system to add its "personalize" tile to the quick settings panel (the system shows its own dialog): once on a fresh install after the welcome card, and from a new "add to quick settings" row in personalize › system while the tile is not on the panel. Earlier versions add it from the panel's edit mode.
 
 **Personalize and system.** Personalize is a panorama; Windows Phone-style switches; theme choices preview Start; "dock" is the new name of the edge strip; double tap on empty space turns the screen off (opt-in); a personalize tile for the system's quick settings; about and the guide are panoramas; hubs fill the whole screen in landscape; backup is three clear groups (snapshots, backup file, reset), covers notes, tasks, music favourites and glance widgets, with optional auto-export to a folder; setup screens scroll with a big font.
 

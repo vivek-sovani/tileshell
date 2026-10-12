@@ -653,6 +653,9 @@ android {
         //   whole-tile Windows Phone flip and flip-style notification tiles; the app list's rail and
         //   square tiles style; panchang in eight languages; news in 13 languages plus China / Hong
         //   Kong / Taiwan; Chinese stores, couriers and wallets; battery audit (see docs/PLAY_STORE.md).
+        //   Re-cut again 2026-10-12 (510 still never uploaded): dual-screen and foldable layouts (Surface
+        //   Duo, Galaxy Z Fold: hubs, personalize, guide and about span both screens; setup and welcome
+        //   cards keep to one) and a system "add tile" request for the personalize quick settings tile.
         versionCode = 510
         versionName = "5.1.0"
     }
