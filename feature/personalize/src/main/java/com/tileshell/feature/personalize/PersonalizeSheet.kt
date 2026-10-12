@@ -397,7 +397,7 @@ fun PersonalizeSheet(
         snapshotFlow { sectionPager.currentPage }.collect { PersonalizeSectionMemory.page = it }
     }
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, spanHinge = true, modifier = modifier) {
         // Scrim (prototype rgba(0,0,0,.5)); tap to dismiss.
         Box(
             modifier = Modifier

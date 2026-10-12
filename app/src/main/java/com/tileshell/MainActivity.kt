@@ -24,6 +24,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -46,6 +47,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.data.RatingPromptPrefs
+import com.tileshell.core.design.LocalHinge
 import com.tileshell.core.data.isRatingPromptCheckWindowOpen
 import com.tileshell.core.data.rollShowsPrompt
 import com.tileshell.feature.livetiles.WeatherRefreshWorker
@@ -99,6 +101,7 @@ class MainActivity : ComponentActivity() {
             var showRecentsDisclosure by remember { mutableStateOf(false) }
             var showNotificationsDisclosure by remember { mutableStateOf(false) }
 
+            CompositionLocalProvider(LocalHinge provides rememberHinge(this@MainActivity)) {
             StartScreen(
                 viewModel = startViewModel,
                 onRecents = {
@@ -139,6 +142,7 @@ class MainActivity : ComponentActivity() {
                     }
                 },
             )
+            }
 
             if (showLockDisclosure) {
                 AccessibilityDisclosureDialog(
@@ -236,7 +240,7 @@ class MainActivity : ComponentActivity() {
      * Debug builds only: press screenshots of the hubs. `debug.capture` turns
      * whole-panorama PNG capture on or off ([com.tileshell.core.design.PanoramaCapture]),
      * `debug.hub` opens a hub by name, `debug.demo_mail` shows made-up mail
-     * notifications. Ignored in a release (not debuggable).
+     * notifications, `debug.hinge=v|h|fold|off` a made-up hinge ([DebugHinge]). Ignored in a release (not debuggable).
      */
     private fun handleDebugPressIntent(intent: Intent) {
         if (applicationInfo.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE == 0) return
@@ -295,6 +299,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        intent.getStringExtra("debug.hinge")?.let { DebugHinge.request.value = it.takeIf { kind -> kind != "off" } }
         intent.getStringExtra("debug.gallery")?.let { com.tileshell.feature.start.TileGalleryState.request.value = it.ifBlank { null } }
         intent.getStringExtra("debug.calsys")?.split(":")?.let { parts ->
             val size = parts.getOrNull(1)?.let { n -> com.tileshell.core.data.TileSize.entries.firstOrNull { it.name == n } } ?: com.tileshell.core.data.TileSize.LARGE

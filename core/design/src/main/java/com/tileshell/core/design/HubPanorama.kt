@@ -11,8 +11,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
@@ -20,6 +24,7 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -33,7 +38,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -43,15 +50,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 
-/** How much of the next section shows at the right edge. */
-private val PANORAMA_PEEK = 56.dp
-
 /**
- * Widest a section gets. A portrait phone's sections stay screen-wide less the
- * peek; on a landscape screen (or a tablet) several sections show side by
- * side, each about a phone's width, so more of the panorama is on screen.
+ * Section widths come from [panoramaGeometry]: a portrait phone's sections stay
+ * screen-wide less a peek of the next; on a landscape screen (or a tablet)
+ * several sections show side by side, each about a phone's width. On a window
+ * split at a hinge (Surface Duo, a half-open Galaxy Z Fold) each screen holds
+ * whole sections, nothing is drawn under the hinge, and the title and what sits
+ * under it stay on the first screen.
  */
-private val PANORAMA_MAX_SECTION = 400.dp
+private val PANORAMA_MAX_SECTION = PANORAMA_MAX_SECTION_DP.dp
 
 /** Side margin of the title and section headers, matching the pages' own. */
 private val PANORAMA_MARGIN = 18.dp
@@ -109,11 +116,18 @@ fun HubPanorama(
     // StartScreenKt).
     var widthPx by remember { mutableIntStateOf(0) }
     var heightPx by remember { mutableIntStateOf(0) }
+    var originX by remember { mutableFloatStateOf(0f) }
+    var originY by remember { mutableFloatStateOf(0f) }
+    // The hinge, when this panorama spans one: screens side by side (vertical
+    // hinge) or one above the other (horizontal).
+    val hinge = LocalHinge.current
+    val sideBySide = hinge?.splitOf(vertical = true, extent = widthPx.toFloat(), origin = originX)
+    val stacked = hinge?.splitOf(vertical = false, extent = heightPx.toFloat(), origin = originY)
     // On a short screen (landscape) the title, with whatever sits under it
     // (people's search), folds away while a section's list is scrolled up and
     // comes back on a scroll down, so the list gets the room (user-requested).
     // Portrait keeps it, as Lumia did.
-    val short = heightPx in 1 until widthPx
+    val short = heightPx in 1 until widthPx && stacked == null
     var titleHidden by remember { mutableStateOf(false) }
     val titleScroll = remember {
         object : NestedScrollConnection {
@@ -131,44 +145,60 @@ fun HubPanorama(
                 widthPx = it.width
                 heightPx = it.height
             }
+            .onGloballyPositioned {
+                val at = it.positionInWindow()
+                originX = at.x
+                originY = at.y
+            }
             .nestedScroll(titleScroll),
     ) {
         val marginPx = with(density) { PANORAMA_MARGIN.toPx() }
         // A long title ("productivity") slides until most of it has shown; a
         // short one still drifts a quarter-screen, as Lumia's did.
-        val travelPx = maxOf(titleWidthPx + marginPx - widthPx * 0.7f, widthPx * 0.25f)
-        val pageSize = if (widthPx == 0) PageSize.Fill
-            else PageSize.Fixed(minOf(with(density) { widthPx.toDp() } - PANORAMA_PEEK, PANORAMA_MAX_SECTION))
+        // Beside a hinge the title only has the first screen to run along.
+        val titleAreaPx = sideBySide?.first ?: widthPx.toFloat()
+        val travelPx = maxOf(titleWidthPx + marginPx - titleAreaPx * 0.7f, titleAreaPx * 0.25f)
+        val geometry = panoramaGeometry(widthPx / density.density, sideBySide?.scaled(1f / density.density))
+        val pageSize = if (widthPx == 0) PageSize.Fill else PageSize.Fixed(geometry.sectionDp.dp)
+        // Title, search and pinned rows keep to the first screen of a side-by-side split.
+        val topWidth = if (sideBySide != null) Modifier.width(with(density) { sideBySide.first.toDp() }) else Modifier.fillMaxWidth()
+        // Above a horizontal hinge: the title block fills the top screen and the sections start below the hinge.
+        val topScreenDp = stacked?.let { with(density) { it.first.toDp() } }
+        val hingeDp = stacked?.let { with(density) { it.gap.toDp() } }
         Column(modifier = Modifier.fillMaxSize()) {
-            AnimatedVisibility(
-                visible = !(short && titleHidden),
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut(),
-            ) {
-                Column {
-                    Box(modifier = Modifier.fillMaxWidth().clipToBounds()) {
-                        Text(
-                            text = title,
-                            style = titleStyle,
-                            maxLines = 1,
-                            softWrap = false,
-                            modifier = Modifier
-                                .wrapContentWidth(Alignment.Start, unbounded = true)
-                                .padding(start = PANORAMA_MARGIN - 4.dp, top = 6.dp)
-                                .graphicsLayer {
-                                    val last = (pagerState.pageCount - 1).coerceAtLeast(1)
-                                    val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
-                                    translationX = -(position / last).coerceIn(0f, 1f) * travelPx
-                                },
-                        )
+            Column(modifier = if (topScreenDp != null) Modifier.fillMaxWidth().heightIn(min = topScreenDp) else Modifier) {
+                AnimatedVisibility(
+                    visible = !(short && titleHidden),
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut(),
+                ) {
+                    Column(modifier = topWidth) {
+                        Box(modifier = topWidth.clipToBounds()) {
+                            Text(
+                                text = title,
+                                style = titleStyle,
+                                maxLines = 1,
+                                softWrap = false,
+                                modifier = Modifier
+                                    .wrapContentWidth(Alignment.Start, unbounded = true)
+                                    .padding(start = PANORAMA_MARGIN - 4.dp, top = 6.dp)
+                                    .graphicsLayer {
+                                        val last = (pagerState.pageCount - 1).coerceAtLeast(1)
+                                        val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
+                                        translationX = -(position / last).coerceIn(0f, 1f) * travelPx
+                                    },
+                            )
+                        }
+                        belowTitle()
                     }
-                    belowTitle()
                 }
+                Column(modifier = topWidth) { pinned() }
             }
-            pinned()
+            if (hingeDp != null) Spacer(Modifier.height(hingeDp))
             HorizontalPager(
                 state = pagerState,
                 pageSize = pageSize,
+                pageSpacing = geometry.spacingDp.dp,
                 modifier = Modifier.weight(1f),
             ) { index ->
                 Column(modifier = Modifier.fillMaxSize()) {

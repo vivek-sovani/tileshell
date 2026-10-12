@@ -240,7 +240,7 @@ fun NewsHubScreen(
     val nowMs = remember(feed.articles) { System.currentTimeMillis() }
     val articles = remember(feed.articles) { feed.articles.sortedByDescending { it.publishedAtMillis } }
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, spanHinge = true, modifier = modifier) {
       Box(modifier = Modifier.fillMaxSize()) {
         Column(
             modifier = Modifier

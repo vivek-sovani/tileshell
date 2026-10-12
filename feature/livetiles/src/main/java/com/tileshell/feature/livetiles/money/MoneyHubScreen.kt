@@ -130,7 +130,7 @@ fun MoneyHubScreen(
     LaunchedEffect(pagerState.currentPage) { if (pagerState.currentPage != 1) appsEditing = false }
     val pagerScope = rememberCoroutineScope()
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, spanHinge = true, modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

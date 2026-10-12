@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -26,6 +27,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -64,18 +67,27 @@ fun HubAppBar(
     menuItems: List<HubAppBarAction> = emptyList(),
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val density = LocalDensity.current
+    val firstScreen = LocalHinge.current
+        ?.splitOf(vertical = true, extent = LocalWindowInfo.current.containerSize.width.toFloat())
+        ?.let { with(density) { it.first.toDp() } }
     Column(
         modifier = modifier
             .fillMaxWidth()
             .background(tokens.sheet),
     ) {
         BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+            val usable = firstScreen ?: maxWidth
             // Buttons shrink to leave the "···" corner (and a matching space on the left) clear, so the
             // last button is never under it on a narrow screen.
-            val buttonWidth = minOf(64.dp, (maxWidth - 104.dp - 12.dp * (actions.size - 1).coerceAtLeast(0)) / actions.size.coerceAtLeast(1))
+            val buttonWidth = minOf(64.dp, (usable - 104.dp - 12.dp * (actions.size - 1).coerceAtLeast(0)) / actions.size.coerceAtLeast(1))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 8.dp, bottom = if (expanded) 6.dp else 8.dp),
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .width(usable)
+                    .wrapContentWidth(Alignment.CenterHorizontally)
+                    .padding(top = 8.dp, bottom = if (expanded) 6.dp else 8.dp),
             ) {
                 actions.forEach { action ->
                     Column(

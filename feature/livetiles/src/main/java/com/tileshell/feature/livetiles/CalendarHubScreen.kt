@@ -112,7 +112,7 @@ fun CalendarHubScreen(
         "$month ${cal.get(Calendar.YEAR)}"
     }
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, spanHinge = true, modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

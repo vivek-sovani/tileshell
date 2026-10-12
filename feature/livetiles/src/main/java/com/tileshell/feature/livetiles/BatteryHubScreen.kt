@@ -102,7 +102,7 @@ fun BatteryHubScreen(
     val pagerState = rememberPagerState(pageCount = { BATTERY_PIVOTS.size })
     val pagerScope = rememberCoroutineScope()
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, spanHinge = true, modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

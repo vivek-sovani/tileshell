@@ -215,6 +215,9 @@ import com.tileshell.core.design.CornerArcGlyph
 import com.tileshell.core.design.Glass
 import com.tileshell.core.design.LIGHT_BACKGROUND_LUMINANCE_THRESHOLD
 import com.tileshell.core.design.LocalAccent
+import com.tileshell.core.design.LocalHinge
+import com.tileshell.core.design.splitOf
+import com.tileshell.core.design.useTwoPanel
 import com.tileshell.core.design.LocalColorTokens
 import com.tileshell.core.design.LocalTileCornerRadius
 import com.tileshell.core.design.LocalTileFaceColor
@@ -903,8 +906,21 @@ fun StartScreen(
     val feedEnabled = settings.feedEnabled
     // In landscape we drop the feed↔Start swipe and show both as side-by-side
     // panels instead (so a 4-col grid never balloons to fill the wide screen).
-    val isLandscape =
-        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // The same goes for any window 600dp wide or more however it is held (an
+    // unfolded Galaxy Z Fold, a Surface Duo spanned across both screens, a
+    // tablet): `isLandscape` below means "two panels", not only "turned sideways".
+    val windowConfig = LocalConfiguration.current
+    val isLandscape = useTwoPanel(
+        landscape = windowConfig.orientation == Configuration.ORIENTATION_LANDSCAPE,
+        widthDp = windowConfig.screenWidthDp,
+    )
+    // A hinge that splits the window (Duo; a half-open Fold): the panels follow
+    // it instead of the window's middle, so nothing sits under it.
+    val hinge = LocalHinge.current
+    val windowPx = LocalWindowInfo.current.containerSize
+    // Kept out of the layout lambda below, which is near the register limit R8 can handle.
+    val splitBeside = hinge?.splitOf(vertical = true, extent = windowPx.width.toFloat())
+    val splitAbove = hinge?.splitOf(vertical = false, extent = windowPx.height.toFloat())
     val progress = remember { Animatable(0f) }
     // Live tiles pause when Start is no longer the foreground surface: the app
     // list (>50% right) or the feed (>50% left) has taken over, or an overlay
@@ -1850,21 +1866,77 @@ fun StartScreen(
             )
         }
 
+        // Start (centred at a portrait-like width, so tiles never balloon) and the
+        // app list over it; shared by the feed-off landscape layout and the
+        // stacked layout below a horizontal hinge.
+        val renderCenteredStart: @Composable BoxScope.() -> Unit = {
+            val cappedWidthPx = minOf(widthPx, with(density) { 460.dp.toPx() })
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .width(with(density) { cappedWidthPx.toDp() })
+                    .fillMaxHeight()
+                    .clipToBounds(),
+            ) { renderStartPage(cappedWidthPx) }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer { translationX = widthPx * (upper - progress.value) }
+                    .background(LocalColorTokens.current.bg),
+            ) { renderAppList() }
+        }
         Box(modifier = Modifier.fillMaxSize()) {
             when {
-                // Landscape with the feed on: two side-by-side panels. The feed is
-                // the left panel (always live); Start is the right panel at half
-                // width, so its grid stays portrait-sized. The app list slides in
-                // over the Start panel only — the feed panel stays put.
-                isLandscape && feedEnabled -> {
-                    val panelWidthPx = widthPx / 2f
+                // A horizontal hinge (Duo held like a laptop, a Fold half open in
+                // tabletop posture): the glance page on the top screen, Start on
+                // the bottom one, nothing under the hinge.
+                isLandscape && splitAbove != null -> {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(with(density) { splitAbove.first.toDp() })
+                                .clipToBounds(),
+                        ) { if (feedEnabled) renderFeed(true) }
+                        Spacer(Modifier.height(with(density) { splitAbove.gap.toDp() }))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .clipToBounds()
+                                .then(pagerModifier(widthPx, 0f)),
+                            content = renderCenteredStart,
+                        )
+                    }
+                }
+                // Two side-by-side panels. The feed is the left panel (always
+                // live); Start is the right panel, so its grid stays
+                // portrait-sized. With a vertical hinge each panel is one
+                // screen (the left stays empty when the feed is off, so Start
+                // keeps to its own screen); otherwise each is half the window.
+                // The app list slides in over the Start panel only — the feed
+                // panel stays put.
+                isLandscape && (feedEnabled || splitBeside != null) -> {
+                    val panelWidthPx = splitBeside?.second ?: (widthPx / 2f)
                     Row(modifier = Modifier.fillMaxSize()) {
-                        Box(modifier = Modifier.weight(1f).fillMaxHeight().clipToBounds()) {
-                            renderFeed(true)
+                        Box(
+                            modifier = Modifier
+                                .then(
+                                    if (splitBeside != null) Modifier.width(with(density) { splitBeside.first.toDp() })
+                                    else Modifier.weight(1f),
+                                )
+                                .fillMaxHeight()
+                                .clipToBounds(),
+                        ) { if (feedEnabled) renderFeed(true) }
+                        if (splitBeside != null && splitBeside.gap > 0f) {
+                            Spacer(Modifier.width(with(density) { splitBeside.gap.toDp() }))
                         }
                         Box(
                             modifier = Modifier
-                                .weight(1f)
+                                .then(
+                                    if (splitBeside != null) Modifier.width(with(density) { splitBeside.second.toDp() })
+                                    else Modifier.weight(1f),
+                                )
                                 .fillMaxHeight()
                                 // Keep the parallaxing Start panel and the sliding app
                                 // list inside the right half — without this the Start
@@ -1891,22 +1963,10 @@ fun StartScreen(
                 // portrait-like width centred on screen (tiles never balloon); the
                 // app list still covers the full width.
                 isLandscape -> {
-                    val cappedWidthPx = minOf(widthPx, with(density) { 460.dp.toPx() })
-                    Box(modifier = Modifier.fillMaxSize().then(pagerModifier(widthPx, 0f))) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .width(with(density) { cappedWidthPx.toDp() })
-                                .fillMaxHeight()
-                                .clipToBounds(),
-                        ) { renderStartPage(cappedWidthPx) }
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .graphicsLayer { translationX = widthPx * (upper - progress.value) }
-                                .background(LocalColorTokens.current.bg),
-                        ) { renderAppList() }
-                    }
+                    Box(
+                        modifier = Modifier.fillMaxSize().then(pagerModifier(widthPx, 0f)),
+                        content = renderCenteredStart,
+                    )
                 }
                 // Portrait: the stacked, swipeable pager (feed −1, Start's own
                 // block pages 0..blockCount-1, app list blockCount).

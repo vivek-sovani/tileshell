@@ -195,7 +195,7 @@ fun ClockHubScreen(
     KeepScreenOn(keepOn = visible && runningSession != null && !runningSession.paused, dim = dimmed)
     val fastNow by rememberNow(visible && stopwatchRunning, 50L)
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, spanHinge = true, modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

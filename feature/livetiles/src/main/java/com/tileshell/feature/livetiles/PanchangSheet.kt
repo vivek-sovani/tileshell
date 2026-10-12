@@ -150,7 +150,7 @@ fun PanchangSheet(
     val scope = rememberCoroutineScope()
 
     androidx.compose.runtime.CompositionLocalProvider(LocalPanchangLanguage provides language) {
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, spanHinge = true, modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

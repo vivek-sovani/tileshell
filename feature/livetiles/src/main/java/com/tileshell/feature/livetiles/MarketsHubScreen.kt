@@ -164,7 +164,7 @@ fun MarketsHubScreen(
     val watchQuotes by rememberQuotes(watch.map { it.symbol }, visible, active, refreshTick, refreshRate)
     val indexQuotes by rememberQuotes(MARKET_INDICES.map { it.symbol }, visible && pagerState.currentPage == 1, active, refreshTick, refreshRate)
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, spanHinge = true, modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

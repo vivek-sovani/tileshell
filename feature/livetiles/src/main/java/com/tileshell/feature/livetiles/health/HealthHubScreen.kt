@@ -119,7 +119,7 @@ fun HealthHubScreen(
     LaunchedEffect(pagerState.currentPage) { if (pagerState.currentPage != 2) appsEditing = false }
     val s = settings ?: HealthSettings()
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, spanHinge = true, modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()

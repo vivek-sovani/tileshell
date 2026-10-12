@@ -92,7 +92,7 @@ fun PersonalizeGuideSheet(
 
     val pagerState = rememberPagerState(pageCount = { GUIDE_PAGES.size })
 
-    SheetStage(rightHalf = rightHalf, modifier = modifier) {
+    SheetStage(rightHalf = rightHalf, spanHinge = true, modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
