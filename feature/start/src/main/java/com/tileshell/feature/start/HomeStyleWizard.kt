@@ -368,42 +368,45 @@ internal fun StartSetupWizard(
         }
     }
 
-    when (step) {
-        SetupStep.STYLE -> HomeStyleWizardScreen(
-            reset = reset,
-            onChoose = { style = it; step = SetupStep.SETUP },
-            onSkip = onCancel,
-        )
-        SetupStep.SETUP -> SetupChoiceScreen(
-            reset = reset,
-            accent = accent,
-            theme = theme,
-            onTheme = { theme = it },
-            multicolor = multicolor,
-            onMulticolor = { multicolor = it },
-            custom = custom,
-            onCustom = { custom = it },
-            keepsPinned = pinnedPackages.isNotEmpty(),
-            onBack = { step = SetupStep.STYLE },
-            onNext = {
-                if (custom) step = SetupStep.APPS
-                else onFinish(style, theme, multicolor, false, emptySet())
-            },
-        )
-        SetupStep.APPS -> SetupAppsScreen(
-            reset = reset,
-            accent = accent,
-            apps = apps,
-            defaultPackages = preselected,
-            picked = picked ?: preselected,
-            onToggle = { pkg ->
-                val cur = picked ?: preselected
-                picked = if (pkg in cur) cur - pkg else cur + pkg
-            },
-            onBack = { step = SetupStep.SETUP },
-            onDone = { onFinish(style, theme, multicolor, true, picked ?: preselected) },
-            keepsPinned = pinnedPackages.isNotEmpty(),
-        )
+    // One screen of a split or wide window, not stretched across it (the next / done label would sit under a hinge).
+    com.tileshell.core.design.SingleScreenHost(background = WizardBg) {
+        when (step) {
+            SetupStep.STYLE -> HomeStyleWizardScreen(
+                reset = reset,
+                onChoose = { style = it; step = SetupStep.SETUP },
+                onSkip = onCancel,
+            )
+            SetupStep.SETUP -> SetupChoiceScreen(
+                reset = reset,
+                accent = accent,
+                theme = theme,
+                onTheme = { theme = it },
+                multicolor = multicolor,
+                onMulticolor = { multicolor = it },
+                custom = custom,
+                onCustom = { custom = it },
+                keepsPinned = pinnedPackages.isNotEmpty(),
+                onBack = { step = SetupStep.STYLE },
+                onNext = {
+                    if (custom) step = SetupStep.APPS
+                    else onFinish(style, theme, multicolor, false, emptySet())
+                },
+            )
+            SetupStep.APPS -> SetupAppsScreen(
+                reset = reset,
+                accent = accent,
+                apps = apps,
+                defaultPackages = preselected,
+                picked = picked ?: preselected,
+                onToggle = { pkg ->
+                    val cur = picked ?: preselected
+                    picked = if (pkg in cur) cur - pkg else cur + pkg
+                },
+                onBack = { step = SetupStep.SETUP },
+                onDone = { onFinish(style, theme, multicolor, true, picked ?: preselected) },
+                keepsPinned = pinnedPackages.isNotEmpty(),
+            )
+        }
     }
 }
 

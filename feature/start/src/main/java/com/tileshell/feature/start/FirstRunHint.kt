@@ -68,47 +68,54 @@ fun FirstRunHint(accentId: String, modifier: Modifier = Modifier) {
                 .clickable(onClick = ::dismiss),
             contentAlignment = Alignment.BottomCenter,
         ) {
-            Column(
-                modifier = Modifier
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 18.dp, vertical = 24.dp)
-                    .fillMaxWidth()
-                    .background(Color(0xFF1B1B22), RoundedCornerShape(10.dp))
-                    // Scrolls when a big system font makes the card taller than the screen.
-                    .verticalScroll(androidx.compose.foundation.rememberScrollState())
-                    .padding(horizontal = 18.dp, vertical = 18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = "welcome to tileshell",
-                    color = Color(0xFFF6F6F8),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Thin,
-                )
-                Text(
-                    text = featureText(accent),
-                    color = Color(0xFFB4B4C2),
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                )
-                Text(
-                    text = hintText(accent),
-                    color = Color(0xFF8A8A96),
-                    fontSize = 13.sp,
-                    lineHeight = 19.sp,
-                )
-                Text(
-                    text = "got it",
-                    color = accent,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = ::dismiss)
-                        .padding(top = 4.dp, bottom = 2.dp),
-                )
+            // One screen of a split or wide window: the card is not stretched across a hinge.
+            com.tileshell.core.design.SingleScreenHost {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                    Column(
+                        modifier = Modifier
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 18.dp, vertical = 24.dp)
+                            .fillMaxWidth()
+                            .background(Color(0xFF1B1B22), RoundedCornerShape(10.dp))
+                            // Scrolls when a big system font makes the card taller than the screen.
+                            .verticalScroll(androidx.compose.foundation.rememberScrollState())
+                            .padding(horizontal = 18.dp, vertical = 18.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        Text(
+                            text = "welcome to tileshell",
+                            color = Color(0xFFF6F6F8),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Thin,
+                        )
+                        Text(
+                            text = featureText(accent),
+                            color = Color(0xFFB4B4C2),
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp,
+                        )
+                        Text(
+                            text = hintText(accent),
+                            color = Color(0xFF8A8A96),
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp,
+                        )
+                        Text(
+                            text = "got it",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(accent, RoundedCornerShape(4.dp))
+                                .clickable(onClick = ::dismiss)
+                                .padding(vertical = 11.dp),
+                        )
+                    }
+                }
             }
         }
     }

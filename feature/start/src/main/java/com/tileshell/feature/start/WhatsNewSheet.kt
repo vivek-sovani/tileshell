@@ -78,40 +78,47 @@ fun WhatsNewSheet(
                 ),
             contentAlignment = Alignment.BottomCenter,
         ) {
-            Column(
-                modifier = Modifier
-                    .statusBarsPadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = 18.dp, vertical = 24.dp)
-                    // Longer releases can be taller than a small screen.
-                    .verticalScroll(rememberScrollState())
-                    .fillMaxWidth()
-                    .background(Color(0xFF1B1B22), RoundedCornerShape(10.dp))
-                    .padding(horizontal = 18.dp, vertical = 18.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                if (onSetUpWithHubs != null) {
-                    HubsIntro(accent = accent, onSetUp = onSetUpWithHubs, onKeep = onDismiss)
-                    return@Column
+            // One screen of a split or wide window: the buttons are not stretched across a hinge.
+            com.tileshell.core.design.SingleScreenHost {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                    Column(
+                        modifier = Modifier
+                            .statusBarsPadding()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 18.dp, vertical = 24.dp)
+                            // Longer releases can be taller than a small screen.
+                            .verticalScroll(rememberScrollState())
+                            .fillMaxWidth()
+                            .background(Color(0xFF1B1B22), RoundedCornerShape(10.dp))
+                            .padding(horizontal = 18.dp, vertical = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        if (onSetUpWithHubs != null) {
+                            HubsIntro(accent = accent, onSetUp = onSetUpWithHubs, onKeep = onDismiss)
+                            return@Column
+                        }
+                        Text(
+                            text = "what's new in $WHATS_NEW_VERSION_NAME",
+                            color = Color(0xFFF6F6F8),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Thin,
+                        )
+                        WhatsNewSection(title = "new features", accent = accent, items = WHATS_NEW_FEATURES)
+                        WhatsNewSection(title = "bugs fixed", accent = accent, items = WHATS_NEW_FIXES)
+                        Text(
+                            text = "got it",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(accent, RoundedCornerShape(4.dp))
+                                .clickable(onClick = onDismiss)
+                                .padding(vertical = 11.dp),
+                        )
+                    }
                 }
-                Text(
-                    text = "what's new in $WHATS_NEW_VERSION_NAME",
-                    color = Color(0xFFF6F6F8),
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Thin,
-                )
-                WhatsNewSection(title = "new features", accent = accent, items = WHATS_NEW_FEATURES)
-                WhatsNewSection(title = "bugs fixed", accent = accent, items = WHATS_NEW_FIXES)
-                Text(
-                    text = "got it",
-                    color = accent,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(onClick = onDismiss)
-                        .padding(top = 4.dp, bottom = 2.dp),
-                )
             }
         }
     }
