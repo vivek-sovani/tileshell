@@ -324,14 +324,35 @@ Bugs fixed:
 
 **Fixes and battery.** Battery audit of the background work (battery log, Bing, health sampler, weather, notification capture, animations, icons); opening an app clears its notification count; dragging tiles no longer carries a small tile to the next page by accident and small tiles drag from anywhere; a wallpaper type keeps its own pick; "play X" voice requests reach TileShell; timer chime plays on the alarm stream; Bluetooth music resumes after a disconnect.
 
-### Play Console checklist for 5.1.0 (Android Auto)
-- [ ] Add **Android Auto** to the app's form factors (Release → Setup → Advanced settings).
-- [ ] Upload to **closed testing** first and wait for the Android for Cars review result before production.
-- [ ] Reviewer notes: TileShell is a launcher whose Music hub is a full media app. Grant "music access" when asked; steps: play a song, open a favourite podcast show and play an episode, play a favourite radio station.
-- [ ] Test on the Desktop Head Unit (or a real car) before upload — none was available when this was built.
-- [ ] Data safety: no new data collected; re-read the form. Privacy policy has an Android Auto section (md + `docs/index.html`, publish the hosted page).
-- [ ] Foreground service `mediaPlayback` declaration unchanged.
-- [ ] If the review blocks the release, set `tileshell.androidAuto=false` in `gradle.properties` and ship the rest without it.
+### Play Console checklist for 5.1.0 (upload day)
+
+Build: `release-out/tileshell-5.1.0-release.aab`, versionCode 510 (Play has 450), targetSdk 36, signed with the upload key (cert SHA-256 1a904ad5…), no `RECORD_AUDIO`. Never uploaded, so 510 is free.
+
+**A. Before you open the Play Console (on this Mac / a device)**
+- [ ] Check the AAB is the one just built (`jarsigner -verify` says "jar verified"; the file date is 2026-10-12).
+- [ ] Hosted privacy policy is live at https://vivek-sovani.github.io/tileshell/ and matches `docs/index.html` (checked 2026-10-12: it lists Android Auto, shopping, Yahoo / ESPN, usage access). Re-read it against anything added since 2026-10-09 (Chinese wallets, dual-screen: no new data).
+- [ ] Fresh-install run on a phone: setup wizard, welcome card, then the system's "add tile" dialog for the quick settings tile (Android 13+). Not yet seen end to end.
+- [ ] Real Duo / Fold pass (only the emulator and a first look at the Duo so far): every hub spans both screens, the bar's right-hand buttons act on the right section, the section pivot jumps, setup / welcome cards keep to one screen, fold and unfold keeps state.
+- [ ] Android Auto: test on the Desktop Head Unit or a real car. None was available when it was built.
+- [ ] Re-record the **accessibility demo video** from this build (Play asks for a fresh one with every submission; follow the steps in the 5.0.0 checklist above, slowly, pausing on every bullet).
+
+**B. Store listing (paste by hand; nothing syncs from the repo)**
+- [ ] Short description (65 / 80) and full description (3909 / 4000) from "Store Listing" above, including the two disclosure sections (notification access, accessibility service).
+- [ ] "What's new" blurb from "Play-facing blurb" above (492 / 500).
+- [ ] Screenshots: phone as before. **Add large-screen ones**: 7" and 10" tablet / foldable screenshots (a Duo or Fold spanned screen: Start beside the glance page, a hub across both screens). Without them Play shows the app as phone-only on large screens.
+- [ ] Form factors: tick **Android Auto** (Release > Setup > Advanced settings). Tablets / foldables need nothing extra: the manifest has no orientation lock and no required hardware features, and the app is resizable.
+
+**C. App content and declarations**
+- [ ] Accessibility API declaration: upload the new video link; say the service is not an accessibility tool and only calls `performGlobalAction` (lock screen, recents, notifications).
+- [ ] Foreground service `mediaPlayback` declaration with a short video (start a song, screen off, notification controls).
+- [ ] Data safety: no new data types in this re-cut (dual-screen and the quick settings tile collect nothing). Re-read the form against the 5.0.0 answers: financial info, messages, music files, fitness, approximate location to Open-Meteo.
+- [ ] Exact alarms: `SCHEDULE_EXACT_ALARM` only, user-granted; financial features: none provided; health: steps counter only; contacts: no declaration needed until targetSdk 37.
+
+**D. Release**
+- [ ] Upload the AAB to **closed testing** first (Android for Cars review for the Auto form factor; wait for its result before production).
+- [ ] Reviewer notes: TileShell is a launcher (set as default Home) whose Music hub is a full media app. Grant "music access" when asked; play a song, a favourite podcast episode and a radio station.
+- [ ] Look at the **pre-launch report** (crashes on the Play test devices, including foldables) and Android vitals after rollout.
+- [ ] Promote to production with a **staged rollout** (20% then up). If the Auto review blocks it, set `tileshell.androidAuto=false` in `gradle.properties`, rebuild at a new versionCode, and ship the rest without it.
 
 ---
 
