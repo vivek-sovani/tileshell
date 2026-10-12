@@ -656,8 +656,10 @@ android {
         //   Re-cut again 2026-10-12 (510 still never uploaded): dual-screen and foldable layouts (Surface
         //   Duo, Galaxy Z Fold: hubs, personalize, guide and about span both screens; setup and welcome
         //   cards keep to one) and a system "add tile" request for the personalize quick settings tile.
-        versionCode = 510
-        versionName = "5.1.0"
+        //   5.2.0 (520): Play Console reported 510 already used (2026-10-12), so everything listed under
+        //   5.1.0 above ships as 5.2.0, unchanged; nothing was added besides the version.
+        versionCode = 520
+        versionName = "5.2.0"
     }
 
     // Task reminders kill switch (gradle.properties → tileshell.taskReminders).

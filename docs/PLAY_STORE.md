@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*Updated for v5.1.0 (everything since 5.0.0) — listing texts refreshed 2026-10-11; release notes and checklist below*
+*Updated for v5.2.0 (everything since 5.0.0; 5.1.0 was burned in Play) — listing texts refreshed 2026-10-11; release notes and checklist below*
 
 ---
 
@@ -20,7 +20,7 @@ visible impact for existing users and wasn't part of this ask.)*
 
 ### Full description (4 000 chars max)
 
-*Updated 2026-10-11 for 5.1.0. Written against the two earlier rejections and Play's metadata policy: the optional Accessibility Service is disclosed in its own section and names exactly the three actions it performs (rejection 2026-10-08); headings are plain words with no star symbols, no ALL CAPS gimmicks, no repeated keywords and no claims that are not in the app; a line says TileShell is independent of Microsoft; every feature that reads notifications, messages or usage says so. If Play objects again, shorten the hubs list first.*
+*Updated 2026-10-11 (for the build now numbered 5.2.0). Written against the two earlier rejections and Play's metadata policy: the optional Accessibility Service is disclosed in its own section and names exactly the three actions it performs (rejection 2026-10-08); headings are plain words with no star symbols, no ALL CAPS gimmicks, no repeated keywords and no claims that are not in the app; a line says TileShell is independent of Microsoft; every feature that reads notifications, messages or usage says so. If Play objects again, shorten the hubs list first.*
 
 ```
 TileShell is a launcher for Android that recreates the Start screen of Windows Phone and Windows 10 Mobile, built from scratch in Kotlin with original icons. It is an independent app and is not affiliated with or endorsed by Microsoft.
@@ -253,7 +253,7 @@ cert SHA-256 1a904ad5…), keyboard left out. Permissions new since 4.5.0:
 9. **Usage access / device admin / battery exemption** — usage access and battery exemption
    are user-granted special access, explained in the policy; the device-admin receiver (screen
    lock on Android 8–9) and battery exemption shipped in 4.5.0 unchanged.
-10. **Store listing** — (5.0.0 figures; the 5.1.0 texts are 65 / 80 and 3909 / 4000 chars) release notes under 500 (below), no
+10. **Store listing** — (5.0.0 figures; the 5.2.0 texts are 65 / 80 and 3909 / 4000 chars) release notes under 500 (below), no
     keyboard mentions; app icon and screenshots use original glyphs, no Microsoft assets.
     Consider adding hub screenshots (not required).
 11. **Upload** — `release-out/tileshell-5.0.0-release.aab` (signed; Play App Signing re-signs).
@@ -274,13 +274,13 @@ labeled sections — "New features:" and "Bugs fixed:" — each a short bulleted
 "• New: / • Improved: / • Fixed:" per-line style used in every entry before this one (those keep their
 original format as the historical record, unchanged). Still capped at Play's 500-character limit.*
 
-## Release notes (v5.1.0)
+## Release notes (v5.2.0)
 
-*Everything added after 5.0.0, folded into one release. versionCode 510. Re-cut 2026-10-11 and again 2026-10-12 (never uploaded to Play, so the versionCode is unchanged). See the checklist below.*
+*Everything added after 5.0.0, folded into one release. versionCode 520. It was built as 5.1.0 (versionCode 510, re-cut 2026-10-11 and 2026-10-12) until Play Console reported 510 already used on 2026-10-12, so it ships as 5.2.0 with nothing else changed. See the checklist below.*
 
 ### Play-facing blurb (500 chars max)
 ```
-TileShell 5.1.0
+TileShell 5.2.0
 
 New features:
 • Dual-screen and foldable layouts (Surface Duo, Galaxy Z Fold)
@@ -324,9 +324,9 @@ Bugs fixed:
 
 **Fixes and battery.** Battery audit of the background work (battery log, Bing, health sampler, weather, notification capture, animations, icons); opening an app clears its notification count; dragging tiles no longer carries a small tile to the next page by accident and small tiles drag from anywhere; a wallpaper type keeps its own pick; "play X" voice requests reach TileShell; timer chime plays on the alarm stream; Bluetooth music resumes after a disconnect.
 
-### Play Console checklist for 5.1.0 (upload day)
+### Play Console checklist for 5.2.0 (upload day)
 
-Build: `release-out/tileshell-5.1.0-release.aab`, versionCode 510 (Play has 450), targetSdk 36, signed with the upload key (cert SHA-256 1a904ad5…), no `RECORD_AUDIO`. Never uploaded, so 510 is free.
+Build: `release-out/tileshell-5.2.0-release.aab`, versionCode 520 (510 is used in Play; check the Console for the highest code before uploading), targetSdk 36, signed with the upload key (cert SHA-256 1a904ad5…), no `RECORD_AUDIO`.
 
 **A. Before you open the Play Console (on this Mac / a device)**
 - [ ] Check the AAB is the one just built (`jarsigner -verify` says "jar verified"; the file date is 2026-10-12).
