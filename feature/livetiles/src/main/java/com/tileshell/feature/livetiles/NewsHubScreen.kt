@@ -756,6 +756,8 @@ private fun LivePlayer(
                     controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     controller.hide(WindowInsetsCompat.Type.systemBars())
                     val exit = {
+                        video.keepScreenOn = false
+                        container.keepScreenOn = false
                         decor.removeView(container)
                         container.removeAllViews()
                         if (barsWereShown) controller.show(WindowInsetsCompat.Type.systemBars())
@@ -783,9 +785,16 @@ private fun LivePlayer(
         onDispose {
             leaveFullscreen?.invoke()
             view.clearFocus()
+            // YouTube's player asks the page to keep the screen on while it plays, which the WebView applies as
+            // keepScreenOn on its view. Dropped with the view it can leave the window holding the screen on, so
+            // the system's screen timeout never fires: switch it off first and make the window re-read its views.
+            view.keepScreenOn = false
+            view.onPause()
             decor.removeView(view)
             view.stopLoading()
             view.destroy()
+            decor.keepScreenOn = true
+            decor.keepScreenOn = false
             web = null
             // Nothing on the window may leave the keyboard asking to show once the video is gone.
             WindowInsetsControllerCompat(activity.window, decor).hide(WindowInsetsCompat.Type.ime())
