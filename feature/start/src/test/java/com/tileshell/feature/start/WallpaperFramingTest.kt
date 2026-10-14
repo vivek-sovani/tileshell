@@ -16,3 +16,15 @@ class WallpaperFramingTest {
         assertEquals(WallpaperFraming(0.2f, 0.7f, 1f), wallpaperFramingFor(2250f, 4000f, true, 0.2f, 0.7f, 1.6f))
     }
 }
+
+class SpanningWallpaperTest {
+    @Test fun landscapePhotoSpansBeyondAPortraitScreen() {
+        val crop = spanningWallpaper(3840f, 2160f, 1080f, 2340f)!!
+        assertEquals(2340f, crop.dstHeight, 0.01f)
+        assertEquals(4160f, crop.dstWidth, 1f)
+    }
+
+    @Test fun portraitPhotoDoesNotSpan() {
+        assertEquals(null, spanningWallpaper(2160f, 3840f, 1080f, 2340f))
+    }
+}

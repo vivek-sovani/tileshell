@@ -289,6 +289,13 @@ class SettingsCodecTest {
     }
 
     @Test
+    fun `wallpaperSpanPages is off by default, round trips and a bad value keeps the default`() {
+        assertEquals(false, LauncherSettings().wallpaperSpanPages)
+        assertEquals(true, SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(wallpaperSpanPages = true))).wallpaperSpanPages)
+        assertEquals(false, SettingsCodec.decode("wallpaperSpanPages=maybe").wallpaperSpanPages)
+    }
+
+    @Test
     fun `doubleTapLock is off by default, round trips and a bad value keeps the default`() {
         assertEquals(false, LauncherSettings().doubleTapLock)
         assertEquals(true, SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(doubleTapLock = true))).doubleTapLock)

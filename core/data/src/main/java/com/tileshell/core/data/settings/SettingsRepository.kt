@@ -283,6 +283,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(doubleTapLock = enabled) }
     }
 
+    /** See [LauncherSettings.wallpaperSpanPages]. */
+    suspend fun setWallpaperSpanPages(enabled: Boolean) {
+        store.updateData { it.copy(wallpaperSpanPages = enabled) }
+    }
+
     /** See [LauncherSettings.peoplePhotoFlip]. */
     suspend fun setPeoplePhotoFlip(enabled: Boolean) {
         store.updateData { it.copy(peoplePhotoFlip = enabled) }

@@ -3062,6 +3062,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Toggle "hide status bar" (Personalize): hides the system status bar over TileShell. */
+    fun setWallpaperSpanPages(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setWallpaperSpanPages(enabled) }
+    }
+
     fun setPeoplePhotoFlip(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setPeoplePhotoFlip(enabled) }
     }

@@ -275,6 +275,10 @@ fun PersonalizeSheet(
     onDoubleTapLockChange: (Boolean) -> Unit = {},
     peoplePhotoFlip: Boolean = true,
     onPeoplePhotoFlipChange: (Boolean) -> Unit = {},
+    /** How many Start pages there are; the photo's landscape / portrait choice shows with 2 or more. */
+    startPageCount: Int = 1,
+    wallpaperSpanPages: Boolean = false,
+    onWallpaperSpanPagesChange: (Boolean) -> Unit = {},
     onClearPhotos: () -> Unit,
     onRemovePhoto: (String) -> Unit,
     /** Master on/off switch for live-tile flipping/updates. */
@@ -626,6 +630,18 @@ fun PersonalizeSheet(
                                     }
                                     if (isPhoto) {
                                         WallpaperNavRow("adjust position", "reframe ›", accent, tokens, onAdjustWallpaper)
+                                    }
+                                    if (isPhoto && startPageCount > 1) {
+                                        Text(
+                                            "with more than one start page, a landscape photo can scroll across them",
+                                            color = tokens.fgDim,
+                                            fontSize = 13.sp,
+                                            modifier = Modifier.padding(top = 10.dp, bottom = 6.dp),
+                                        )
+                                        Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                                            HubFilter("landscape", wallpaperSpanPages, tokens, accent) { onWallpaperSpanPagesChange(true) }
+                                            HubFilter("portrait", !wallpaperSpanPages, tokens, accent) { onWallpaperSpanPagesChange(false) }
+                                        }
                                     }
                                 }
                                 WallpaperType.SLIDESHOW -> {

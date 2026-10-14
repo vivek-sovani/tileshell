@@ -72,3 +72,16 @@ fun wallpaperFramingFor(
     imageWidth > imageHeight -> WallpaperFraming(0.5f, 0.5f, 1f)
     else -> WallpaperFraming(alignX, alignY, 1f)
 }
+
+/**
+ * The geometry for a photo that scrolls sideways with the Start pages: fitted to
+ * the box height (zoom 1) and at least a quarter wider than the box, or null when it
+ * would not be wider than the box (a portrait or near-square photo), which keeps
+ * the user's own crop. [WallpaperCrop.left] is the first page's edge; the caller
+ * moves it between 0 and `boxWidth - dstWidth` as the pages are swiped.
+ */
+fun spanningWallpaper(imageWidth: Float, imageHeight: Float, boxWidth: Float, boxHeight: Float): WallpaperCrop? {
+    if (imageWidth <= 0f || imageHeight <= 0f || boxWidth <= 0f || boxHeight <= 0f) return null
+    val crop = wallpaperCropGeometry(imageWidth, imageHeight, boxWidth, boxHeight, 0f, 0.5f, 1f)
+    return crop.takeIf { it.dstWidth >= boxWidth * 1.25f }
+}

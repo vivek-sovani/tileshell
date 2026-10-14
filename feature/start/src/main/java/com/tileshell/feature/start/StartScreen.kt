@@ -624,6 +624,8 @@ fun StartScreen(
     // re-crop/re-frame of the *already-active* image — that changes no
     // content, so there's nothing new to choose a target for.
     var pendingWallpaperPick by remember { mutableStateOf<PendingWallpaperPick?>(null) }
+    // A landscape photo with 2+ Start pages: asked landscape or portrait before the target chooser.
+    var spanChoicePick by remember { mutableStateOf<PendingWallpaperPick.Photo?>(null) }
 
     // The last photo set as wallpaper, with its framing, so choosing "photo"
     // again after another type brings it back (user-requested).
@@ -1287,6 +1289,9 @@ fun StartScreen(
                     zoom = settings.wallpaperZoom,
                     dark = dark,
                     wide = isLandscape,
+                    pageFraction = if (blockCount > 1 && settings.wallpaperSpanPages) {
+                        { (progress.value / (blockCount - 1)).coerceIn(0f, 1f) }
+                    } else null,
                 )
             }
         }
@@ -2091,6 +2096,7 @@ fun StartScreen(
             personalizeVisible = personalizeVisible,
             personalizeOpen = personalizeOpen,
             isLandscape = isLandscape,
+            startPageCount = blockCount,
             dark = dark,
             photoWallpaper = photoWallpaper,
             bingPicked = bingPicked,
@@ -2577,7 +2583,14 @@ fun StartScreen(
             glassLine = tokens.glassLine,
             onConfirm = { alignX, alignY, zoom ->
                 pendingWallpaperCropUri?.let {
-                    pendingWallpaperPick = PendingWallpaperPick.Photo(it, alignX, alignY, zoom)
+                    val photo = PendingWallpaperPick.Photo(it, alignX, alignY, zoom)
+                    if (blockCount > 1 && isWideImage(context, it)) {
+                        spanChoicePick = photo
+                    } else {
+                        // One page (or a portrait photo): the cropped version only.
+                        viewModel.setWallpaperSpanPages(false)
+                        pendingWallpaperPick = photo
+                    }
                 }
                 pendingWallpaperCropUri = null
                 // Reached via personalize → wallpaper → photo (or the share/
@@ -2636,6 +2649,18 @@ fun StartScreen(
         // target or cancel, nothing applied either way until you do).
         // Dismissing discards [pendingWallpaperPick] outright — it's never
         // set as TileShell's own wallpaper, let alone pushed to the OS.
+        spanChoicePick?.let { photo ->
+            WallpaperSpanChoiceDialog(
+                tokens = tokens,
+                onChoose = { span ->
+                    viewModel.setWallpaperSpanPages(span)
+                    pendingWallpaperPick = photo
+                    spanChoicePick = null
+                },
+                onDismiss = { spanChoicePick = null },
+            )
+        }
+
         pendingWallpaperPick?.let { pick ->
             fun applyTo(target: WallpaperSyncTarget) {
                 when (pick) {
@@ -9908,6 +9933,7 @@ private fun PersonalizeSheetLayer(
     settings: LauncherSettings,
     personalizeVisible: Boolean,
     personalizeOpen: Boolean,
+    startPageCount: Int,
     isLandscape: Boolean,
     dark: Boolean,
     photoWallpaper: Boolean,
@@ -10106,6 +10132,9 @@ private fun PersonalizeSheetLayer(
         onDoubleTapLockChange = viewModel::setDoubleTapLock,
         peoplePhotoFlip = settings.peoplePhotoFlip,
         onPeoplePhotoFlipChange = viewModel::setPeoplePhotoFlip,
+        startPageCount = startPageCount,
+        wallpaperSpanPages = settings.wallpaperSpanPages,
+        onWallpaperSpanPagesChange = viewModel::setWallpaperSpanPages,
         onAbout = viewModel::openAbout,
         onPersonalizeGuide = viewModel::openPersonalizeGuide,
         onFolders = viewModel::openFolders,

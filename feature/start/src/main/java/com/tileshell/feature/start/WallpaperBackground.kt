@@ -44,6 +44,10 @@ import kotlinx.coroutines.withContext
  * centre, matching the pinch-zoom set in `WallpaperCropOverlay`.
  * [wide] (a landscape / two-panel / spanned window) ignores that portrait crop:
  * see [wallpaperFramingFor].
+ * [pageFraction] (0 = first Start page, 1 = last), when given, makes a photo wider
+ * than the screen scroll with the pages instead of sitting at one fixed crop: the
+ * photo is fitted to the screen height and its width is spread across the pages
+ * ([spanningWallpaper]). Read in the draw phase, so a swipe never recomposes.
  */
 @Composable
 fun WallpaperBackground(
@@ -55,6 +59,7 @@ fun WallpaperBackground(
     zoom: Float = 1f,
     dark: Boolean = true,
     wide: Boolean = false,
+    pageFraction: (() -> Float)? = null,
     modifier: Modifier = Modifier,
 ) {
     val layer = modifier
@@ -80,10 +85,18 @@ fun WallpaperBackground(
                         image.width.toFloat(), image.height.toFloat(), size.width, size.height,
                         framing.alignX, framing.alignY, framing.zoom,
                     )
+                    // A photo wider than the screen at full height has room to scroll
+                    // sideways: spread it across the Start pages.
+                    val span = if (pageFraction != null && !wide) {
+                        spanningWallpaper(image.width.toFloat(), image.height.toFloat(), size.width, size.height)
+                    } else null
                     onDrawBehind {
+                        val drawn = if (span != null && pageFraction != null) {
+                            span.copy(left = -pageFraction().coerceIn(0f, 1f) * (span.dstWidth - size.width))
+                        } else geo
                         clipRect {
-                            translate(left = geo.left, top = geo.top) {
-                                scale(geo.scale, pivot = Offset.Zero) {
+                            translate(left = drawn.left, top = drawn.top) {
+                                scale(drawn.scale, pivot = Offset.Zero) {
                                     drawImage(image, colorFilter = filter)
                                 }
                             }
