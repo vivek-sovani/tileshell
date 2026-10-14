@@ -42,6 +42,8 @@ import kotlinx.coroutines.withContext
  * image is cropped to fill the screen (0 = left/top edge, 0.5 = centred, 1 = right/bottom).
  * [zoom] (1 = none) additionally magnifies the cropped photo around the screen
  * centre, matching the pinch-zoom set in `WallpaperCropOverlay`.
+ * [wide] (a landscape / two-panel / spanned window) ignores that portrait crop:
+ * see [wallpaperFramingFor].
  */
 @Composable
 fun WallpaperBackground(
@@ -52,6 +54,7 @@ fun WallpaperBackground(
     alignY: Float = 0.5f,
     zoom: Float = 1f,
     dark: Boolean = true,
+    wide: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val layer = modifier
@@ -70,8 +73,12 @@ fun WallpaperBackground(
             val filter = if (blur) ColorFilter.colorMatrix(saturation(1.1f)) else null
             Box(
                 modifier = layer.drawWithCache {
+                    val framing = wallpaperFramingFor(
+                        image.width.toFloat(), image.height.toFloat(), wide, alignX, alignY, zoom,
+                    )
                     val geo = wallpaperCropGeometry(
-                        image.width.toFloat(), image.height.toFloat(), size.width, size.height, alignX, alignY, zoom,
+                        image.width.toFloat(), image.height.toFloat(), size.width, size.height,
+                        framing.alignX, framing.alignY, framing.zoom,
                     )
                     onDrawBehind {
                         clipRect {

@@ -1286,6 +1286,7 @@ fun StartScreen(
                     alignY = settings.wallpaperAlignY,
                     zoom = settings.wallpaperZoom,
                     dark = dark,
+                    wide = isLandscape,
                 )
             }
         }

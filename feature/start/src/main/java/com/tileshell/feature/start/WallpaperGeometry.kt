@@ -49,3 +49,26 @@ fun wallpaperCropGeometry(
         top = -alignY.coerceIn(0f, 1f) * slackY,
     )
 }
+
+/** The alignment and zoom a photo is drawn with. */
+data class WallpaperFraming(val alignX: Float, val alignY: Float, val zoom: Float)
+
+/**
+ * The framing for a window held wide (landscape, an unfolded Fold, a Duo spanned
+ * across both screens), where the portrait crop the user chose would otherwise
+ * zoom into a slice of the photo. A landscape photo shows whole and centred; a
+ * portrait photo keeps its chosen focal point but drops the zoom. Narrow windows
+ * keep the saved framing.
+ */
+fun wallpaperFramingFor(
+    imageWidth: Float,
+    imageHeight: Float,
+    wide: Boolean,
+    alignX: Float,
+    alignY: Float,
+    zoom: Float,
+): WallpaperFraming = when {
+    !wide -> WallpaperFraming(alignX, alignY, zoom)
+    imageWidth > imageHeight -> WallpaperFraming(0.5f, 0.5f, 1f)
+    else -> WallpaperFraming(alignX, alignY, 1f)
+}
