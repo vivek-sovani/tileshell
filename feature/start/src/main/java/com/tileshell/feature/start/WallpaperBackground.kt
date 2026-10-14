@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
@@ -31,6 +32,12 @@ import com.tileshell.core.design.WallpaperGradient
 import com.tileshell.core.design.wallpaperBackground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+
+/**
+ * How far through the Start pages the user is (0 = first, 1 = last), or null when the
+ * wallpaper is not to scroll with them. Provided by `StartScreen`; read in draw phases.
+ */
+val LocalWallpaperPageFraction = staticCompositionLocalOf<(() -> Float)?> { null }
 
 /**
  * The full-screen wallpaper layer behind Start (FR-7). Renders either the
@@ -128,6 +135,8 @@ private fun saturation(value: Float): ColorMatrix =
  * [wallpaperCropGeometry] uses to compute alignX/Y's pan range, so zooming in
  * is what creates room to reveal just the top/bottom (or left/right) of a
  * photo whose aspect ratio leaves no slack at zoom 1 (see docs/DECISIONS.md).
+ * [pageFraction], when given and the photo is wide enough, scrolls the screen-sized
+ * canvas with the Start pages instead (see [spanningWallpaper]).
  */
 fun Modifier.photoWindow(
     image: ImageBitmap,
@@ -138,10 +147,18 @@ fun Modifier.photoWindow(
     alignX: Float = 0.5f,
     alignY: Float = 0.5f,
     zoom: Float = 1f,
+    pageFraction: (() -> Float)? = null,
 ): Modifier = drawBehind {
     drawRect(darkBase)
     val o = origin()
-    val geo = wallpaperCropGeometry(image.width.toFloat(), image.height.toFloat(), fullWidth, fullHeight, alignX, alignY, zoom)
+    val span = if (pageFraction != null) {
+        spanningWallpaper(image.width.toFloat(), image.height.toFloat(), fullWidth, fullHeight)
+    } else null
+    val geo = if (span != null && pageFraction != null) {
+        span.copy(left = -pageFraction().coerceIn(0f, 1f) * (span.dstWidth - fullWidth))
+    } else {
+        wallpaperCropGeometry(image.width.toFloat(), image.height.toFloat(), fullWidth, fullHeight, alignX, alignY, zoom)
+    }
     clipRect {
         translate(left = geo.left - o.x, top = geo.top - o.y) {
             scale(geo.scale, pivot = Offset.Zero) {

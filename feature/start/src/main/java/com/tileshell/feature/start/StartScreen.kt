@@ -1237,7 +1237,13 @@ fun StartScreen(
     }
 
     val density = LocalDensity.current
+    // A landscape photo scrolling with the Start pages (user's choice, 2+ pages, upright window).
+    val spanWallpaper = settings.wallpaperSpanPages && blockCount > 1 && !isLandscape
+    val wallpaperPageFraction: (() -> Float)? = remember(spanWallpaper, blockCount) {
+        if (spanWallpaper) ({ (progress.value / (blockCount - 1)).coerceIn(0f, 1f) }) else null
+    }
     CompositionLocalProvider(
+        LocalWallpaperPageFraction provides wallpaperPageFraction,
         LocalColorTokens provides tokens,
         LocalAccent provides (wallpaperAccent ?: accent),
         LocalTileCornerRadius provides settings.cornerRadius,
@@ -1289,9 +1295,7 @@ fun StartScreen(
                     zoom = settings.wallpaperZoom,
                     dark = dark,
                     wide = isLandscape,
-                    pageFraction = if (blockCount > 1 && settings.wallpaperSpanPages) {
-                        { (progress.value / (blockCount - 1)).coerceIn(0f, 1f) }
-                    } else null,
+                    pageFraction = wallpaperPageFraction,
                 )
             }
         }
@@ -5651,6 +5655,7 @@ internal fun TileView(
                         alignX = wallpaperAlignX,
                         alignY = wallpaperAlignY,
                         zoom = wallpaperZoom,
+                        pageFraction = LocalWallpaperPageFraction.current,
                     )
                     tiledWallpaper -> Modifier.wallpaperWindow(
                         wallpaper = wallpaper,
@@ -9100,6 +9105,7 @@ private fun StackTileContent(
                                     alignX = wallpaperAlignX,
                                     alignY = wallpaperAlignY,
                                     zoom = wallpaperZoom,
+                                    pageFraction = LocalWallpaperPageFraction.current,
                                 )
                                 tiledWallpaper -> Modifier.wallpaperWindow(
                                     wallpaper = wallpaper,
