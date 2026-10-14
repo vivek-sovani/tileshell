@@ -658,8 +658,11 @@ android {
         //   cards keep to one) and a system "add tile" request for the personalize quick settings tile.
         //   5.2.0 (520): Play Console reported 510 already used (2026-10-12), so everything listed under
         //   5.1.0 above ships as 5.2.0, unchanged; nothing was added besides the version.
-        versionCode = 520
-        versionName = "5.2.0"
+        //   5.3.0 (530): 5.2.0 (520) was uploaded and discarded in Play Console because of the live tv
+        //   player leaving the screen held on (screen timeout never fired; fixed in NewsHubScreen), so the
+        //   same release ships as 5.3.0 with that fix and nothing else added.
+        versionCode = 530
+        versionName = "5.3.0"
     }
 
     // Task reminders kill switch (gradle.properties → tileshell.taskReminders).
