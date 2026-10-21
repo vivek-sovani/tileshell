@@ -629,7 +629,7 @@ private fun QuickPanelHeader(
                         modifier = Modifier.size(16.dp),
                     )
                 }
-                BatteryIndicator(percent = status.batteryPercent, fg = fg, fgDim = fgDim)
+                BatteryIndicator(percent = status.batteryPercent, fg = fg, fgDim = fgDim, charging = status.isCharging)
             }
         }
         Row(
@@ -667,7 +667,7 @@ private fun QuickPanelHeader(
  * level.
  */
 @Composable
-private fun BatteryIndicator(percent: Int?, fg: Color, fgDim: Color) {
+private fun BatteryIndicator(percent: Int?, fg: Color, fgDim: Color, charging: Boolean = false) {
     val fraction = ((percent ?: 100) / 100f).coerceIn(0f, 1f)
     val fillColor = when {
         percent == null -> fgDim
@@ -700,6 +700,19 @@ private fun BatteryIndicator(percent: Int?, fg: Color, fgDim: Color) {
                     size = Size(fillWidth, size.height - inset * 2),
                     cornerRadius = CornerRadius(1.dp.toPx()),
                 )
+            }
+            if (charging) {
+                // Lightning bolt over the body: white with a dark edge so it reads on the fill.
+                val bolt = Path()
+                listOf(0.62f to 0f, 0.20f to 0.56f, 0.46f to 0.56f, 0.38f to 1f, 0.80f to 0.42f, 0.54f to 0.42f)
+                    .forEachIndexed { i, (bx, by) ->
+                        val x = bodyWidth * (0.5f + (bx - 0.5f) * 0.5f)
+                        val y = size.height * (0.06f + by * 0.88f)
+                        if (i == 0) bolt.moveTo(x, y) else bolt.lineTo(x, y)
+                    }
+                bolt.close()
+                drawPath(bolt, color = Color.White)
+                drawPath(bolt, color = Color(0x99000000), style = Stroke(0.6.dp.toPx()))
             }
         }
         Text(text = percent?.let { "$it%" } ?: "—", color = fg, fontSize = 12.sp)

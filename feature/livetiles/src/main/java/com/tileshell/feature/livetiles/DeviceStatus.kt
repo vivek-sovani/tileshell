@@ -24,6 +24,7 @@ data class DeviceStatus(
     val storageFreeGb: Float?,
     val connectivity: Connectivity,
     val nextAlarmMillis: Long?,
+    val isCharging: Boolean = false,
 )
 
 enum class Connectivity { WIFI, CELLULAR, NONE }
@@ -59,6 +60,12 @@ private fun readDeviceStatus(context: Context): DeviceStatus {
         bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY).takeIf { it in 0..100 }
     }.getOrNull()
 
+    val charging = runCatching {
+        val status = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+            ?.getIntExtra(BatteryManager.EXTRA_STATUS, -1)
+        status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL
+    }.getOrDefault(false)
+
     val storageFreeGb = runCatching {
         val stat = StatFs(Environment.getDataDirectory().path)
         (stat.availableBytes.toFloat() / (1024f * 1024f * 1024f))
@@ -80,5 +87,5 @@ private fun readDeviceStatus(context: Context): DeviceStatus {
         am.nextAlarmClock?.triggerTime
     }.getOrNull()
 
-    return DeviceStatus(battery, storageFreeGb, connectivity, nextAlarm)
+    return DeviceStatus(battery, storageFreeGb, connectivity, nextAlarm, charging)
 }

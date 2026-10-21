@@ -86,5 +86,28 @@ fun batteryGaugeBitmap(
     val nubPath = Path().apply { addRoundRect(nubRect, corner / 2f, corner / 2f, Path.Direction.CW) }
     canvas.drawPath(nubPath, fillPaint)
 
+    if (isCharging) {
+        // Lightning bolt over the body (mirrors BatteryGaugeVisual's bolt).
+        val bolt = Path()
+        val points = listOf(
+            0.62f to 0f, 0.20f to 0.56f, 0.46f to 0.56f, 0.38f to 1f, 0.80f to 0.42f, 0.54f to 0.42f,
+        )
+        points.forEachIndexed { i, (bx, by) ->
+            val x = bodyRect.left + bodyRect.width() * (0.5f + (bx - 0.5f) * 0.5f)
+            val y = bodyRect.top + bodyRect.height() * (0.08f + by * 0.84f)
+            if (i == 0) bolt.moveTo(x, y) else bolt.lineTo(x, y)
+        }
+        bolt.close()
+        canvas.drawPath(bolt, Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.WHITE; style = Paint.Style.FILL })
+        canvas.drawPath(
+            bolt,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.argb(153, 0, 0, 0)
+                style = Paint.Style.STROKE
+                this.strokeWidth = strokeWidth * 0.6f
+            },
+        )
+    }
+
     return bitmap
 }

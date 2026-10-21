@@ -75,5 +75,23 @@ fun BatteryGaugeVisual(percent: Int, tint: Color, isCharging: Boolean, modifier:
             )
         }
         drawPath(nubPath, color = levelColor)
+
+        if (isCharging) {
+            // Lightning bolt over the body, light with a dark edge so it reads on any fill.
+            val bolt = Path()
+            BOLT_POINTS.forEachIndexed { i, (bx, by) ->
+                val x = bodyRect.left + bodyRect.width * (0.5f + (bx - 0.5f) * 0.5f)
+                val y = bodyRect.top + bodyRect.height * (0.08f + by * 0.84f)
+                if (i == 0) bolt.moveTo(x, y) else bolt.lineTo(x, y)
+            }
+            bolt.close()
+            drawPath(bolt, color = Color.White)
+            drawPath(bolt, color = Color(0x99000000), style = Stroke(width = strokeWidth * 0.6f))
+        }
     }
 }
+
+/** Lightning bolt outline in a unit square (shared look with the widget bitmap). */
+private val BOLT_POINTS = listOf(
+    0.62f to 0f, 0.20f to 0.56f, 0.46f to 0.56f, 0.38f to 1f, 0.80f to 0.42f, 0.54f to 0.42f,
+)
