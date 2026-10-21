@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import com.tileshell.core.data.TileSize
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -245,12 +246,25 @@ private fun PeopleBubble(
             if (candidates.isEmpty()) continue
             val next = candidates.random()
             if (flip) {
-                pending = next
-                turn.animateTo(90f, androidx.compose.animation.core.tween(BUBBLE_FLIP_HALF_MS, easing = androidx.compose.animation.core.FastOutLinearInEasing))
-                person = next
-                pending = null
-                turn.snapTo(-90f)
-                turn.animateTo(0f, androidx.compose.animation.core.tween(BUBBLE_FLIP_HALF_MS, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+                try {
+                    pending = next
+                    turn.animateTo(90f, androidx.compose.animation.core.tween(BUBBLE_FLIP_HALF_MS, easing = androidx.compose.animation.core.FastOutLinearInEasing))
+                    person = next
+                    pending = null
+                    turn.snapTo(-90f)
+                    turn.animateTo(0f, androidx.compose.animation.core.tween(BUBBLE_FLIP_HALF_MS, easing = androidx.compose.animation.core.LinearOutSlowInEasing))
+                } finally {
+                    // The live gate going off (screen off, home, battery saver) cancels this loop in the
+                    // middle of a turn; left alone the bubble would stay tilted or edge-on, because nothing
+                    // runs the rest of the turn when the gate comes back. Put it upright, whichever photo
+                    // it had reached.
+                    if (turn.value != 0f || pending != null) {
+                        withContext(NonCancellable) {
+                            pending = null
+                            turn.snapTo(0f)
+                        }
+                    }
+                }
             } else {
                 person = next
             }

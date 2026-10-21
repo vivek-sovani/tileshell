@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -15,6 +17,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.delay
 
 /** Flip easing: quick off the mark, settling at the end — about 0.4 s end to end, as timed from a real Lumia. */
@@ -53,6 +58,19 @@ fun FlipTile(
         } else {
             host.rotation.animateTo(target, tween(FLIP_DURATION_MS, easing = FlipEasing))
         }
+    }
+    // Safety net: if the screen went off (or the app was backgrounded) in the middle of a turn and the turn
+    // was cancelled rather than paused, the tile would stay part-way round. When the app comes back, a tile
+    // that is not turning is put on the face it is meant to show.
+    val owner = LocalLifecycleOwner.current
+    var resumes by remember { mutableIntStateOf(0) }
+    DisposableEffect(owner) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) resumes++ }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(resumes) {
+        if (settled && !host.rotation.isRunning) host.rotation.snapTo(if (flipped) 180f else 0f)
     }
     val showBack by remember(host) { derivedStateOf { host.rotation.value > 90f } }
     Box(modifier = if (provided == null) modifier.tileFlip(host) else modifier) {
