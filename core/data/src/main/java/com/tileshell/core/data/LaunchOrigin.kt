@@ -1,5 +1,11 @@
 package com.tileshell.core.data
 
+import android.app.Activity
+import android.app.ActivityOptions
+import android.content.Context
+import android.content.ContextWrapper
+import android.os.Bundle
+
 /**
  * The tile, icon or row an app is being launched from: its bounds (window
  * coordinates), colour and corner radius. A tap records it ([set]);
@@ -14,6 +20,9 @@ package com.tileshell.core.data
  */
 object LaunchOrigin {
     const val VALID_MS = 1000L
+
+    /** How long the tile's plate has to grow before the app is started (it takes 240 ms to fill the screen). */
+    const val LAUNCH_DELAY_MS = 200L
 
     data class Bounds(val left: Int, val top: Int, val right: Int, val bottom: Int) {
         val width get() = right - left
@@ -56,5 +65,27 @@ object LaunchOrigin {
 
     fun notifyLaunched(origin: Origin?, packageName: String) {
         if (origin != null) onLaunched?.invoke(Launched(origin, packageName))
+    }
+
+    /**
+     * Launch options that reveal the app's window out of [bounds] (a clip that grows from the tile), or null
+     * without an activity window to anchor to. The system's scale-up and custom animations were ignored on the
+     * phone; this is the one public option left to ask for, and it may be ignored too.
+     */
+    fun optionsFor(context: Context, bounds: Bounds?): Bundle? {
+        if (bounds == null) return null
+        val view = activityOf(context)?.window?.decorView ?: return null
+        return runCatching {
+            ActivityOptions.makeClipRevealAnimation(view, bounds.left, bounds.top, bounds.width, bounds.height).toBundle()
+        }.getOrNull()
+    }
+
+    private fun activityOf(context: Context): Activity? {
+        var c: Context? = context
+        while (c is ContextWrapper) {
+            if (c is Activity) return c
+            c = c.baseContext
+        }
+        return null
     }
 }

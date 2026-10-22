@@ -4,7 +4,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.LauncherApps
 import android.graphics.Rect
+import android.os.Handler
+import android.os.Looper
 import android.os.Process
+import android.widget.Toast
 
 /** Launches installed apps via [LauncherApps] (the launcher-blessed path). */
 object AppLauncher {
@@ -26,19 +29,34 @@ object AppLauncher {
      * rather than leaving the tile permanently non-functional.
      */
     fun launch(context: Context, packageName: String, activityName: String): Boolean {
-        val launcherApps =
-            context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
         // The tapped tile (bounds for the system, colour for the animation TileShell draws; see LaunchOrigin).
         val origin = LaunchOrigin.take()
+        if (origin != null && LaunchOrigin.onLaunched != null) {
+            // The tile's plate grows to fill the screen first, and the app is started once it is full, so
+            // the system's own slide-in happens over a plate of the tile's colour, not over Start.
+            LaunchOrigin.notifyLaunched(origin, packageName)
+            Handler(Looper.getMainLooper()).postDelayed({
+                if (!start(context, packageName, activityName, origin)) {
+                    Toast.makeText(context, "couldn't open app", Toast.LENGTH_SHORT).show()
+                }
+            }, LaunchOrigin.LAUNCH_DELAY_MS)
+            return true
+        }
+        return start(context, packageName, activityName, origin)
+    }
+
+    private fun start(context: Context, packageName: String, activityName: String, origin: LaunchOrigin.Origin?): Boolean {
+        val launcherApps =
+            context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
         val sourceBounds = origin?.bounds?.let { Rect(it.left, it.top, it.right, it.bottom) }
+        val options = LaunchOrigin.optionsFor(context, origin?.bounds)
         AppShortcutTile.decode(activityName)?.let { shortcutId ->
             val ok = try {
-                launcherApps.startShortcut(packageName, shortcutId, sourceBounds, null, Process.myUserHandle())
+                launcherApps.startShortcut(packageName, shortcutId, sourceBounds, options, Process.myUserHandle())
                 true
             } catch (e: Exception) {
                 false
             }
-            if (ok) LaunchOrigin.notifyLaunched(origin, packageName)
             // Deliberately not recorded in RecentApps. Its keys are matched
             // against the app catalogue ([AppListFilter.topApps]), which only
             // ever contains real launcher activities — a "package/shortcut:id"
@@ -53,7 +71,7 @@ object AppLauncher {
                 ComponentName(packageName, activityName),
                 Process.myUserHandle(),
                 sourceBounds,
-                null,
+                options,
             )
             true
         } catch (e: Exception) {
@@ -67,14 +85,13 @@ object AppLauncher {
             }
             if (fallback == null) return false
             try {
-                launcherApps.startMainActivity(fallback.componentName, Process.myUserHandle(), sourceBounds, null)
+                launcherApps.startMainActivity(fallback.componentName, Process.myUserHandle(), sourceBounds, options)
             } catch (e: Exception) {
                 return false
             }
         }
         // Track the launch for the app list's "recent" section (fire-and-forget).
         RecentApps.record(context, packageName, activityName)
-        LaunchOrigin.notifyLaunched(origin, packageName)
         return true
     }
 }
