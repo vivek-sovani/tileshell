@@ -734,6 +734,9 @@ class LayoutRepository(
     suspend fun resolvedPackageFor(appId: String): String? =
         DefaultLayout.roleFor(appId)?.let { resolver.resolve(it)?.packageName }
 
+    /** Updates a single tile's label — see [LayoutDao.updateTileLabel]. */
+    suspend fun updateTileLabel(id: String, label: String) = dao.updateTileLabel(id, label)
+
     /** Updates a single tile's icon key — see [LayoutDao.updateTileIconKey]. */
     suspend fun updateTileIconKey(id: String, iconKey: String?) = dao.updateTileIconKey(id, iconKey)
 

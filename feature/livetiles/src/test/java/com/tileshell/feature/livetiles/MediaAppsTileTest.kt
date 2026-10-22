@@ -33,4 +33,29 @@ class MediaAppsTileTest {
         )
         assertEquals(1, mediaAppsOf(catalog, emptyMap()).first.size)
     }
+
+    @Test
+    fun `the user's own choices move apps between the sections`() {
+        val catalog = listOf(
+            app("com.netflix.mediaclient", "Netflix"),
+            app("x.player", "Player"),
+            app("x.music", "Amp", ApplicationInfo.CATEGORY_AUDIO),
+        )
+        val choice = HubAppChoice()
+            .addTo("x.player", MediaAppKind.VIDEO.name)
+            .removeFrom("com.netflix.mediaclient", MediaAppKind.VIDEO.name)
+            .addTo("x.music", MediaAppKind.VIDEO.name)
+        val (video, music) = mediaAppsOf(catalog, emptyMap(), choice)
+        assertEquals(listOf("Amp", "Player"), video.map { it.label })
+        assertEquals(listOf("Amp"), music.map { it.label })
+    }
+
+    @Test
+    fun `most used apps come first when there are no notifications`() {
+        val catalog = listOf(app("a.one", "Alpha", ApplicationInfo.CATEGORY_VIDEO), app("b.two", "Beta", ApplicationInfo.CATEGORY_VIDEO), app("c.three", "Gamma", ApplicationInfo.CATEGORY_VIDEO))
+        val (video, _) = mediaAppsOf(catalog, emptyMap(), HubAppChoice(), mapOf("c.three" to 9, "b.two" to 3))
+        assertEquals(listOf("Gamma", "Beta", "Alpha"), video.map { it.label })
+        val (withBadge, _) = mediaAppsOf(catalog, mapOf("a.one" to 1), HubAppChoice(), mapOf("c.three" to 9))
+        assertEquals("Alpha", withBadge.first().label)
+    }
 }

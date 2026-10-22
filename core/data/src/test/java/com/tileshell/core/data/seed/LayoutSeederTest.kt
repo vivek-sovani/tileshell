@@ -86,7 +86,7 @@ class LayoutSeederTest {
         // Bound, a hub tile took that app's name and icon and was pruned on uninstall.
         val seeded = seeder.seed(resolver = resolverFor("calendar", "music", "people", "clock"))
         val apps = seeded.filterIsInstance<SeededTile.App>().associateBy { it.id }
-        for ((id, label) in listOf("t-cal" to "calendar", "t-music" to "music", "t-people" to "people", "t-clock" to "clock")) {
+        for ((id, label) in listOf("t-cal" to "calendar", "t-music" to "music + videos", "t-people" to "people", "t-clock" to "clock")) {
             assertEquals("$id package", "", apps.getValue(id).component.packageName)
             assertEquals("$id label", label, apps.getValue(id).component.label)
         }

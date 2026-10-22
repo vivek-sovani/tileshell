@@ -173,6 +173,8 @@ fun MusicHubScreen(
 
     val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { HUB_PIVOTS.size })
     val pagerScope = rememberCoroutineScope()
+    // "edit apps" on the apps page: add, move and take off apps.
+    var appsEditing by remember { mutableStateOf(false) }
     // Jumps to the requested page the moment the hub opens (or the request
     // changes while it's already open) — immediate, not animated, since this
     // is meant to land exactly where the tap asked for, not visibly travel
@@ -295,7 +297,7 @@ fun MusicHubScreen(
                     2 -> VideosPage(context, accent, tokens)
                     3 -> PodcastsPage(context, accent, tokens)
                     4 -> RadioPage(context, accent, tokens)
-                    5 -> MusicAppsPage(context, accent, tokens, musicAppsCatalog)
+                    5 -> MusicAppsPage(context, accent, tokens, musicAppsCatalog, appsEditing)
                     else -> HistoryPage(context, accent, tokens)
                 }
             }
@@ -309,6 +311,7 @@ fun MusicHubScreen(
                     add(HubAppBarAction("back", "back", onDismiss))
                     // The apps page can be pinned to Start as its own tile.
                     if (pagerState.currentPage == HUB_PIVOTS.indexOf("apps")) {
+                        add(HubAppBarAction(if (appsEditing) "check" else "edit", "edit apps", if (appsEditing) "done" else "edit apps") { appsEditing = !appsEditing })
                         add(HubAppBarAction("pin", "pin apps to start", "pin to start", onPinApps))
                     }
                 },
@@ -983,63 +986,54 @@ private fun NowPlayingFavoriteToggle(item: PlayableAudio, accent: Color, tokens:
 }
 
 @Composable
-private fun MusicAppsPage(context: Context, accent: Color, tokens: ColorTokens, apps: List<AppEntry>) {
-    // AppCatalogRepository enumerates every launcher activity, not every
-    // distinct app — an app that declares more than one would otherwise list
-    // itself twice here. One row per package, same dedup EdgeStripSheet
-    // already applies for the same reason. That alone wasn't enough for
-    // Amazon Music specifically though (still user-reported afterward): on
-    // this Samsung device it's genuinely installed twice under two different
-    // real packages — `com.amazon.mp3` and `com.amazon.mp3.galaxy`, a
-    // Samsung Galaxy Store-specific build bundled alongside the regular one,
-    // both correctly resolving as their own separate music app. Distinct
-    // packages, so packageName-dedup can't (and, for the real App List,
-    // shouldn't — both are genuinely separately launchable) tell them apart;
-    // this picker's whole point is offering a de-duplicated set of *players*
-    // to choose from, though, so a second dedup pass on the normalized label
-    // collapses same-named duplicates like this one too.
-    val musicApps = remember(apps) {
-        apps.filter { AppCategories.isMusicApp(it) }
-            .distinctBy { it.packageName }
-            .distinctBy { it.label.trim().lowercase() }
-    }
-
-    // Video players and streaming apps (YouTube, Netflix, ...) get their own
-    // section. The two lists are deduplicated separately, so an app that is
-    // both a music and a video app shows in each.
-    val videoApps = remember(apps) {
-        apps.filter { AppCategories.isVideoApp(it) }
-            .distinctBy { it.packageName }
-            .distinctBy { it.label.trim().lowercase() }
-    }
-
-    // No search field, per direct request — this list is short enough (the
-    // device's own installed music/audio players) that filtering isn't
-    // needed, unlike the library/podcasts/radio pages' much larger catalogs.
-    Column(modifier = Modifier.fillMaxSize()) {
-        if (musicApps.isEmpty() && videoApps.isEmpty()) {
-            LibraryEmptyState("no music or video apps found", tokens)
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
-                modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
-                contentPadding = PaddingValues(bottom = 32.dp),
-            ) {
-                if (musicApps.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { HubSectionHeader("music", tokens) }
-                    items(musicApps, key = { "m:" + it.key }) { app ->
-                        MusicAppCell(app, accent, tokens) { AppLauncher.launch(context, app.packageName, app.activityName) }
-                    }
-                }
-                if (videoApps.isNotEmpty()) {
-                    item(span = { GridItemSpan(maxLineSpan) }) { HubSectionHeader("video and ott", tokens) }
-                    items(videoApps, key = { "v:" + it.key }) { app ->
-                        MusicAppCell(app, accent, tokens) { AppLauncher.launch(context, app.packageName, app.activityName) }
-                    }
-                }
-            }
+private fun MusicAppsPage(context: Context, accent: Color, tokens: ColorTokens, apps: List<AppEntry>, editing: Boolean) {
+    // The shared hub apps page: the two sections are built from the catalog
+    // (music apps, and video and streaming apps) and then the user's own
+    // changes ([HubAppChoices], kind MEDIA): while editing, apps can be added
+    // from "+", dragged between sections or taken off. An app in both lists
+    // (or added to both) shows in each.
+    val choices by remember { HubAppChoices.state(context) }.collectAsState()
+    val choice = choices[HubKind.MEDIA] ?: HubAppChoice()
+    val snapshot by NotificationCenter.snapshot.collectAsState()
+    // Most used first once usage access is granted (a one-line prompt offers it), then by name.
+    val usageGranted = rememberUsageAccess()
+    val opens = rememberAppOpenCounts()
+    val pageApps = remember(apps, choice, snapshot, opens) {
+        val ordered = apps.sortedWith(compareByDescending<AppEntry> { opens[it.packageName] ?: 0 }.thenBy { it.label.lowercase() })
+        MediaAppKind.entries.flatMap { kind ->
+            ordered.filter { kind.name in mediaSectionsOf(it, choice) }
+                .distinctBy { it.packageName }
+                .distinctBy { it.label.trim().lowercase() }
+                .map { HubPageApp(it.packageName, it.label, kind.name, snapshot.badges[it.packageName] ?: 0) }
         }
     }
+    HubAppsPage(
+        kind = HubKind.MEDIA,
+        sectionDefs = listOf(MediaAppKind.MUSIC.name to "music", MediaAppKind.VIDEO.name to "video and ott"),
+        apps = pageApps,
+        editing = editing,
+        tokens = tokens,
+        accent = accent,
+        emptyText = "no music or video apps found",
+        onOpen = { openApp(context, it) },
+        header = {
+            if (!usageGranted && pageApps.isNotEmpty()) {
+                Text(
+                    text = "sort by most used · allow usage access",
+                    color = accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { UsageAccess.openSettings(context) },
+                        )
+                        .padding(start = 6.dp, top = 4.dp, bottom = 4.dp),
+                )
+            }
+        },
+    )
 }
 
 /**

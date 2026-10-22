@@ -39,18 +39,40 @@ import kotlinx.coroutines.delay
 /** One app on the music + videos apps tile, with its pending notification count. */
 data class MediaApp(val packageName: String, val label: String, val badge: Int)
 
+/** The sections of the music + videos hub's apps page. */
+enum class MediaAppKind { MUSIC, VIDEO }
+
+/**
+ * Every section [app] is in: the built-in ones ([AppCategories.isMusicApp] /
+ * [AppCategories.isVideoApp]) plus what the user added, minus what they took
+ * off ([HubAppChoice.sectionsOf]). Pure.
+ */
+fun mediaSectionsOf(app: AppEntry, choice: HubAppChoice): Set<String> {
+    val builtIn = buildSet {
+        if (AppCategories.isMusicApp(app)) add(MediaAppKind.MUSIC.name)
+        if (AppCategories.isVideoApp(app)) add(MediaAppKind.VIDEO.name)
+    }
+    return choice.sectionsOf(app.packageName, builtIn)
+}
+
 /**
  * The installed video apps and music apps, as the hub's apps page splits them
- * ([AppCategories.isVideoApp] / [AppCategories.isMusicApp]): one entry per
- * package and per name, apps with notifications first, then by name.
+ * (with the user's own additions and removals applied): one entry per package
+ * and per name, apps with notifications first, then the most used ([opens]:
+ * launches in the last month, from usage access), then by name.
  */
-fun mediaAppsOf(catalog: List<AppEntry>, badges: Map<String, Int>): Pair<List<MediaApp>, List<MediaApp>> {
-    fun pick(match: (AppEntry) -> Boolean) = catalog.filter(match)
+fun mediaAppsOf(
+    catalog: List<AppEntry>,
+    badges: Map<String, Int>,
+    choice: HubAppChoice = HubAppChoice(),
+    opens: Map<String, Int> = emptyMap(),
+): Pair<List<MediaApp>, List<MediaApp>> {
+    fun pick(kind: MediaAppKind) = catalog.filter { kind.name in mediaSectionsOf(it, choice) }
         .distinctBy { it.packageName }
         .distinctBy { it.label.trim().lowercase() }
         .map { MediaApp(it.packageName, it.label, badges[it.packageName] ?: 0) }
-        .sortedWith(compareByDescending<MediaApp> { it.badge }.thenBy { it.label.lowercase() })
-    return pick(AppCategories::isVideoApp) to pick(AppCategories::isMusicApp)
+        .sortedWith(compareByDescending<MediaApp> { it.badge }.thenByDescending { opens[it.packageName] ?: 0 }.thenBy { it.label.lowercase() })
+    return pick(MediaAppKind.VIDEO) to pick(MediaAppKind.MUSIC)
 }
 
 // How long each face stays up before the tile turns, like the people apps tile.
@@ -68,7 +90,10 @@ fun MediaAppsTileFace(size: TileSize, active: Boolean, modifier: Modifier = Modi
     val repository = remember(context) { AppCatalogRepository(context) }
     val catalog by repository.apps.collectAsStateWithLifecycle(initialValue = emptyList())
     val snapshot by NotificationCenter.snapshot.collectAsStateWithLifecycle()
-    val (video, music) = remember(catalog, snapshot) { mediaAppsOf(catalog, snapshot.badges) }
+    val choices by remember { HubAppChoices.state(context) }.collectAsStateWithLifecycle()
+    val choice = choices[HubKind.MEDIA] ?: HubAppChoice()
+    val opens = rememberAppOpenCounts()
+    val (video, music) = remember(catalog, snapshot, choice, opens) { mediaAppsOf(catalog, snapshot.badges, choice, opens) }
     val color = LocalTileFaceColor.current
     if (video.isEmpty() && music.isEmpty()) {
         Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {

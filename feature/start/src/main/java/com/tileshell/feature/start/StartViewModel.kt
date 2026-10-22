@@ -2050,10 +2050,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
      */
     private suspend fun migrateMusicTile() {
         val current = repository.tiles.first()
-        val hasMusicTile = current.filterIsInstance<TileModel.App>().any { it.iconKey == "music" }
-        if (!hasMusicTile) {
+        val musicTiles = current.filterIsInstance<TileModel.App>().filter { it.iconKey == "music" }
+        if (musicTiles.isEmpty()) {
             repository.addDefaultTile("music")
         }
+        // The hub is "music + videos" now: an existing hub tile still carrying
+        // the old name takes the new one (a tile bound to a real app keeps its
+        // own name, and a renamed one is left alone).
+        musicTiles.filter { it.packageName.isBlank() && it.label == "music" }
+            .forEach { repository.updateTileLabel(it.id, "music + videos") }
     }
 
     /**

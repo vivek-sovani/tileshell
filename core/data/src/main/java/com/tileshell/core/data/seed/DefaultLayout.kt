@@ -151,7 +151,7 @@ object DefaultLayout {
         // liveOnly: the tile shows real now-playing content (MediaCenter) and
         // opens the music hub, so a resolved music role only mattered for its
         // tap target (CATEGORY_APP_MUSIC resolves on few devices).
-        DefaultTile("t-music", TileSize.MEDIUM, "orange", app = "music", liveOnly = true),
+        DefaultTile("t-music", TileSize.MEDIUM, "orange", app = "music", liveOnly = true, label = "music + videos"),
         DefaultTile("t-photos", TileSize.MEDIUM, "magenta", app = "photos"),
         DefaultTile("t-battery", TileSize.MEDIUM, "lime", app = "battery", liveOnly = true),
         // The People Hub's "what's new" page as its own tile.
