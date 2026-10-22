@@ -28,17 +28,17 @@ object AppLauncher {
     fun launch(context: Context, packageName: String, activityName: String): Boolean {
         val launcherApps =
             context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
-        // The tapped tile's bounds, so the app's window grows out of it instead of sliding in.
+        // The tapped tile (bounds for the system, colour for the animation TileShell draws; see LaunchOrigin).
         val origin = LaunchOrigin.take()
-        val sourceBounds = origin?.let { Rect(it.left, it.top, it.right, it.bottom) }
-        val options = LaunchOrigin.optionsFor(context, origin)
+        val sourceBounds = origin?.bounds?.let { Rect(it.left, it.top, it.right, it.bottom) }
         AppShortcutTile.decode(activityName)?.let { shortcutId ->
             val ok = try {
-                launcherApps.startShortcut(packageName, shortcutId, sourceBounds, options, Process.myUserHandle())
+                launcherApps.startShortcut(packageName, shortcutId, sourceBounds, null, Process.myUserHandle())
                 true
             } catch (e: Exception) {
                 false
             }
+            if (ok) LaunchOrigin.notifyLaunched(origin, packageName)
             // Deliberately not recorded in RecentApps. Its keys are matched
             // against the app catalogue ([AppListFilter.topApps]), which only
             // ever contains real launcher activities — a "package/shortcut:id"
@@ -53,7 +53,7 @@ object AppLauncher {
                 ComponentName(packageName, activityName),
                 Process.myUserHandle(),
                 sourceBounds,
-                options,
+                null,
             )
             true
         } catch (e: Exception) {
@@ -67,13 +67,14 @@ object AppLauncher {
             }
             if (fallback == null) return false
             try {
-                launcherApps.startMainActivity(fallback.componentName, Process.myUserHandle(), sourceBounds, options)
+                launcherApps.startMainActivity(fallback.componentName, Process.myUserHandle(), sourceBounds, null)
             } catch (e: Exception) {
                 return false
             }
         }
         // Track the launch for the app list's "recent" section (fire-and-forget).
         RecentApps.record(context, packageName, activityName)
+        LaunchOrigin.notifyLaunched(origin, packageName)
         return true
     }
 }

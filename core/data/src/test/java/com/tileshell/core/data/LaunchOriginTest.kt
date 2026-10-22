@@ -6,9 +6,11 @@ import org.junit.Test
 
 class LaunchOriginTest {
     @Test fun freshOriginIsTakenOnce() {
-        LaunchOrigin.set(10f, 20f, 110f, 220f, now = 1_000)
-        val b = LaunchOrigin.take(now = 1_500)
-        assertEquals(LaunchOrigin.Bounds(10, 20, 110, 220), b)
+        LaunchOrigin.set(10f, 20f, 110f, 220f, color = 0xFF112233.toInt(), cornerPx = 6f, now = 1_000)
+        val o = LaunchOrigin.take(now = 1_500)
+        assertEquals(LaunchOrigin.Bounds(10, 20, 110, 220), o?.bounds)
+        assertEquals(0xFF112233.toInt(), o?.color)
+        assertEquals(6f, o?.cornerPx)
         assertNull(LaunchOrigin.take(now = 1_501))
     }
 
@@ -22,10 +24,14 @@ class LaunchOriginTest {
         assertNull(LaunchOrigin.take(now = 1_100))
     }
 
-    @Test fun pivotIsTheNearestCell() {
-        // Top-left tile on a 1000 x 2000 screen, bottom-right tile, and a tile in the middle.
-        assertEquals(0 to 0, LaunchOrigin.pivotCell(LaunchOrigin.Bounds(0, 0, 200, 200), 1000, 2000))
-        assertEquals(3 to 2, LaunchOrigin.pivotCell(LaunchOrigin.Bounds(800, 1800, 1000, 2000), 1000, 2000))
-        assertEquals(2 to 1, LaunchOrigin.pivotCell(LaunchOrigin.Bounds(400, 1000, 600, 1200), 1000, 2000))
+    @Test fun launchedListenerHearsOnlyRealOrigins() {
+        var heard: LaunchOrigin.Launched? = null
+        LaunchOrigin.onLaunched = { heard = it }
+        LaunchOrigin.notifyLaunched(null, "a.b")
+        assertNull(heard)
+        LaunchOrigin.set(0f, 0f, 10f, 10f, now = 1_000)
+        LaunchOrigin.notifyLaunched(LaunchOrigin.take(now = 1_001), "a.b")
+        assertEquals("a.b", heard?.packageName)
+        LaunchOrigin.onLaunched = null
     }
 }

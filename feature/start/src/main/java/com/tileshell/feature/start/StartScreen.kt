@@ -2265,6 +2265,8 @@ fun StartScreen(
         // and R8's register allocation then miscompiled it (VerifyError in
         // StartScreenKt at launch). See docs/DECISIONS.md.
         HubScreensLayer(viewModel, tiles, accentId = settings.accentId, dark = dark, isLandscape = isLandscape)
+        // A launched app grows out of its tile (and goes back into it); drawn above the hubs, takes no touches.
+        LaunchRevealLayer()
 
         // Long-press quick actions on a tile. Its own composable, like the hubs: this lambda is near the register limit.
         TileQuickMenuLayer(viewModel, tiles, accentId = settings.accentId, dark = dark, lockLayout = settings.lockLayout)
@@ -4067,7 +4069,10 @@ private fun StartPage(
                         menuCoordinates[0]?.takeIf { it.isAttached }?.let {
                             val bounds = it.boundsInRoot()
                             HubOrigin.set(bounds, tileAccent, with(density) { tileCornerDp.dp.toPx() })
-                            com.tileshell.core.data.LaunchOrigin.set(bounds.left, bounds.top, bounds.right, bounds.bottom)
+                            com.tileshell.core.data.LaunchOrigin.set(
+                                bounds.left, bounds.top, bounds.right, bounds.bottom,
+                                tileAccent.toArgb(), with(density) { tileCornerDp.dp.toPx() },
+                            )
                         }
                         Unit
                     }

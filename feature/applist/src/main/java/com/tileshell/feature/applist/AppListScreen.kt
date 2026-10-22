@@ -62,6 +62,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -499,9 +500,10 @@ private fun AppRow(
     val hasSiblings = allSiblings.size > 1
     // The icon's window bounds (kept off state: it changes on every scroll frame), so a launched app grows from it.
     val iconBounds = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    val rowColor = LocalColorTokens.current.bg.toArgb()
     val launchTap = {
         iconBounds[0]?.takeIf { it.isAttached }?.boundsInRoot()?.let {
-            com.tileshell.core.data.LaunchOrigin.set(it.left, it.top, it.right, it.bottom)
+            com.tileshell.core.data.LaunchOrigin.set(it.left, it.top, it.right, it.bottom, rowColor, 8f)
         }
         onTap()
     }
