@@ -79,6 +79,8 @@ import com.tileshell.core.design.HubAppBarAction
 import com.tileshell.core.design.HubFilter
 import com.tileshell.core.design.HubPanorama
 import com.tileshell.core.design.SheetStage
+import com.tileshell.core.design.hubReveal
+import com.tileshell.core.design.rememberHubOrigin
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 import kotlinx.coroutines.async
@@ -139,6 +141,7 @@ fun SportsHubScreen(
         label = "sportsHubProgress",
     )
     if (!visible && progress == 0f) return
+    val hubOrigin = rememberHubOrigin()
 
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
@@ -199,7 +202,7 @@ fun SportsHubScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { translationY = size.height * (1f - progress) }
+                .hubReveal(hubOrigin) { progress }
                 .background(tokens.bg)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

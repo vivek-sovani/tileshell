@@ -98,6 +98,8 @@ import com.tileshell.core.design.HubFilter
 import com.tileshell.core.design.HubPanorama
 import com.tileshell.core.design.LocalTileFaceColor
 import com.tileshell.core.design.SheetStage
+import com.tileshell.core.design.hubReveal
+import com.tileshell.core.design.rememberHubOrigin
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
@@ -139,6 +141,7 @@ fun NewsHubScreen(
         label = "newsHubProgress",
     )
     if (!visible && progress == 0f) return
+    val hubOrigin = rememberHubOrigin()
 
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
@@ -248,7 +251,7 @@ fun NewsHubScreen(
             modifier = Modifier
                 .fillMaxSize()
                 // Only while sliding in or out: a layer left on the hub keeps the embedded video black.
-                .then(if (progress < 1f) Modifier.graphicsLayer { translationY = size.height * (1f - progress) } else Modifier)
+                .then(if (progress < 1f) Modifier.hubReveal(hubOrigin) { progress } else Modifier)
                 .background(tokens.bg)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
                 .statusBarsPadding()

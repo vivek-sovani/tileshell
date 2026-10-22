@@ -65,6 +65,8 @@ import com.tileshell.core.data.SunTimes
 import com.tileshell.core.data.MoonTimes
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.SheetStage
+import com.tileshell.core.design.hubReveal
+import com.tileshell.core.design.rememberHubOrigin
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 import kotlinx.coroutines.Dispatchers
@@ -118,6 +120,7 @@ fun PanchangSheet(
         settingsOpen = false
         return
     }
+    val hubOrigin = rememberHubOrigin()
 
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
@@ -154,7 +157,7 @@ fun PanchangSheet(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { translationY = size.height * (1f - progress) }
+                .hubReveal(hubOrigin) { progress }
                 .background(tokens.bg)
                 .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = {})
                 .statusBarsPadding()

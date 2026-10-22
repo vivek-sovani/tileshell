@@ -53,6 +53,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.SheetStage
+import com.tileshell.core.design.hubReveal
+import com.tileshell.core.design.rememberHubOrigin
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.colorTokens
 import kotlinx.coroutines.Dispatchers
@@ -90,6 +92,7 @@ fun BatteryHubScreen(
         label = "batteryHubProgress",
     )
     if (!visible && progress == 0f) return
+    val hubOrigin = rememberHubOrigin()
 
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
@@ -106,7 +109,7 @@ fun BatteryHubScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { translationY = size.height * (1f - progress) }
+                .hubReveal(hubOrigin) { progress }
                 .background(tokens.bg)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },

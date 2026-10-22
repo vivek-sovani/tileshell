@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.sp
 import com.tileshell.core.data.WeatherTile
 import com.tileshell.core.design.ColorTokens
 import com.tileshell.core.design.SheetStage
+import com.tileshell.core.design.hubReveal
+import com.tileshell.core.design.rememberHubOrigin
 import com.tileshell.core.design.TileAccents
 import com.tileshell.core.design.TileIcons
 import com.tileshell.core.design.colorTokens
@@ -90,6 +92,7 @@ fun WeatherHubScreen(
         label = "weatherHubProgress",
     )
     if (!visible && progress == 0f) return
+    val hubOrigin = rememberHubOrigin()
 
     val tokens = colorTokens(dark)
     val accent = TileAccents.forId(accentId)
@@ -120,7 +123,7 @@ fun WeatherHubScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { translationY = size.height * (1f - progress) }
+                .hubReveal(hubOrigin) { progress }
                 .background(tokens.bg)
                 // Swallows every tap on this screen, same as every other
                 // sheet's own content column (see AboutSheet) — without

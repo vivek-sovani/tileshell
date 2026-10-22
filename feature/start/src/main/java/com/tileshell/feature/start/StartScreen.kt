@@ -219,6 +219,7 @@ import com.tileshell.core.design.LocalHinge
 import com.tileshell.core.design.splitOf
 import com.tileshell.core.design.useTwoPanel
 import com.tileshell.core.design.LocalColorTokens
+import com.tileshell.core.design.HubOrigin
 import com.tileshell.core.design.LocalTileCornerRadius
 import com.tileshell.core.design.LocalTileFaceColor
 import com.tileshell.core.design.LocalTileFont
@@ -4060,8 +4061,13 @@ private fun StartPage(
                     // they're hidden there (drag-drop to any free cell replaces them).
                     val canMoveBack = !sticky && blockIds.indexOf(model.id) > 0
                     val canMoveForward = !sticky && blockIds.indexOf(model.id) in 0 until blockIds.size - 1
+                    val tileCornerDp = LocalTileCornerRadius.current
                     val onTapAction = {
                         if (!editMode) {
+                            // Where a hub (or the launched app's window) grows out of.
+                            menuCoordinates[0]?.takeIf { it.isAttached }?.let {
+                                HubOrigin.set(it.boundsInRoot(), tileAccent, with(density) { tileCornerDp.dp.toPx() })
+                            }
                             // Tapping any tile while reachability is holding
                             // performs the tap normally *and* springs the
                             // shift back — the tap itself is what dismisses it.
