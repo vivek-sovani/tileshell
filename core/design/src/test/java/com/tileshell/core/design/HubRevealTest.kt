@@ -48,4 +48,13 @@ class HubRevealTest {
         assertEquals(Color.Red, HubOrigin.take()?.color)
         assertNull(HubOrigin.take())
     }
+
+    @Test fun wallpaperPlateReplacesTheTileColour() {
+        HubOrigin.wallpaperPlate = Color.Green
+        HubOrigin.set(Rect(0f, 0f, 10f, 10f), Color.Red, 0f)
+        assertEquals(Color.Green, HubOrigin.take()?.color)
+        HubOrigin.wallpaperPlate = Color.Unspecified
+        HubOrigin.set(Rect(0f, 0f, 10f, 10f), Color.Red, 0f)
+        assertEquals(Color.Red, HubOrigin.take()?.color)
+    }
 }

@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,6 +32,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.palette.graphics.Palette
 import com.tileshell.core.data.LaunchOrigin
+import com.tileshell.core.design.HubOrigin
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -53,6 +55,8 @@ import kotlinx.coroutines.withTimeoutOrNull
 @Composable
 internal fun LaunchRevealLayer(wallpaperFallback: Color, wallpaperPhoto: ImageBitmap?) {
     val wallpaperColor = rememberPlateColor(wallpaperPhoto, wallpaperFallback)
+    // The hubs' grow-from-the-tile plate follows the same colour rule.
+    SideEffect { HubOrigin.wallpaperPlate = if (wallpaperFallback.isSpecified) wallpaperColor else Color.Unspecified }
     var launched by remember { mutableStateOf<LaunchOrigin.Launched?>(null) }
     // How far the plate is from the tile (1 = the whole screen) and how visible it is.
     val progress = remember { Animatable(1f) }

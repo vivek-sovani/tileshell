@@ -11,6 +11,7 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.Density
@@ -32,6 +33,14 @@ object HubOrigin {
     private var pending: HubOriginData? = null
     private var at = 0L
 
+    /**
+     * The colour of the plate a hub grows out of while a wallpaper is set (the wallpaper's most prominent colour,
+     * the same as the launch plate's), or [Color.Unspecified] to use the tapped tile's own colour. Kept current
+     * by Start.
+     */
+    @Volatile
+    var wallpaperPlate: Color = Color.Unspecified
+
     fun set(rect: Rect, color: Color, cornerPx: Float) {
         pending = HubOriginData(rect, color, cornerPx)
         at = System.currentTimeMillis()
@@ -41,7 +50,7 @@ object HubOrigin {
         val origin = pending
         val fresh = origin != null && System.currentTimeMillis() - at <= VALID_MS
         pending = null
-        return if (fresh) origin else null
+        return if (fresh) origin?.let { if (wallpaperPlate.isSpecified) it.copy(color = wallpaperPlate) else it } else null
     }
 }
 
