@@ -707,6 +707,13 @@ object TileIcons {
             p("M9 8V6a3 3 0 0 1 6 0v2"),
         ))
 
+        // A screen with a play triangle on a stand: the music + videos apps tile.
+        put("mediaapps", vector("mediaapps",
+            p("M4 5h16v11H4z"),
+            p("M10 8.5l4.5 2.5-4.5 2.5z"),
+            p("M8 19h8"),
+        ))
+
         // A folded newspaper: the news hub.
         put("newshub", vector("newshub",
             p("M4 5h13v13a1 1 0 0 0 1 1H6a2 2 0 0 1-2-2z"),

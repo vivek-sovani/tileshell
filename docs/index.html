@@ -52,7 +52,7 @@
   <tr><td><code>ACCESS_NETWORK_STATE</code>, <code>ACCESS_WIFI_STATE</code></td><td>Whether you're online and Wi-Fi is on, for the Quick Panel and to skip fetches while offline</td><td>Not read beyond on/off; no data transmitted</td></tr>
   <tr><td><code>BIND_DEVICE_ADMIN</code> (optional, Android 8–9 only)</td><td>Used only to lock the screen when you ask, on Android versions without the accessibility lock action</td><td>Not read; no data transmitted</td></tr>
 </table>
-<p>TileShell holds <strong>no</strong> SMS or call-log permission and never reads your SMS inbox or call log — bank messages are seen only as notifications, as described above. It does not use the microphone or camera, and reads no files beyond photos you explicitly pick for the wallpaper and live-photos slideshow and the music on your device.</p>
+<p>TileShell holds <strong>no</strong> SMS or call-log permission and never reads your SMS inbox or call log — bank messages are seen only as notifications, as described above. It does not use the microphone or camera, and reads no files beyond photos you explicitly pick for the wallpaper and live-photos slideshow, the music on your device, and the videos in folders you choose in the music + videos hub (read through the system folder picker, only those folders, never copied or sent anywhere; a video opens in your phone’s own video player).</p>
 
 
 

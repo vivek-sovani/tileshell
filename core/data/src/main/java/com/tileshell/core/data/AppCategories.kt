@@ -198,4 +198,37 @@ object AppCategories {
      */
     fun isMusicApp(app: AppEntry): Boolean =
         app.role == ROLE_MUSIC || app.category == ApplicationInfo.CATEGORY_AUDIO
+
+    /**
+     * Streaming and video players the hub's "video and ott" section knows by
+     * package, for the many that never declare [ApplicationInfo.CATEGORY_VIDEO]
+     * (or whose Play category the phone doesn't carry).
+     */
+    private val KNOWN_VIDEO_PACKAGES = setOf(
+        "com.google.android.youtube",
+        "com.netflix.mediaclient",
+        "com.amazon.avod.thirdpartyclient",
+        "in.startv.hotstar",
+        "com.graymatrix.did",
+        "com.sonyliv",
+        "com.jio.media.ondemand",
+        "com.disney.disneyplus",
+        "tv.twitch.android.app",
+        "com.mxtech.videoplayer.ad",
+        "com.mxtech.videoplayer.pro",
+        "org.videolan.vlc",
+        "com.google.android.videos",
+        "com.eros.now",
+        "com.mubi",
+        "com.apple.atve.androidtv.appletv",
+    )
+
+    /**
+     * Whether [app] is a video player or streaming app, for the music + videos
+     * hub's "apps" page: it declares the video category, or it is a streaming
+     * app TileShell knows by package. A music app that also declares video
+     * (YouTube Music does not) is listed in both sections.
+     */
+    fun isVideoApp(app: AppEntry): Boolean =
+        app.category == ApplicationInfo.CATEGORY_VIDEO || app.packageName in KNOWN_VIDEO_PACKAGES
 }

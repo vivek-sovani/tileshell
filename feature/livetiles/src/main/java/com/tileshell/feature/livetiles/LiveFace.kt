@@ -62,6 +62,8 @@ enum class LiveFace(val flips: Boolean) {
     SPORTSHUB(flips = true),
     NEWSHUB(flips = false),
     SHOPHUB(flips = false),
+    // Self-flipping (video apps / music apps), so not in the shared scheduler.
+    MEDIAAPPS(flips = false),
     HEALTHHUB(flips = false),
     // Its own start / pause / stop buttons; no back face.
     TIMERSET(flips = false),
@@ -105,6 +107,7 @@ enum class LiveFace(val flips: Boolean) {
                 "clockhub" -> CLOCK
                 "newshub" -> NEWSHUB
                 "shophub" -> SHOPHUB
+                "mediaapps" -> MEDIAAPPS
                 "healthhub" -> HEALTHHUB
                 "timerset" -> TIMERSET
                 else -> null

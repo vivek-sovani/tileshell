@@ -71,6 +71,7 @@ private val WIDGET_CATALOG = listOf(
     WidgetCatalogEntry("markets", "markets hub", "your watchlist, indices and movers; pin a tile each for stocks, commodities, currencies and crypto", "markets", "cobalt", hub = true),
     WidgetCatalogEntry("sportshub", "sports hub", "live scores, fixtures and results for the sports and teams you follow", "sportshub", "orange", hub = true),
     WidgetCatalogEntry("newshub", "news hub", "the newest headlines, with topics, saved stories and live news channels", "newshub", "red", hub = true),
+    WidgetCatalogEntry("mediaapps", "music + videos apps", "your video and streaming apps on one face and your music apps on the other", "mediaapps", "orange", hub = true),
     WidgetCatalogEntry("shophub", "shopping hub", "orders on their way, with your shopping, food and courier apps", "shophub", "magenta", hub = true),
     WidgetCatalogEntry("healthhub", "health hub", "your steps toward a daily goal, with a week view and your health and fitness apps", "healthhub", "lime", hub = true),
     WidgetCatalogEntry("panchang", "panchang hub", "today's tithi and the Hindu calendar, with festivals and moon times", "calsys", "cobalt", hub = true),

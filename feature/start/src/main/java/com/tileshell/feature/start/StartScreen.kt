@@ -1569,6 +1569,8 @@ fun StartScreen(
                                     viewModel.openPanchang()
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "newshub") {
                                     viewModel.openNewsHub()
+                                } else if (tile.packageName.isBlank() && tile.iconKey == "mediaapps") {
+                                    viewModel.openMusicHub("apps")
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "shophub") {
                                     viewModel.openShoppingHub()
                                 } else if (tile.packageName.isBlank() && (tile.iconKey == "healthhub" || tile.iconKey == "steps")) {
@@ -1644,6 +1646,8 @@ fun StartScreen(
                             viewModel.openPanchang()
                         } else if (child.packageName.isBlank() && child.iconKey == "newshub") {
                             viewModel.openNewsHub()
+                        } else if (child.packageName.isBlank() && child.iconKey == "mediaapps") {
+                            viewModel.openMusicHub("apps")
                         } else if (child.packageName.isBlank() && child.iconKey == "shophub") {
                             viewModel.openShoppingHub()
                         } else if (child.packageName.isBlank() && (child.iconKey == "healthhub" || child.iconKey == "steps")) {
@@ -8083,6 +8087,10 @@ private fun AppTileContent(
             com.tileshell.feature.livetiles.shopping.ShoppingTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize())
             return
         }
+        LiveFace.MEDIAAPPS -> {
+            com.tileshell.feature.livetiles.MediaAppsTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize())
+            return
+        }
         LiveFace.NEWSHUB -> {
             com.tileshell.feature.livetiles.NewsHubTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize())
             return
@@ -9760,6 +9768,8 @@ private fun HubScreensLayer(
         onDismiss = viewModel::closeMusicHub,
         rightHalf = false,
         initialPage = musicHubInitialPage,
+        onPinApps = viewModel::pinMediaApps,
+        pinMessages = viewModel.pinMessage,
     )
 
     // Composed before the notes/tasks sheets so, when the hub opens one,

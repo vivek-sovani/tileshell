@@ -203,6 +203,7 @@ object DefaultLayout {
         DefaultTile("t-newshub", TileSize.MEDIUM, "red", app = "newshub", liveOnly = true),
         DefaultTile("t-timerset", TileSize.MEDIUM, "purple", app = "timerset", liveOnly = true),
         DefaultTile("t-shophub", TileSize.MEDIUM, "magenta", app = "shophub", liveOnly = true),
+        DefaultTile("t-mediaapps", TileSize.MEDIUM, "orange", app = "mediaapps", liveOnly = true, label = "music + videos apps"),
     )
 
     /** Every known tile template — the default-layout set plus opt-in-only widgets. */

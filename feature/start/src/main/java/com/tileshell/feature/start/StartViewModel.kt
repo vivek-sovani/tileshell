@@ -2815,6 +2815,15 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         PinResult.ALREADY_ON_START -> "already on start"
     }
 
+    /** Pin the music + videos hub's "apps" page as a tile: video apps on one face, music apps on the other. */
+    fun pinMediaApps() {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "mediaapps" }
+            val result = if (!exists && repository.addDefaultTile("mediaapps", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
+            _pinMessage.tryEmit(pinOutcomeText(result, "music + videos apps"))
+        }
+    }
+
     fun pinPeopleHubPage(page: String, label: String) {
         viewModelScope.launch(writeContext) {
             val result = repository.pinPeopleHubPage(page, label, activePageSectionId)

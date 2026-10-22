@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.horizontalScroll
@@ -99,10 +100,10 @@ import kotlinx.coroutines.launch
 // shows first, then a plain vertical menu listing every other page, which
 // also sidesteps the "horizontal menu not showing correctly" overflow bug
 // entirely, since there's no longer a header row to overflow).
-private val HUB_PIVOTS = listOf("now playing", "music library", "podcasts", "radio", "apps", "history")
+private val HUB_PIVOTS = listOf("now playing", "music library", "videos", "podcasts", "radio", "apps", "history")
 
 /** What the panorama shows as each [HUB_PIVOTS] section's header. */
-private val MUSIC_SECTIONS = listOf("play", "library", "podcasts", "radio", "apps", "history")
+private val MUSIC_SECTIONS = listOf("play", "library", "videos", "podcasts", "radio", "apps", "history")
 
 private val LOCAL_AUDIO_PERMISSION: String =
     if (Build.VERSION.SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
@@ -152,6 +153,10 @@ fun MusicHubScreen(
     // ([MusicHubNavigation]). Null (the default, every existing call site)
     // just opens wherever the pager was last left, unchanged.
     initialPage: String? = null,
+    // "pin" on the apps page pins that whole page as a tile; the outcome line
+    // ("pinned … to start" / "already on start") arrives on [pinMessages].
+    onPinApps: () -> Unit = {},
+    pinMessages: kotlinx.coroutines.flow.Flow<String> = kotlinx.coroutines.flow.emptyFlow(),
 ) {
     val progress by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -272,7 +277,7 @@ fun MusicHubScreen(
             }
 
             HubPanorama(
-                title = "music",
+                title = "music + videos",
                 sections = MUSIC_SECTIONS,
                 pagerState = pagerState,
                 tokens = tokens,
@@ -287,16 +292,27 @@ fun MusicHubScreen(
                         pagerScope.launch { pagerState.animateScrollToPage(HUB_PIVOTS.indexOf(label)) }
                     }
                     1 -> LibraryPage(context, accent, tokens)
-                    2 -> PodcastsPage(context, accent, tokens)
-                    3 -> RadioPage(context, accent, tokens)
-                    4 -> MusicAppsPage(context, accent, tokens, musicAppsCatalog)
+                    2 -> VideosPage(context, accent, tokens)
+                    3 -> PodcastsPage(context, accent, tokens)
+                    4 -> RadioPage(context, accent, tokens)
+                    5 -> MusicAppsPage(context, accent, tokens, musicAppsCatalog)
                     else -> HistoryPage(context, accent, tokens)
                 }
             }
 
+            HubPinNote(pinMessages, tokens, accent)
             // Bottom app bar (mockup's own convention) — back lives here, not
             // as a standalone top-corner button.
-            HubAppBar(tokens = tokens, actions = listOf(HubAppBarAction("back", "back", onDismiss)))
+            HubAppBar(
+                tokens = tokens,
+                actions = buildList {
+                    add(HubAppBarAction("back", "back", onDismiss))
+                    // The apps page can be pinned to Start as its own tile.
+                    if (pagerState.currentPage == HUB_PIVOTS.indexOf("apps")) {
+                        add(HubAppBarAction("pin", "pin apps to start", "pin to start", onPinApps))
+                    }
+                },
+            )
         }
         NowPlayingScreen(
             visible = visible && nowPlayingOpen,
@@ -408,6 +424,7 @@ private fun PlaySection(
         Spacer(Modifier.height(20.dp))
         listOf(
             "library" to "music library",
+            "videos" to "videos",
             "podcasts" to "podcasts",
             "radio" to "radio",
             "apps" to "apps",
@@ -987,20 +1004,38 @@ private fun MusicAppsPage(context: Context, accent: Color, tokens: ColorTokens, 
             .distinctBy { it.label.trim().lowercase() }
     }
 
+    // Video players and streaming apps (YouTube, Netflix, ...) get their own
+    // section. The two lists are deduplicated separately, so an app that is
+    // both a music and a video app shows in each.
+    val videoApps = remember(apps) {
+        apps.filter { AppCategories.isVideoApp(it) }
+            .distinctBy { it.packageName }
+            .distinctBy { it.label.trim().lowercase() }
+    }
+
     // No search field, per direct request — this list is short enough (the
     // device's own installed music/audio players) that filtering isn't
     // needed, unlike the library/podcasts/radio pages' much larger catalogs.
     Column(modifier = Modifier.fillMaxSize()) {
-        if (musicApps.isEmpty()) {
-            LibraryEmptyState("no music apps found", tokens)
+        if (musicApps.isEmpty() && videoApps.isEmpty()) {
+            LibraryEmptyState("no music or video apps found", tokens)
         } else {
             LazyVerticalGrid(
                 columns = GridCells.Fixed(3),
                 modifier = Modifier.fillMaxSize().padding(horizontal = 14.dp),
                 contentPadding = PaddingValues(bottom = 32.dp),
             ) {
-                items(musicApps, key = { it.key }) { app ->
-                    MusicAppCell(app, accent, tokens) { AppLauncher.launch(context, app.packageName, app.activityName) }
+                if (musicApps.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) { HubSectionHeader("music", tokens) }
+                    items(musicApps, key = { "m:" + it.key }) { app ->
+                        MusicAppCell(app, accent, tokens) { AppLauncher.launch(context, app.packageName, app.activityName) }
+                    }
+                }
+                if (videoApps.isNotEmpty()) {
+                    item(span = { GridItemSpan(maxLineSpan) }) { HubSectionHeader("video and ott", tokens) }
+                    items(videoApps, key = { "v:" + it.key }) { app ->
+                        MusicAppCell(app, accent, tokens) { AppLauncher.launch(context, app.packageName, app.activityName) }
+                    }
                 }
             }
         }

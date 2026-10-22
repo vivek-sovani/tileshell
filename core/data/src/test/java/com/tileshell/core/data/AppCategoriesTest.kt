@@ -23,6 +23,15 @@ class AppCategoriesTest {
         role = role,
     )
 
+    @Test
+    fun `video apps are found by category or by known package`() {
+        assertTrue(AppCategories.isVideoApp(app("x.video", category = ApplicationInfo.CATEGORY_VIDEO)))
+        assertTrue(AppCategories.isVideoApp(app("com.netflix.mediaclient")))
+        assertTrue(AppCategories.isVideoApp(app("com.google.android.youtube")))
+        assertFalse(AppCategories.isVideoApp(app("com.google.android.apps.youtube.music", category = ApplicationInfo.CATEGORY_AUDIO)))
+        assertFalse(AppCategories.isVideoApp(app("x.notes")))
+    }
+
     // ---- layer 1: standard app role wins -----------------------------------
 
     @Test

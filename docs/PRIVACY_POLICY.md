@@ -46,7 +46,9 @@ simply stays inactive when a permission is denied.
 TileShell holds **no** SMS or call-log permission and never reads your SMS inbox or call
 log — bank messages are seen only as notifications, as described above. It does not use
 the microphone or camera, and reads no files beyond photos you explicitly pick for the
-wallpaper and live-photos slideshow and the music on your device.
+wallpaper and live-photos slideshow, the music on your device, and the videos in folders you choose
+in the music + videos hub (read through the system folder picker, only those folders, never copied or
+sent anywhere; a video opens in your phone's own video player).
 
 
 ---
