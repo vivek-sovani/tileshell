@@ -18,6 +18,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.isSpecified
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -27,9 +29,12 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.palette.graphics.Palette
 import com.tileshell.core.data.LaunchOrigin
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -37,15 +42,17 @@ import kotlinx.coroutines.withTimeoutOrNull
  * which appears the moment you tap, so only the system's own window animation
  * is seen moving; the plate stays while the app is in front and, when
  * TileShell is resumed, shrinks back into the tile, taking the tile's colour
- * as it goes. The plate is [wallpaperColor] when a wallpaper is set, else the
- * tile's own colour.
+ * as it goes. The plate is the wallpaper's most prominent colour when a
+ * wallpaper is set ([wallpaperColor], or for a photo [wallpaperPhoto]'s own
+ * most prominent colour), else the tile's own colour.
  * The system's launch animation can't be replaced by a launcher that isn't
  * the phone maker's (scale-up, clip-reveal and custom animations were all
  * ignored), so TileShell draws this itself. [LaunchOrigin.onLaunched] starts
  * it; it never takes touches.
  */
 @Composable
-internal fun LaunchRevealLayer(wallpaperColor: Color) {
+internal fun LaunchRevealLayer(wallpaperFallback: Color, wallpaperPhoto: ImageBitmap?) {
+    val wallpaperColor = rememberPlateColor(wallpaperPhoto, wallpaperFallback)
     var launched by remember { mutableStateOf<LaunchOrigin.Launched?>(null) }
     // How far the plate is from the tile (1 = the whole screen) and how visible it is.
     val progress = remember { Animatable(1f) }
@@ -111,6 +118,33 @@ internal fun LaunchRevealLayer(wallpaperColor: Color) {
     }
 }
 
+/**
+ * The wallpaper colour for the plate: for a photo its most prominent colour (see [prominentColor]), computed off
+ * the main thread; otherwise [fallback] (a gradient's colour, or [Color.Unspecified] without a wallpaper).
+ */
+@Composable
+private fun rememberPlateColor(photo: ImageBitmap?, fallback: Color): Color {
+    var color by remember(photo, fallback) { mutableStateOf(fallback) }
+    LaunchedEffect(photo, fallback) {
+        if (photo != null && fallback.isSpecified) {
+            color = withContext(Dispatchers.Default) { prominentColor(photo) } ?: fallback
+        }
+    }
+    return color
+}
+
+/**
+ * The colour a photo is most made of that is still a colour: every Palette swatch scored by how much of the photo
+ * it covers, weighted by its saturation so a large grey or black area doesn't win over the colour you notice.
+ */
+internal fun prominentColor(photo: ImageBitmap): Color? {
+    val palette = runCatching { Palette.from(photo.asAndroidBitmap()).maximumColorCount(24).generate() }.getOrNull()
+        ?: return null
+    val best = palette.swatches.maxByOrNull { it.population * (SATURATION_FLOOR + it.hsl[1]) } ?: return null
+    return Color(best.rgb)
+}
+
+private const val SATURATION_FLOOR = 0.25f
 private const val FADE_IN_MS = 90
 private const val SHRINK_MS = 260
 private const val HOLD_MS = 1500L
