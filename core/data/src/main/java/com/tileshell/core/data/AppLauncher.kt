@@ -3,6 +3,7 @@ package com.tileshell.core.data
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.LauncherApps
+import android.graphics.Rect
 import android.os.Process
 
 /** Launches installed apps via [LauncherApps] (the launcher-blessed path). */
@@ -27,9 +28,13 @@ object AppLauncher {
     fun launch(context: Context, packageName: String, activityName: String): Boolean {
         val launcherApps =
             context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
+        // The tapped tile's bounds, so the app's window grows out of it instead of sliding in.
+        val origin = LaunchOrigin.take()
+        val sourceBounds = origin?.let { Rect(it.left, it.top, it.right, it.bottom) }
+        val options = LaunchOrigin.optionsFor(context, origin)
         AppShortcutTile.decode(activityName)?.let { shortcutId ->
             val ok = try {
-                launcherApps.startShortcut(packageName, shortcutId, null, null, Process.myUserHandle())
+                launcherApps.startShortcut(packageName, shortcutId, sourceBounds, options, Process.myUserHandle())
                 true
             } catch (e: Exception) {
                 false
@@ -47,8 +52,8 @@ object AppLauncher {
             launcherApps.startMainActivity(
                 ComponentName(packageName, activityName),
                 Process.myUserHandle(),
-                null,
-                null,
+                sourceBounds,
+                options,
             )
             true
         } catch (e: Exception) {
@@ -62,7 +67,7 @@ object AppLauncher {
             }
             if (fallback == null) return false
             try {
-                launcherApps.startMainActivity(fallback.componentName, Process.myUserHandle(), null, null)
+                launcherApps.startMainActivity(fallback.componentName, Process.myUserHandle(), sourceBounds, options)
             } catch (e: Exception) {
                 return false
             }

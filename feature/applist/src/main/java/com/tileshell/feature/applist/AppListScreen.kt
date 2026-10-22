@@ -63,6 +63,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
@@ -495,12 +497,20 @@ private fun AppRow(
     // beat after the menu opens — the menu item just fades in, not jarring.
     val allSiblings = remember(siblings, shortcuts) { (siblings + shortcuts).distinctBy { it.key } }
     val hasSiblings = allSiblings.size > 1
+    // The icon's window bounds (kept off state: it changes on every scroll frame), so a launched app grows from it.
+    val iconBounds = remember { arrayOfNulls<androidx.compose.ui.layout.LayoutCoordinates>(1) }
+    val launchTap = {
+        iconBounds[0]?.takeIf { it.isAttached }?.boundsInRoot()?.let {
+            com.tileshell.core.data.LaunchOrigin.set(it.left, it.top, it.right, it.bottom)
+        }
+        onTap()
+    }
     Box {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .tapOrLongPress(
-                    onTap = onTap,
+                    onTap = launchTap,
                     onLongPress = {
                         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                         menuOpen = true
@@ -520,7 +530,7 @@ private fun AppRow(
                         app.label
                     }
                     role = Role.Button
-                    onClick(label = "launch") { onTap(); true }
+                    onClick(label = "launch") { launchTap(); true }
                     customActions = if (isPseudo) {
                         listOf(CustomAccessibilityAction("pin to start") { onPin(); true })
                     } else {
@@ -535,7 +545,7 @@ private fun AppRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(
-                modifier = Modifier.size(44.dp),
+                modifier = Modifier.size(44.dp).onGloballyPositioned { iconBounds[0] = it },
                 contentAlignment = Alignment.Center,
             ) {
                 val icon = if (isPseudo) null else rememberMaskableAppIcon(app.packageName, app.activityName)

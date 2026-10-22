@@ -4066,7 +4066,9 @@ private fun StartPage(
                         if (!editMode) {
                             // Where a hub (or the launched app's window) grows out of.
                             menuCoordinates[0]?.takeIf { it.isAttached }?.let {
-                                HubOrigin.set(it.boundsInRoot(), tileAccent, with(density) { tileCornerDp.dp.toPx() })
+                                val bounds = it.boundsInRoot()
+                                HubOrigin.set(bounds, tileAccent, with(density) { tileCornerDp.dp.toPx() })
+                                com.tileshell.core.data.LaunchOrigin.set(bounds.left, bounds.top, bounds.right, bounds.bottom)
                             }
                             // Tapping any tile while reachability is holding
                             // performs the tap normally *and* springs the
