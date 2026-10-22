@@ -2265,8 +2265,9 @@ fun StartScreen(
         // and R8's register allocation then miscompiled it (VerifyError in
         // StartScreenKt at launch). See docs/DECISIONS.md.
         HubScreensLayer(viewModel, tiles, accentId = settings.accentId, dark = dark, isLandscape = isLandscape)
-        // A launched app grows out of its tile (and goes back into it); drawn above the hubs, takes no touches.
-        LaunchRevealLayer()
+        // A launched app starts over a full-screen plate (wallpaper-coloured when a wallpaper is set, else the
+        // tile's colour) that shrinks into its tile on return; drawn above the hubs, takes no touches.
+        LaunchRevealLayer(if (noWallpaper) Color.Unspecified else wallpaperAccentColor)
 
         // Long-press quick actions on a tile. Its own composable, like the hubs: this lambda is near the register limit.
         TileQuickMenuLayer(viewModel, tiles, accentId = settings.accentId, dark = dark, lockLayout = settings.lockLayout)

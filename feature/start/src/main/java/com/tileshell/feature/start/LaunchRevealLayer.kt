@@ -18,6 +18,8 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.isSpecified
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.unit.IntOffset
@@ -31,18 +33,23 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
- * A launched app grows out of its tile, and shrinks back into it when you come
- * home. The system's own launch animation can't be replaced by a launcher that
- * isn't the phone maker's (scale-up, clip-reveal and custom animations were
- * all ignored), so TileShell draws this itself: the tile's colour plate, with
- * the app's icon, fills the screen while the app starts, stays there while the
- * app is in front, and goes back into the tile when TileShell is resumed.
- * [LaunchOrigin.onLaunched] starts it; it never takes touches.
+ * A launched app starts over a full-screen plate with its icon in the middle,
+ * which appears the moment you tap, so only the system's own window animation
+ * is seen moving; the plate stays while the app is in front and, when
+ * TileShell is resumed, shrinks back into the tile, taking the tile's colour
+ * as it goes. The plate is [wallpaperColor] when a wallpaper is set, else the
+ * tile's own colour.
+ * The system's launch animation can't be replaced by a launcher that isn't
+ * the phone maker's (scale-up, clip-reveal and custom animations were all
+ * ignored), so TileShell draws this itself. [LaunchOrigin.onLaunched] starts
+ * it; it never takes touches.
  */
 @Composable
-internal fun LaunchRevealLayer() {
+internal fun LaunchRevealLayer(wallpaperColor: Color) {
     var launched by remember { mutableStateOf<LaunchOrigin.Launched?>(null) }
-    val progress = remember { Animatable(0f) }
+    // How far the plate is from the tile (1 = the whole screen) and how visible it is.
+    val progress = remember { Animatable(1f) }
+    val fade = remember { Animatable(0f) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var resumed by remember { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
 
@@ -60,13 +67,15 @@ internal fun LaunchRevealLayer() {
 
     LaunchedEffect(launched) {
         if (launched == null) return@LaunchedEffect
-        progress.snapTo(0f)
-        progress.animateTo(1f, tween(EXPAND_MS, easing = EASE))
+        progress.snapTo(1f)
+        fade.snapTo(0f)
+        fade.animateTo(1f, tween(FADE_IN_MS))
         // The app takes over (we pause) within a moment; if it never does, go back to the tile.
         withTimeoutOrNull(HOLD_MS) { snapshotFlow { resumed }.first { !it } }
         // Stay full while the app is in front, then shrink into the tile once we are resumed again.
         snapshotFlow { resumed }.first { it }
         progress.animateTo(0f, tween(SHRINK_MS, easing = EASE))
+        fade.snapTo(0f)
         launched = null
     }
 
@@ -75,21 +84,26 @@ internal fun LaunchRevealLayer() {
     val origin = current.origin
     Canvas(Modifier.fillMaxSize()) {
         val p = progress.value
-        if (p <= 0f) return@Canvas
+        val shown = fade.value
+        if (shown <= 0f) return@Canvas
         val tile = origin.bounds
         val left = tile.left * (1f - p)
         val top = tile.top * (1f - p)
         val right = tile.right + (size.width - tile.right) * p
         val bottom = tile.bottom + (size.height - tile.bottom) * p
         val corner = origin.cornerPx * (1f - p)
-        val plate = if (origin.color != 0) Color(origin.color) else Color(0xFF2B78E4)
-        drawRoundRect(plate, Offset(left, top), Size(right - left, bottom - top), CornerRadius(corner))
+        // The wallpaper's colour (else the tile's) on the full screen, the tile's own colour once back in the tile.
+        val tileColor = if (origin.color != 0) Color(origin.color) else wallpaperColor
+        val full = if (wallpaperColor.isSpecified) wallpaperColor else tileColor
+        val plate = lerp(tileColor, full, p)
+        drawRoundRect(plate, Offset(left, top), Size(right - left, bottom - top), CornerRadius(corner), alpha = shown)
         icon?.let {
             val side = (tile.width.coerceAtMost(tile.height) * 0.5f) * (1f - p) + 72.dp.toPx() * p
             val cx = (left + right) / 2f
             val cy = (top + bottom) / 2f
             drawImage(
                 image = it,
+                alpha = shown,
                 dstOffset = IntOffset((cx - side / 2f).toInt(), (cy - side / 2f).toInt()),
                 dstSize = IntSize(side.toInt(), side.toInt()),
             )
@@ -97,7 +111,7 @@ internal fun LaunchRevealLayer() {
     }
 }
 
-private const val EXPAND_MS = 140
+private const val FADE_IN_MS = 90
 private const val SHRINK_MS = 260
 private const val HOLD_MS = 1500L
 private val EASE = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f)
