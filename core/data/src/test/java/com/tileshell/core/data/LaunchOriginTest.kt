@@ -21,4 +21,11 @@ class LaunchOriginTest {
         LaunchOrigin.set(5f, 5f, 5f, 40f, now = 1_000)
         assertNull(LaunchOrigin.take(now = 1_100))
     }
+
+    @Test fun pivotIsTheNearestCell() {
+        // Top-left tile on a 1000 x 2000 screen, bottom-right tile, and a tile in the middle.
+        assertEquals(0 to 0, LaunchOrigin.pivotCell(LaunchOrigin.Bounds(0, 0, 200, 200), 1000, 2000))
+        assertEquals(3 to 2, LaunchOrigin.pivotCell(LaunchOrigin.Bounds(800, 1800, 1000, 2000), 1000, 2000))
+        assertEquals(2 to 1, LaunchOrigin.pivotCell(LaunchOrigin.Bounds(400, 1000, 600, 1200), 1000, 2000))
+    }
 }

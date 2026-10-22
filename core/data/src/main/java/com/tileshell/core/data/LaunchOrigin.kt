@@ -38,18 +38,50 @@ object LaunchOrigin {
     }
 
     /**
-     * The launch options for an app window that scales up from [bounds], or
-     * null when [context] has no activity window to anchor to. Scale-up (the
-     * app's window grows from the tile, with its own starting window) is what a
-     * third-party home app can ask for; the icon-to-window morph of the
-     * system launchers needs system-only remote animations.
+     * The launch options for an app window that grows from roughly where
+     * [bounds] is, or null when [context] has no activity window to size it
+     * against. A custom window animation (the pivot is the nearest of a 3 x 4
+     * grid of `launch_enter_RC` resources, as animation resources can't take
+     * a runtime pivot) because the system's scale-up request is ignored by
+     * some makers' system UI; a custom one is honoured everywhere. The
+     * icon-to-window morph of the system launchers needs system-only remote
+     * animations a third-party launcher can't have.
      */
     fun optionsFor(context: Context, bounds: Bounds?): Bundle? {
         if (bounds == null) return null
         val view = activityOf(context)?.window?.decorView ?: return null
+        if (view.width <= 0 || view.height <= 0) return null
+        val (row, column) = pivotCell(bounds, view.width, view.height)
         return runCatching {
-            ActivityOptions.makeScaleUpAnimation(view, bounds.left, bounds.top, bounds.width, bounds.height).toBundle()
+            ActivityOptions.makeCustomAnimation(context, enterAnimation(row, column), R.anim.launch_exit).toBundle()
         }.getOrNull()
+    }
+
+    /** The row (0..3) and column (0..2) of the pivot grid nearest the centre of [bounds] on a [width] x [height] screen. */
+    fun pivotCell(bounds: Bounds, width: Int, height: Int): Pair<Int, Int> {
+        val x = (bounds.left + bounds.right) / 2f / width
+        val y = (bounds.top + bounds.bottom) / 2f / height
+        val column = (x * COLUMNS).toInt().coerceIn(0, COLUMNS - 1)
+        val row = (y * ROWS).toInt().coerceIn(0, ROWS - 1)
+        return row to column
+    }
+
+    private const val COLUMNS = 3
+    private const val ROWS = 4
+
+    private fun enterAnimation(row: Int, column: Int): Int = when (row * COLUMNS + column) {
+        0 -> R.anim.launch_enter_00
+        1 -> R.anim.launch_enter_01
+        2 -> R.anim.launch_enter_02
+        3 -> R.anim.launch_enter_10
+        4 -> R.anim.launch_enter_11
+        5 -> R.anim.launch_enter_12
+        6 -> R.anim.launch_enter_20
+        7 -> R.anim.launch_enter_21
+        8 -> R.anim.launch_enter_22
+        9 -> R.anim.launch_enter_30
+        10 -> R.anim.launch_enter_31
+        else -> R.anim.launch_enter_32
     }
 
     private fun activityOf(context: Context): Activity? {

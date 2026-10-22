@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The launched app's window grows from roughly where the tapped tile is (pivot 17% / 63%). -->
+<set xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shareInterpolator="false">
+    <scale
+        android:fromXScale="0.3"
+        android:toXScale="1.0"
+        android:fromYScale="0.3"
+        android:toYScale="1.0"
+        android:pivotX="17%"
+        android:pivotY="63%"
+        android:duration="380"
+        android:interpolator="@android:interpolator/decelerate_cubic" />
+    <alpha
+        android:fromAlpha="0.0"
+        android:toAlpha="1.0"
+        android:duration="160"
+        android:interpolator="@android:interpolator/linear" />
+</set>

@@ -4062,14 +4062,18 @@ private fun StartPage(
                     val canMoveBack = !sticky && blockIds.indexOf(model.id) > 0
                     val canMoveForward = !sticky && blockIds.indexOf(model.id) in 0 until blockIds.size - 1
                     val tileCornerDp = LocalTileCornerRadius.current
+                    // Where a hub (or the launched app's window) grows out of: this tile.
+                    val recordOrigin = {
+                        menuCoordinates[0]?.takeIf { it.isAttached }?.let {
+                            val bounds = it.boundsInRoot()
+                            HubOrigin.set(bounds, tileAccent, with(density) { tileCornerDp.dp.toPx() })
+                            com.tileshell.core.data.LaunchOrigin.set(bounds.left, bounds.top, bounds.right, bounds.bottom)
+                        }
+                        Unit
+                    }
                     val onTapAction = {
                         if (!editMode) {
-                            // Where a hub (or the launched app's window) grows out of.
-                            menuCoordinates[0]?.takeIf { it.isAttached }?.let {
-                                val bounds = it.boundsInRoot()
-                                HubOrigin.set(bounds, tileAccent, with(density) { tileCornerDp.dp.toPx() })
-                                com.tileshell.core.data.LaunchOrigin.set(bounds.left, bounds.top, bounds.right, bounds.bottom)
-                            }
+                            recordOrigin()
                             // Tapping any tile while reachability is holding
                             // performs the tap normally *and* springs the
                             // shift back — the tap itself is what dismisses it.
@@ -4310,7 +4314,8 @@ private fun StartPage(
                             wallpaperAccent = wallpaperAccent,
                             onTap = onTapAction,
                             onLongPress = onLongPressAction,
-                            onLaunchFolderChild = onLaunchFolderChild,
+                            // A widget stack or folder launches its child itself: the child grows from the stack's tile.
+                            onLaunchFolderChild = { child -> recordOrigin(); onLaunchFolderChild(child) },
                             onRenameFolder = if (model is TileModel.Folder) {
                                 { newName -> onRenameFolder(model.id, newName) }
                             } else {
