@@ -97,7 +97,7 @@ internal fun LaunchRevealLayer() {
     }
 }
 
-private const val EXPAND_MS = 240
+private const val EXPAND_MS = 140
 private const val SHRINK_MS = 260
 private const val HOLD_MS = 1500L
 private val EASE = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f)

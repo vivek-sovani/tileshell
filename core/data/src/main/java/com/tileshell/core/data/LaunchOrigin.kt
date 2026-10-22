@@ -21,9 +21,6 @@ import android.os.Bundle
 object LaunchOrigin {
     const val VALID_MS = 1000L
 
-    /** How long the tile's plate has to grow before the app is started (it takes 240 ms to fill the screen). */
-    const val LAUNCH_DELAY_MS = 200L
-
     data class Bounds(val left: Int, val top: Int, val right: Int, val bottom: Int) {
         val width get() = right - left
         val height get() = bottom - top

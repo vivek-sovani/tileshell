@@ -4,10 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.pm.LauncherApps
 import android.graphics.Rect
-import android.os.Handler
-import android.os.Looper
 import android.os.Process
-import android.widget.Toast
 
 /** Launches installed apps via [LauncherApps] (the launcher-blessed path). */
 object AppLauncher {
@@ -31,18 +28,10 @@ object AppLauncher {
     fun launch(context: Context, packageName: String, activityName: String): Boolean {
         // The tapped tile (bounds for the system, colour for the animation TileShell draws; see LaunchOrigin).
         val origin = LaunchOrigin.take()
-        if (origin != null && LaunchOrigin.onLaunched != null) {
-            // The tile's plate grows to fill the screen first, and the app is started once it is full, so
-            // the system's own slide-in happens over a plate of the tile's colour, not over Start.
-            LaunchOrigin.notifyLaunched(origin, packageName)
-            Handler(Looper.getMainLooper()).postDelayed({
-                if (!start(context, packageName, activityName, origin)) {
-                    Toast.makeText(context, "couldn't open app", Toast.LENGTH_SHORT).show()
-                }
-            }, LaunchOrigin.LAUNCH_DELAY_MS)
-            return true
-        }
-        return start(context, packageName, activityName, origin)
+        val started = start(context, packageName, activityName, origin)
+        // The tile's plate grows to fill the screen while the app starts (and shrinks back on return).
+        if (started) LaunchOrigin.notifyLaunched(origin, packageName)
+        return started
     }
 
     private fun start(context: Context, packageName: String, activityName: String, origin: LaunchOrigin.Origin?): Boolean {
