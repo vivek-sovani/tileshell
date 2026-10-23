@@ -2258,6 +2258,7 @@ fun formatTrackDuration(durationMs: Long): String {
  */
 @Composable
 private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
+    val scope = rememberCoroutineScope()
     val subscriptions by PodcastStore.subscriptions(context).collectAsState(initial = emptyList())
     val recents by MusicRecents.episodes(context).collectAsState(initial = emptyList())
     LaunchedEffect(Unit) { PlaybackPositions.ensureLoaded(context) }
@@ -2417,7 +2418,13 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
                             isSubscribed = PodcastStore.isSubscribed(subscriptions, show.feedUrl),
                             accent = accent,
                             tokens = tokens,
-                            onClick = { LocalMusicPlayer.playEpisodes(context, show, listOf(recent.episode), 0) },
+                            onClick = {
+                                LocalMusicPlayer.playEpisodes(context, show, listOf(recent.episode), 0)
+                                // Once the feed is read the show's episodes become the queue, so it can go on to the next one.
+                                scope.launch {
+                                    fetchPodcastFeed(show.feedUrl)?.let { LocalMusicPlayer.extendEpisodeQueue(show, it.episodes) }
+                                }
+                            },
                             onToggleSubscribe = { toggleSubscribe(PodcastShowEntry(show.feedUrl, show.title, show.artworkUrl)) },
                         )
                         if (index < recents.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))

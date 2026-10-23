@@ -191,6 +191,21 @@ object LocalMusicPlayer {
     }
 
     /**
+     * An episode started alone (from the recent list) gets its show's other
+     * episodes as the queue once the feed is read, so it can carry on to the
+     * next one. Does nothing if something else is playing by then.
+     */
+    fun extendEpisodeQueue(show: PodcastSubscription, episodes: List<PodcastEpisode>) {
+        val s = _state.value
+        val item = s.item as? PlayableAudio.Episode ?: return
+        if (item.show.feedUrl != show.feedUrl || s.queue.size > 1) return
+        val queue = episodes.map { PlayableAudio.Episode(show, it) }
+        val index = queue.indexOfFirst { it.episode.guid == item.episode.guid }
+        if (index < 0) return
+        _state.value = s.copy(queue = queue, queueIndex = index)
+    }
+
+    /**
      * Starts a radio station with the favourite stations as its queue, so
      * next/previous step through them (see [radioQueue]).
      */
@@ -294,7 +309,20 @@ object LocalMusicPlayer {
      * so it is already playing: just adopt it. Otherwise start the next one.
      */
     private fun onItemFinished(context: Context) {
-        _state.value.item?.let { PlaybackPositions.markFinished(context, it) }
+        val finished = _state.value.item
+        finished?.let { PlaybackPositions.markFinished(context, it) }
+        if (finished is PlayableAudio.Episode) {
+            // A podcast carries on with the next newer episode not yet played, and stops after the newest.
+            PlaybackPositions.ensureLoaded(context)
+            val s = _state.value
+            val nextIdx = nextEpisodeIndex(s.queue, s.queueIndex, PlaybackPositions.podcastStates.value)
+            if (nextIdx == null) {
+                stopOnCurrent()
+            } else {
+                playAt(context, s.queue, nextIdx, PlaybackPositions.resumeMs(context, s.queue[nextIdx]))
+            }
+            return
+        }
         val np = nextPlayer
         if (np == null || !nextReady || nextIndex !in _state.value.queue.indices) {
             next(context)

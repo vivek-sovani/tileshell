@@ -45,6 +45,22 @@ fun episodeProgressLabel(state: Long?, durationMs: Long?): String? = when {
 }
 
 /**
+ * The queue index of the episode to play after the one at [currentIndex]
+ * finishes: the nearest newer episode of the queue that is not already
+ * played ([states]: guid → saved state, see [PlaybackPositions.podcastStates]),
+ * or null when there is none (the newest is reached). Newer is by publish
+ * date; episodes without a date go by feed order, which is newest first.
+ * Pure, unit-tested.
+ */
+fun nextEpisodeIndex(queue: List<PlayableAudio>, currentIndex: Int, states: Map<String, Long>): Int? {
+    val episodes = queue.withIndex().filter { it.value is PlayableAudio.Episode }
+        .sortedWith(compareBy<IndexedValue<PlayableAudio>>({ (it.value as PlayableAudio.Episode).episode.publishedMillis }, { -it.index }))
+    val at = episodes.indexOfFirst { it.index == currentIndex }
+    if (at < 0) return null
+    return episodes.drop(at + 1).firstOrNull { (it.value as PlayableAudio.Episode).episode.guid.let { g -> states[g] != EPISODE_PLAYED } }?.index
+}
+
+/**
  * Where playback stopped, so playing an item again carries on instead of
  * starting over, and which podcast episodes are already played. Every podcast
  * episode keeps its own state (the newest [PODCAST_POSITIONS_CAP]): a position,
