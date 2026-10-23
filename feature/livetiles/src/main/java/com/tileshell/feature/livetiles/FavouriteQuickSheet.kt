@@ -79,14 +79,15 @@ fun FavouriteQuickSheet(
     val accent = TileAccents.forId(accentId)
     val context = LocalContext.current
 
-    val phone by produceState<String?>(initialValue = null, p.contactId) {
-        value = withContext(Dispatchers.IO) { primaryPhoneNumber(context, p.contactId) }
+    val numbers by produceState<List<PhoneEntry>>(initialValue = emptyList(), p.contactId) {
+        value = withContext(Dispatchers.IO) { phoneNumbers(context, p.contactId) }
     }
     LaunchedEffect(Unit) { MessagedLog.ensureLoaded(context) }
     val log by MessagedLog.entries.collectAsStateWithLifecycle()
     val lastMessaged = remember(log, p) { matchMessaged(log, listOf(p)).firstOrNull()?.second }
     val smsPackage = remember { runCatching { Telephony.Sms.getDefaultSmsPackage(context) }.getOrNull() }
-    val number = phone
+    // The default number (first), used where one number must be chosen without asking.
+    val number = numbers.firstOrNull()?.number
     // The SMS app is already "message"; otherwise the app they last wrote on,
     // else WhatsApp when installed and there's a number for it.
     val chatPackage = remember(lastMessaged, smsPackage, number) {
@@ -141,19 +142,22 @@ fun FavouriteQuickSheet(
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
                 if (number != null) {
-                    QuickActionTile("call", accent, Modifier.weight(1f), icon = { TileGlyph("phone") }) {
-                        act { callContact(context, number) }
+                    PhoneNumberAction(numbers, onNumber = { n -> act { callContact(context, n) } }, modifier = Modifier.weight(1f)) { click ->
+                        QuickActionTile("call", accent, Modifier.fillMaxWidth(), icon = { TileGlyph("phone") }, onClick = click)
                     }
-                    QuickActionTile("message", accent, Modifier.weight(1f), icon = { TileGlyph("messages") }) {
-                        act { messageContact(context, number) }
+                    PhoneNumberAction(numbers, onNumber = { n -> act { messageContact(context, n) } }, modifier = Modifier.weight(1f)) { click ->
+                        QuickActionTile("message", accent, Modifier.fillMaxWidth(), icon = { TileGlyph("messages") }, onClick = click)
                     }
                 }
                 if (chatPackage != null) {
                     val label = remember(chatPackage) { appLabel(context, chatPackage) }
-                    QuickActionTile(label, accent, Modifier.weight(1f), icon = { AppGlyph(chatPackage) }) {
-                        act {
-                            if (chatPackage == "com.whatsapp" && number != null) whatsAppContact(context, number)
-                            else openApp(context, chatPackage)
+                    if (chatPackage == "com.whatsapp" && numbers.isNotEmpty()) {
+                        PhoneNumberAction(numbers, onNumber = { n -> act { whatsAppContact(context, n) } }, modifier = Modifier.weight(1f)) { click ->
+                            QuickActionTile(label, accent, Modifier.fillMaxWidth(), icon = { AppGlyph(chatPackage) }, onClick = click)
+                        }
+                    } else {
+                        QuickActionTile(label, accent, Modifier.weight(1f), icon = { AppGlyph(chatPackage) }) {
+                            act { openApp(context, chatPackage) }
                         }
                     }
                 }

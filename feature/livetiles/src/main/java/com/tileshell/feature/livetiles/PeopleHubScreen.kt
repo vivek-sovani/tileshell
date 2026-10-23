@@ -85,6 +85,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -288,6 +289,13 @@ private fun PeopleSearchField(
     onQueryChange: (String) -> Unit,
     onClose: () -> Unit,
 ) {
+    // Opening the search puts the cursor in the box and raises the keyboard.
+    val focus = remember { androidx.compose.ui.focus.FocusRequester() }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+    LaunchedEffect(Unit) {
+        focus.requestFocus()
+        keyboard?.show()
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -298,7 +306,7 @@ private fun PeopleSearchField(
         BasicTextField(
             value = query,
             onValueChange = onQueryChange,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).focusRequester(focus),
             singleLine = true,
             textStyle = TextStyle(color = tokens.fg, fontSize = 15.sp),
             cursorBrush = SolidColor(accent),
@@ -593,10 +601,10 @@ private fun ContactRow(
     subtitle: String? = null,
     trailing: (@Composable () -> Unit)? = null,
 ) {
-    var phone by remember(person.contactId) { mutableStateOf<String?>(null) }
+    var numbers by remember(person.contactId) { mutableStateOf<List<PhoneEntry>?>(null) }
     LaunchedEffect(expanded, person.contactId) {
-        if (expanded && phone == null) {
-            phone = withContext(Dispatchers.IO) { primaryPhoneNumber(context, person.contactId) }
+        if (expanded && numbers == null) {
+            numbers = withContext(Dispatchers.IO) { phoneNumbers(context, person.contactId) }
         }
     }
 
@@ -635,12 +643,18 @@ private fun ContactRow(
                 horizontalArrangement = Arrangement.SpaceEvenly,
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
             ) {
-                val number = phone
-                if (number != null) {
-                    ContactActionButton("phone", "call", accent, tokens) { callContact(context, number) }
-                    ContactActionButton("messages", "message", accent, tokens) { messageContact(context, number) }
+                val list = numbers.orEmpty()
+                if (list.isNotEmpty()) {
+                    PhoneNumberAction(list, onNumber = { callContact(context, it) }) { click ->
+                        ContactActionButton("phone", "call", accent, tokens, click)
+                    }
+                    PhoneNumberAction(list, onNumber = { messageContact(context, it) }) { click ->
+                        ContactActionButton("messages", "message", accent, tokens, click)
+                    }
                     if (isWhatsAppInstalled(context)) {
-                        ContactActionButton("whatsapp", "whatsapp", Color(0xFF25D366), tokens) { whatsAppContact(context, number) }
+                        PhoneNumberAction(list, onNumber = { whatsAppContact(context, it) }) { click ->
+                            ContactActionButton("whatsapp", "whatsapp", Color(0xFF25D366), tokens, click)
+                        }
                     }
                 }
                 ContactActionButton("pin", "pin", accent, tokens) { PeopleHubNavigation.requestPin(person) }

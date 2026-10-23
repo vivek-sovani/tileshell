@@ -4,6 +4,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.net.Uri
 import android.provider.ContactsContract
+import android.provider.ContactsContract.CommonDataKinds.Phone as PhoneData
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
@@ -152,23 +153,66 @@ fun searchContacts(context: Context, query: String, limit: Int = 5): List<Contac
 fun contactLookupUri(contactId: Long, lookupKey: String): Uri =
     ContactsContract.Contacts.getLookupUri(contactId, lookupKey)
 
+/** One phone number on a contact: the [number] as stored, its [label] ("mobile", "work"…), and whether it is the contact's default. */
+data class PhoneEntry(val number: String, val label: String, val isDefault: Boolean, val isPrimary: Boolean = false)
+
 /**
- * The contact's primary phone number (super-primary first, else the first on
- * file), or null if it has none / access is denied — degrades the quick-search
- * call/message row rather than crashing.
+ * Puts [raw] in the order the call / message pickers list them: the default
+ * number first, then the number marked primary on its raw contact, then the
+ * rest in the order they are on the card. A number repeated across merged raw
+ * contacts (same digits) is listed once, keeping the most preferred copy.
+ * Pure for unit testing.
  */
-fun primaryPhoneNumber(context: Context, contactId: Long): String? {
-    val projection = arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER)
-    return runCatching {
-        context.contentResolver.query(
-            ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-            projection,
-            "${ContactsContract.CommonDataKinds.Phone.CONTACT_ID} = ?",
-            arrayOf(contactId.toString()),
-            "${ContactsContract.CommonDataKinds.Phone.IS_SUPER_PRIMARY} DESC",
-        )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0)?.ifBlank { null } else null }
-    }.getOrNull()
+fun orderPhoneNumbers(raw: List<PhoneEntry>): List<PhoneEntry> {
+    val ranked = raw
+        .filter { it.number.isNotBlank() }
+        .withIndex()
+        .sortedWith(
+            compareByDescending<IndexedValue<PhoneEntry>> { it.value.isDefault }
+                .thenByDescending { it.value.isPrimary }
+                .thenBy { it.index },
+        )
+        .map { it.value }
+    val seen = HashSet<String>()
+    return ranked.filter { entry ->
+        val digits = entry.number.filter { it.isDigit() }
+        // "+91 98765 43210" and "098765 43210" are the same line; compare on the last 10 digits.
+        seen.add(if (digits.length > 10) digits.takeLast(10) else digits.ifEmpty { entry.number })
+    }
 }
+
+/**
+ * Every phone number the contact has, default first ([orderPhoneNumbers]), or an
+ * empty list if there is none / access is denied — degrades the call / message
+ * row rather than crashing.
+ */
+fun phoneNumbers(context: Context, contactId: Long): List<PhoneEntry> {
+    val projection = arrayOf(PhoneData.NUMBER, PhoneData.TYPE, PhoneData.LABEL, PhoneData.IS_SUPER_PRIMARY, PhoneData.IS_PRIMARY)
+    return runCatching {
+        val rows = ArrayList<PhoneEntry>()
+        context.contentResolver.query(
+            PhoneData.CONTENT_URI,
+            projection,
+            "${PhoneData.CONTACT_ID} = ?",
+            arrayOf(contactId.toString()),
+            "${PhoneData._ID} ASC",
+        )?.use { cursor ->
+            while (cursor.moveToNext()) {
+                val number = cursor.getString(0)?.trim().orEmpty()
+                if (number.isEmpty()) continue
+                val label = runCatching {
+                    PhoneData.getTypeLabel(context.resources, cursor.getInt(1), cursor.getString(2)).toString().lowercase()
+                }.getOrDefault("")
+                rows += PhoneEntry(number, label, isDefault = cursor.getInt(3) != 0, isPrimary = cursor.getInt(4) != 0)
+            }
+        }
+        orderPhoneNumbers(rows)
+    }.getOrDefault(emptyList())
+}
+
+/** The contact's default phone number (else the first on file), or null if it has none. */
+fun primaryPhoneNumber(context: Context, contactId: Long): String? =
+    phoneNumbers(context, contactId).firstOrNull()?.number
 
 /**
  * The device owner's own name (the "me" contact,
