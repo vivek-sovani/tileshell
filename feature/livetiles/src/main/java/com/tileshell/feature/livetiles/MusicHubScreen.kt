@@ -2260,6 +2260,8 @@ fun formatTrackDuration(durationMs: Long): String {
 private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
     val subscriptions by PodcastStore.subscriptions(context).collectAsState(initial = emptyList())
     val recents by MusicRecents.episodes(context).collectAsState(initial = emptyList())
+    LaunchedEffect(Unit) { PlaybackPositions.ensureLoaded(context) }
+    val episodeProgress by PlaybackPositions.podcastStates.collectAsState()
     var query by remember { mutableStateOf("") }
     var results by remember { mutableStateOf<List<PodcastSearchResult>>(emptyList()) }
     var searching by remember { mutableStateOf(false) }
@@ -2411,6 +2413,7 @@ private fun PodcastsPage(context: Context, accent: Color, tokens: ColorTokens) {
                         val show = recent.show
                         RecentEpisodeRow(
                             recent = recent,
+                            progress = episodeProgress[recent.episode.guid],
                             isSubscribed = PodcastStore.isSubscribed(subscriptions, show.feedUrl),
                             accent = accent,
                             tokens = tokens,
@@ -2633,6 +2636,8 @@ private fun PodcastEpisodesPage(
         value = fetchPodcastFeed(show.feedUrl)
     }
     val currentFeed = feed
+    LaunchedEffect(Unit) { PlaybackPositions.ensureLoaded(context) }
+    val progress by PlaybackPositions.podcastStates.collectAsState()
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.padding(horizontal = 18.dp).padding(bottom = 4.dp),
@@ -2680,7 +2685,7 @@ private fun PodcastEpisodesPage(
                 ) {
                     itemsIndexed(episodes, key = { _, ep -> ep.guid }) { index, episode ->
                         Column {
-                            PodcastEpisodeRow(episode, tokens) {
+                            PodcastEpisodeRow(episode, progress[episode.guid], accent, tokens) {
                                 LocalMusicPlayer.playEpisodes(context, show, episodes, index)
                             }
                             if (index < episodes.lastIndex) Box(Modifier.fillMaxWidth().height(1.dp).background(tokens.sheetLine))
@@ -2693,7 +2698,8 @@ private fun PodcastEpisodesPage(
 }
 
 @Composable
-private fun PodcastEpisodeRow(episode: PodcastEpisode, tokens: ColorTokens, onClick: () -> Unit) {
+private fun PodcastEpisodeRow(episode: PodcastEpisode, progress: Long?, accent: Color, tokens: ColorTokens, onClick: () -> Unit) {
+    val played = progress == EPISODE_PLAYED
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -2704,19 +2710,17 @@ private fun PodcastEpisodeRow(episode: PodcastEpisode, tokens: ColorTokens, onCl
             )
             .padding(vertical = 10.dp),
     ) {
-        Text(episode.title, color = tokens.fg, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(episode.title, color = if (played) tokens.fgDim else tokens.fg, fontSize = 14.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.height(3.dp))
+        val parts = listOfNotNull(
+            episodeProgressLabel(progress, episode.durationMs)?.let { it to true },
+            episode.publishedMillis.takeIf { it > 0 }?.let { feedAgo(it) to false },
+            episode.durationMs?.takeIf { it > 0 }?.let { formatTrackDuration(it) to false },
+        )
         Row {
-            if (episode.publishedMillis > 0) {
-                Text(feedAgo(episode.publishedMillis), color = tokens.fgDim, fontSize = 11.sp)
-            }
-            val duration = episode.durationMs
-            if (duration != null && duration > 0) {
-                Text(
-                    (if (episode.publishedMillis > 0) " · " else "") + formatTrackDuration(duration),
-                    color = tokens.fgDim,
-                    fontSize = 11.sp,
-                )
+            parts.forEachIndexed { i, (text, isProgress) ->
+                if (i > 0) Text(" · ", color = tokens.fgDim, fontSize = 11.sp)
+                Text(text, color = if (isProgress && !played) accent else tokens.fgDim, fontSize = 11.sp)
             }
         }
     }
@@ -2739,6 +2743,7 @@ private fun HubSectionHeader(title: String, tokens: ColorTokens) {
 @Composable
 private fun RecentEpisodeRow(
     recent: RecentEpisode,
+    progress: Long?,
     isSubscribed: Boolean,
     accent: Color,
     tokens: ColorTokens,
@@ -2772,7 +2777,8 @@ private fun RecentEpisodeRow(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(recent.episode.title, color = tokens.fg, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(recent.show.title, color = tokens.fgDim, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val line = listOfNotNull(episodeProgressLabel(progress, recent.episode.durationMs), recent.show.title).joinToString(" · ")
+            Text(line, color = tokens.fgDim, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(8.dp))
         // Favorites the episode's show — a podcast favorite is always the

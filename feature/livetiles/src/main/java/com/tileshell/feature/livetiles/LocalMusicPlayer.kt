@@ -124,12 +124,24 @@ object LocalMusicPlayer {
     private val ticker = object : Runnable {
         override fun run() {
             tick()
+            if (_state.value.playing && SystemClock.elapsedRealtime() - lastSaveMs >= SAVE_POSITION_EVERY_MS) savePosition()
             if ((player != null && _state.value.playing) || fadingPlayer != null) {
                 handler.postDelayed(this, nextTickDelay())
             } else {
                 tickerActive = false
             }
         }
+    }
+
+    private var lastSaveMs = 0L
+
+    /** Remembers where the current item is, for [PlaybackPositions]. */
+    private fun savePosition() {
+        val context = appContext ?: return
+        val item = _state.value.item ?: return
+        if (item is PlayableAudio.RadioStream || !prepared) return
+        PlaybackPositions.save(context, item, positionMs(), durationMs())
+        lastSaveMs = SystemClock.elapsedRealtime()
     }
 
     private fun ensureTicker() {
@@ -196,10 +208,12 @@ object LocalMusicPlayer {
         )
         consecutiveErrors = 0
         appContext = context.applicationContext
-        playAt(context, queue, startIndex)
+        // Carries on where a podcast episode or the last song was left.
+        playAt(context, queue, startIndex, PlaybackPositions.resumeMs(context, queue[startIndex]))
     }
 
     private fun playAt(context: Context, queue: List<PlayableAudio>, index: Int, startAtMs: Long = 0L) {
+        savePosition()
         releasePlayerOnly()
         routeStale = false
         val item = queue[index]
@@ -215,6 +229,8 @@ object LocalMusicPlayer {
             if (startAtMs > 0) runCatching { it.seekTo(startAtMs.toInt()) }
             runCatching { it.start() }
             _state.value = _state.value.copy(playing = true)
+            PlaybackPositions.save(context, item, startAtMs, 0L)
+            lastSaveMs = SystemClock.elapsedRealtime()
             // Here rather than in a UI effect so an episode auto-advanced
             // to in the background still lands in the podcasts tab's recents.
             MusicRecents.record(context, item)
@@ -278,6 +294,7 @@ object LocalMusicPlayer {
      * so it is already playing: just adopt it. Otherwise start the next one.
      */
     private fun onItemFinished(context: Context) {
+        _state.value.item?.let { PlaybackPositions.markFinished(context, it) }
         val np = nextPlayer
         if (np == null || !nextReady || nextIndex !in _state.value.queue.indices) {
             next(context)
@@ -291,6 +308,8 @@ object LocalMusicPlayer {
     private fun adoptNext(context: Context, np: MediaPlayer) {
         val s = _state.value
         val item = s.queue[nextIndex]
+        s.item?.let { PlaybackPositions.markFinished(context, it) }
+        PlaybackPositions.save(context, item, 0L, 0L)
         player = np
         prepared = true
         _state.value = s.copy(item = item, queueIndex = nextIndex, playing = true, seekVersion = s.seekVersion + 1)
@@ -447,6 +466,7 @@ object LocalMusicPlayer {
     private const val KEY_GAPLESS = "gapless"
     private const val KEY_OVERLAP = "overlap_ms"
     private const val TICK_MS = 150L
+    private const val SAVE_POSITION_EVERY_MS = 10_000L
 
     fun togglePlayPause() {
         finishFade()
@@ -457,6 +477,7 @@ object LocalMusicPlayer {
             if (mp.isPlaying) {
                 mp.pause()
                 _state.value = _state.value.copy(playing = false)
+                savePosition()
             } else {
                 if (routeStale && reopenCurrent()) return
                 mp.start()
@@ -507,6 +528,7 @@ object LocalMusicPlayer {
             if (mp.isPlaying) {
                 mp.pause()
                 _state.value = _state.value.copy(playing = false)
+                savePosition()
             }
         }
     }
@@ -599,6 +621,7 @@ object LocalMusicPlayer {
     /** Keeps the current item showing, paused, with nothing loaded; play
      * starts it again from scratch. */
     private fun stopOnCurrent() {
+        savePosition()
         releasePlayerOnly()
         _state.value = _state.value.copy(playing = false)
     }
@@ -618,6 +641,7 @@ object LocalMusicPlayer {
      * whole point of background playback.
      */
     fun release() {
+        savePosition()
         releasePlayerOnly()
         abandonAudioFocus()
         _state.value = LocalPlayback()
