@@ -1250,7 +1250,8 @@ fun StartScreen(
     CompositionLocalProvider(
         LocalWallpaperPageFraction provides wallpaperPageFraction,
         LocalColorTokens provides tokens,
-        LocalAccent provides (wallpaperAccent ?: accent),
+        // The app list (letters, jump grid, search) follows the hub colour choice too.
+        LocalAccent provides (wallpaperAccent?.takeIf { settings.hubsFollowTiles } ?: accent),
         LocalTileCornerRadius provides settings.cornerRadius,
         LocalTileGradient provides (settings.tileFill == TileFill.GRADIENT),
         LocalTileFont provides tileFont,
