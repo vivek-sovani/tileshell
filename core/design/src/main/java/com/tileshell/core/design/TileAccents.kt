@@ -1,6 +1,7 @@
 package com.tileshell.core.design
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 
 /**
  * The 14 recolourable tile accent colours, ported from `window.TILE_COLORS` in
@@ -46,8 +47,21 @@ object TileAccents {
         "mauve" to Mauve, "slate" to Slate,
     )
 
-    /** Accent for a colour id, falling back to [Blue] for unknown ids. */
-    fun forId(id: String?): Color = byId[id] ?: Blue
+    /**
+     * Accent for a colour id, falling back to [Blue] for unknown ids. An id
+     * written "#RRGGBB" ([idForColor]) is that colour itself, so a colour taken
+     * from the wallpaper can travel wherever an accent id does.
+     */
+    fun forId(id: String?): Color = byId[id] ?: id?.let(::colorFromHexId) ?: Blue
+
+    /** The id that [forId] turns back into [color] (ignoring its alpha). */
+    fun idForColor(color: Color): String = "#%06X".format(color.toArgb() and 0xFFFFFF)
+
+    private fun colorFromHexId(id: String): Color? {
+        if (id.length != 7 || id[0] != '#') return null
+        val rgb = id.substring(1).toIntOrNull(16) ?: return null
+        return Color(0xFF000000.toInt() or rgb)
+    }
 
     /**
      * Resolve a per-tile [override] to a colour (FR-7): a `#RRGGBB` hex (an exact

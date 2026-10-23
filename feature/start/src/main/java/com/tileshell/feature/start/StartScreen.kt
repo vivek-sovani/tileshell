@@ -591,6 +591,10 @@ fun StartScreen(
         null
     }
 
+    // Accent id for everything drawn over Start (hubs, sheets, cards): the wallpaper's colour when tiles take it from
+    // the wallpaper, so a hub matches the tiles it opened from; otherwise the chosen accent.
+    val uiAccentId = wallpaperAccent?.let { TileAccents.idForColor(it) } ?: settings.accentId
+
     // Whether the user's actual chosen background — the plain screen bg (no
     // wallpaper), a bundled gradient's themed base, or a custom/Bing photo's
     // sampled brightness — reads as light. A solid tile's fill never shows this
@@ -2135,7 +2139,7 @@ fun StartScreen(
             visible = aboutOpen,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             onDismiss = viewModel::closeAbout,
             onVersionTap = viewModel::reopenWhatsNew,
         )
@@ -2146,7 +2150,7 @@ fun StartScreen(
             visible = personalizeGuideOpen,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             onDismiss = viewModel::closePersonalizeGuide,
         )
 
@@ -2155,7 +2159,7 @@ fun StartScreen(
             visible = hiddenAppsOpen,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             apps = hiddenAppEntries,
             onUnhide = { viewModel.unhide(it.packageName) },
             onDismiss = viewModel::closeHiddenApps,
@@ -2166,7 +2170,7 @@ fun StartScreen(
             visible = edgeStripOpen,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             enabled = settings.edgeStripEnabled,
             position = settings.edgeStripPosition,
             selectedApps = settings.edgeStripApps,
@@ -2185,7 +2189,7 @@ fun StartScreen(
         QuickSearchOverlay(
             visible = searchOpen,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             apps = apps.filterNot { it.packageName in hiddenPackages },
             contactsGranted = contactsGranted,
             onRequestContacts = {
@@ -2233,7 +2237,7 @@ fun StartScreen(
             visible = historyOpen,
             snapshots = layoutHistory,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             onDismiss = viewModel::closeHistory,
             onRestore = viewModel::restoreFromSnapshot,
             onDelete = viewModel::deleteSnapshot,
@@ -2246,7 +2250,7 @@ fun StartScreen(
             viewModel = viewModel,
             visible = backupVisible,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             autoBackupEnabled = settings.autoBackupEnabled,
             autoBackupIntervalHours = settings.autoBackupIntervalHours,
             isLandscape = isLandscape,
@@ -2264,14 +2268,14 @@ fun StartScreen(
         // lambda had grown past the 256 registers a dex method can address,
         // and R8's register allocation then miscompiled it (VerifyError in
         // StartScreenKt at launch). See docs/DECISIONS.md.
-        HubScreensLayer(viewModel, tiles, accentId = settings.accentId, dark = dark, isLandscape = isLandscape)
+        HubScreensLayer(viewModel, tiles, accentId = uiAccentId, dark = dark, isLandscape = isLandscape)
         // A launched app starts over a full-screen plate (wallpaper-coloured when a wallpaper is set, else the
         // tile's colour) that shrinks into its tile on return; drawn above the hubs, takes no touches.
         LaunchRevealLayer(if (noWallpaper) Color.Unspecified else wallpaperAccentColor, customWallpaperBitmap)
 
         // Long-press quick actions on a tile. Its own composable, like the hubs: this lambda is near the register limit.
-        TileQuickMenuLayer(viewModel, tiles, accentId = settings.accentId, dark = dark, lockLayout = settings.lockLayout)
-        PanchangLanguageAskLayer(viewModel, dark = dark, accentId = settings.accentId)
+        TileQuickMenuLayer(viewModel, tiles, accentId = uiAccentId, dark = dark, lockLayout = settings.lockLayout)
+        PanchangLanguageAskLayer(viewModel, dark = dark, accentId = uiAccentId)
 
 
         // Build a name→packageNames map from the current tile list so CategoryFolderSheet
@@ -2288,7 +2292,7 @@ fun StartScreen(
             visible = foldersOpen,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             apps = apps,
             onCreate = { name, picked ->
                 viewModel.createFolder(name, picked)
@@ -2304,7 +2308,7 @@ fun StartScreen(
             visible = addWidgetsOpen,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             notesAlreadyPinned = tiles.hasNotesTile(),
             onAddWidget = { appId ->
                 if (appId == "panchang") {
@@ -2339,7 +2343,7 @@ fun StartScreen(
             visible = weatherLocationTarget != null,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             onUseCurrentLocation = {
                 viewModel.setWeatherLocationCurrent()
                 viewModel.exitEdit()
@@ -2359,7 +2363,7 @@ fun StartScreen(
             listId = tasksOpen.orEmpty(),
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             autoClearDaily = settings.taskAutoClearDaily,
             onAutoClearDailyChange = viewModel::setTaskAutoClearDaily,
             onDismiss = viewModel::closeTasks,
@@ -2370,7 +2374,7 @@ fun StartScreen(
             visible = notesOpen,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             onDismiss = viewModel::closeNotes,
             initialNoteId = notesInitialNoteId,
         )
@@ -2380,7 +2384,7 @@ fun StartScreen(
             visible = stickyNoteEditTileId != null,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             tileId = stickyNoteEditTileId,
             initialText = stickyNoteEditText,
             onTextChange = viewModel::setStickyNoteText,
@@ -2394,7 +2398,7 @@ fun StartScreen(
             visible = countdownEditTileId != null,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             tileId = countdownEditTileId,
             initialTargetIsoDate = (tiles.firstOrNull { it.id == countdownEditTileId } as? TileModel.App)
                 ?.activityName?.let { CountdownTile.decode(it)?.first }.orEmpty(),
@@ -2409,7 +2413,7 @@ fun StartScreen(
             visible = sportsEditTileId != null,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             tileId = sportsEditTileId,
             onTeamPicked = viewModel::setSportsTeam,
             onDismiss = viewModel::closeSportsEditor,
@@ -2420,7 +2424,7 @@ fun StartScreen(
             visible = stockEditTileId != null,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             tileId = stockEditTileId,
             onSinglePicked = viewModel::setStockSingle,
             onCategoryPicked = viewModel::setStockCategory,
@@ -2433,7 +2437,7 @@ fun StartScreen(
             visible = commodityEditTileId != null,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             tileId = commodityEditTileId,
             onPicked = viewModel::setCommodity,
             onDismiss = viewModel::closeCommodityEditor,
@@ -2444,7 +2448,7 @@ fun StartScreen(
             visible = calendarSystemEditTileId != null,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             onPick = { systemId -> calendarSystemEditTileId?.let { viewModel.setCalendarSystem(it, systemId) } },
             onDismiss = viewModel::closeCalendarSystemEditor,
         )
@@ -2455,7 +2459,7 @@ fun StartScreen(
             visible = permissionsOpen,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             onDismiss = viewModel::closePermissions,
             contactsGranted = contactsGranted,
             calendarGranted = calendarGranted,
@@ -2498,7 +2502,7 @@ fun StartScreen(
             visible = newsRegionOpen,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             regions = NEWS_REGION_GROUPS.flatMap { (group, codes) ->
                 codes.map { code -> RegionOption(code, regionDisplayName(code), code in feedRegions, group) }
             },
@@ -2530,7 +2534,7 @@ fun StartScreen(
         // seen. Suppressed while the home-style wizard is up (below), which
         // takes priority as the very first thing a new install sees.
         if (!homeStyleWizardOpen) {
-            FirstRunHint(accentId = settings.accentId)
+            FirstRunHint(accentId = uiAccentId)
         }
 
         // First-run home-style (tiles vs icons) choice wizard — see
@@ -2572,7 +2576,7 @@ fun StartScreen(
         ) {
             WhatsNewSheet(
                 visible = true,
-                accentId = settings.accentId,
+                accentId = uiAccentId,
                 onDismiss = viewModel::dismissWhatsNew,
                 onSetUpWithHubs = if (WHATS_NEW_OFFERS_HUB_SETUP) viewModel::setUpWithHubs else null,
             )
@@ -2647,7 +2651,7 @@ fun StartScreen(
             visible = bingHistoryOpen,
             rightHalf = isLandscape,
             dark = dark,
-            accentId = settings.accentId,
+            accentId = uiAccentId,
             onPick = { imageUrl ->
                 bingHistoryOpen = false
                 pickBingImage(imageUrl)
