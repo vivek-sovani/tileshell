@@ -47,6 +47,10 @@ fun FlipTile(
 ) {
     val provided = LocalTileFlipHost.current
     val host = provided ?: remember { TileFlipHost() }
+    DisposableEffect(host) {
+        host.drivers++
+        onDispose { host.drivers-- }
+    }
     // The first composition snaps to its face (a tile that appears already
     // flipped must not spin); every later change turns.
     var settled by remember { mutableStateOf(false) }

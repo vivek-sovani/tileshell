@@ -2,6 +2,9 @@ package com.tileshell.feature.livetiles
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.Stable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
@@ -29,6 +32,13 @@ internal const val FLIP_CAMERA_DISTANCE_FACTOR = 4f
 class TileFlipHost {
     val rotation = Animatable(0f)
     internal var coordinates: LayoutCoordinates? = null
+
+    /**
+     * How many [FlipTile]s are composed inside the tile right now. The turn is drawn only while one is: when the face
+     * is swapped for one that does not flip (a notification cleared mid-turn, a face with no data), nothing is left to
+     * finish the turn, and the tile would otherwise stay drawn part-way round.
+     */
+    internal var drivers by mutableIntStateOf(0)
 }
 
 /** Set by `TileView` around a tile's content; a [FlipTile] without one turns its own box. */
@@ -48,7 +58,7 @@ fun Modifier.tileFlip(host: TileFlipHost): Modifier = this
     .drawWithContent {
         val rotation = host.rotation.value
         val coordinates = host.coordinates
-        if (rotation <= 0f || rotation >= 180f || coordinates == null || !coordinates.isAttached) {
+        if (host.drivers <= 0 || rotation <= 0f || rotation >= 180f || coordinates == null || !coordinates.isAttached) {
             drawContent()
             return@drawWithContent
         }
