@@ -415,4 +415,11 @@ class LiveRefreshRateResolveMsTest {
         assertEquals(15 * 60_000L, LiveRefreshRate.EVERY_15_MIN.resolveMs(90_000L))
         assertEquals(30 * 60_000L, LiveRefreshRate.EVERY_30_MIN.resolveMs(90_000L))
     }
+
+    @Test
+    fun `hubsFollowTiles is on by default, round trips and a bad value keeps the default`() {
+        assertEquals(true, LauncherSettings().hubsFollowTiles)
+        assertEquals(false, SettingsCodec.decode(SettingsCodec.encode(LauncherSettings(hubsFollowTiles = false))).hubsFollowTiles)
+        assertEquals(true, SettingsCodec.decode("hubsFollowTiles=maybe\n").hubsFollowTiles)
+    }
 }

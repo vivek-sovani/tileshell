@@ -335,6 +335,11 @@ data class LauncherSettings(
     /** The people tile's photos turn over (a quick flip about the bubble's horizontal axis) when they change; off = a plain cut. */
     val peoplePhotoFlip: Boolean = true,
     /**
+     * Hubs and the sheets over Start take the colour the tiles take from the wallpaper (on, the default); off keeps
+     * them on the chosen accent. Only matters while the tile colour source is the wallpaper.
+     */
+    val hubsFollowTiles: Boolean = true,
+    /**
      * A photo wallpaper wider than the screen scrolls with the Start pages (the landscape
      * version) instead of sitting at the one portrait crop. Only has an effect with 2+ pages.
      */
@@ -442,6 +447,7 @@ object SettingsCodec {
         append("hideStatusBar=").append(settings.hideStatusBar).append('\n')
         append("doubleTapLock=").append(settings.doubleTapLock).append('\n')
         append("peoplePhotoFlip=").append(settings.peoplePhotoFlip).append('\n')
+        append("hubsFollowTiles=").append(settings.hubsFollowTiles).append('\n')
         append("wallpaperSpanPages=").append(settings.wallpaperSpanPages).append('\n')
         append("quickPanelOrder=").append(settings.quickPanelTileOrder.joinToString("|")).append('\n')
         append("quickPanelSizes=").append(settings.quickPanelTileSizes.joinToString("|")).append('\n')
@@ -504,6 +510,7 @@ object SettingsCodec {
         var hideStatusBar = d.hideStatusBar
         var doubleTapLock = d.doubleTapLock
         var peoplePhotoFlip = d.peoplePhotoFlip
+        var hubsFollowTiles = d.hubsFollowTiles
         var wallpaperSpanPages = d.wallpaperSpanPages
         var quickPanelTileOrder = d.quickPanelTileOrder
         var quickPanelTileSizes = d.quickPanelTileSizes
@@ -583,6 +590,7 @@ object SettingsCodec {
                 "hideStatusBar" -> hideStatusBar = value.toBooleanStrictOrNull() ?: hideStatusBar
                 "doubleTapLock" -> doubleTapLock = value.toBooleanStrictOrNull() ?: doubleTapLock
                 "peoplePhotoFlip" -> peoplePhotoFlip = value.toBooleanStrictOrNull() ?: peoplePhotoFlip
+                "hubsFollowTiles" -> hubsFollowTiles = value.toBooleanStrictOrNull() ?: hubsFollowTiles
                 "wallpaperSpanPages" -> wallpaperSpanPages = value.toBooleanStrictOrNull() ?: wallpaperSpanPages
                 "quickPanelOrder" -> quickPanelTileOrder = if (value.isEmpty()) emptyList()
                     else value.split("|").filter { it.isNotBlank() }
@@ -652,6 +660,7 @@ object SettingsCodec {
             hideStatusBar = hideStatusBar,
             doubleTapLock = doubleTapLock,
             peoplePhotoFlip = peoplePhotoFlip,
+            hubsFollowTiles = hubsFollowTiles,
             wallpaperSpanPages = wallpaperSpanPages,
             quickPanelTileOrder = quickPanelTileOrder,
             quickPanelTileSizes = quickPanelTileSizes,

@@ -288,6 +288,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(wallpaperSpanPages = enabled) }
     }
 
+    /** See [LauncherSettings.hubsFollowTiles]. */
+    suspend fun setHubsFollowTiles(enabled: Boolean) {
+        store.updateData { it.copy(hubsFollowTiles = enabled) }
+    }
+
     /** See [LauncherSettings.peoplePhotoFlip]. */
     suspend fun setPeoplePhotoFlip(enabled: Boolean) {
         store.updateData { it.copy(peoplePhotoFlip = enabled) }

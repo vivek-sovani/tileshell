@@ -275,6 +275,8 @@ fun PersonalizeSheet(
     onDoubleTapLockChange: (Boolean) -> Unit = {},
     peoplePhotoFlip: Boolean = true,
     onPeoplePhotoFlipChange: (Boolean) -> Unit = {},
+    hubsFollowTiles: Boolean = true,
+    onHubsFollowTilesChange: (Boolean) -> Unit = {},
     /** How many Start pages there are; the photo's landscape / portrait choice shows with 2 or more. */
     startPageCount: Int = 1,
     wallpaperSpanPages: Boolean = false,
@@ -553,6 +555,24 @@ fun PersonalizeSheet(
                                     onTileColorSourceChange(TileColorSource.WALLPAPER_ACCENT)
                                 }
                             }
+                            }
+                        }
+                        // Only when tiles take the wallpaper's colour: otherwise hubs have one colour to use anyway.
+                        if (tileColorSource == TileColorSource.WALLPAPER_ACCENT) {
+                            SettingGroup(label = "hub colour", tokens.fgDim) {
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    SegCell("same as tiles", selected = hubsFollowTiles, accent = accent, fg = tokens.fg) {
+                                        onHubsFollowTilesChange(true)
+                                    }
+                                    SegCell("accent", selected = !hubsFollowTiles, accent = accent, fg = tokens.fg) {
+                                        onHubsFollowTilesChange(false)
+                                    }
+                                }
+                                Text(
+                                    text = "the colour of hubs and sheets: the wallpaper colour the tiles use, or the accent you chose",
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
                             }
                         }
                         // ---- typography ----

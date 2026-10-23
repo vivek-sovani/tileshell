@@ -3080,6 +3080,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setWallpaperSpanPages(enabled) }
     }
 
+    fun setHubsFollowTiles(enabled: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setHubsFollowTiles(enabled) }
+    }
+
     fun setPeoplePhotoFlip(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setPeoplePhotoFlip(enabled) }
     }

@@ -593,7 +593,7 @@ fun StartScreen(
 
     // Accent id for everything drawn over Start (hubs, sheets, cards): the wallpaper's colour when tiles take it from
     // the wallpaper, so a hub matches the tiles it opened from; otherwise the chosen accent.
-    val uiAccentId = wallpaperAccent?.let { TileAccents.idForColor(it) } ?: settings.accentId
+    val uiAccentId = wallpaperAccent?.takeIf { settings.hubsFollowTiles }?.let { TileAccents.idForColor(it) } ?: settings.accentId
 
     // Whether the user's actual chosen background — the plain screen bg (no
     // wallpaper), a bundled gradient's themed base, or a custom/Bing photo's
@@ -10171,6 +10171,8 @@ private fun PersonalizeSheetLayer(
         onDoubleTapLockChange = viewModel::setDoubleTapLock,
         peoplePhotoFlip = settings.peoplePhotoFlip,
         onPeoplePhotoFlipChange = viewModel::setPeoplePhotoFlip,
+        hubsFollowTiles = settings.hubsFollowTiles,
+        onHubsFollowTilesChange = viewModel::setHubsFollowTiles,
         startPageCount = startPageCount,
         wallpaperSpanPages = settings.wallpaperSpanPages,
         onWallpaperSpanPagesChange = viewModel::setWallpaperSpanPages,
