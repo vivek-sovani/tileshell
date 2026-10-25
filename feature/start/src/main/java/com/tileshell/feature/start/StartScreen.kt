@@ -953,12 +953,9 @@ fun StartScreen(
     val liveSuspended = appListShown || feedShown || personalizeOpen
     val settleSpec = spring<Float>(dampingRatio = 0.85f, stiffness = Spring.StiffnessMediumLow)
 
-    // `instant` jumps straight there (no slide): used for taps that open or leave the
-    // app list, which should appear at once like other launchers' drawers. A finger
-    // swipe still follows the finger and settles with the spring.
-    fun settleTo(target: Float, instant: Boolean = false) {
+    fun settleTo(target: Float) {
         scope.launch {
-            if (instant) progress.snapTo(target) else progress.animateTo(target, settleSpec)
+            progress.animateTo(target, settleSpec)
             viewModel.setAppList(target >= upper - 0.5f)
         }
     }
@@ -1070,11 +1067,8 @@ fun StartScreen(
     // Home press collapses to Start and scrolls the grid to the top.
     LaunchedEffect(Unit) {
         viewModel.homeRequests.collect {
-            val fromAppList = progress.value >= upper - 0.5f
             viewModel.setAppList(false)
-            scope.launch {
-                if (fromAppList) progress.snapTo(0f) else progress.animateTo(0f, settleSpec)
-            }
+            scope.launch { progress.animateTo(0f, settleSpec) }
             scrollState.animateScrollTo(0)
         }
     }
@@ -1698,7 +1692,7 @@ fun StartScreen(
                     onUnfoldFolder = viewModel::unfoldFolder,
                     onRemoveFolderAndTiles = viewModel::removeFolderAndTiles,
                     onReorderFolderChildren = viewModel::reorderFolderChildren,
-                    onChevron = { settleTo(upper, instant = true) },
+                    onChevron = { settleTo(upper) },
                     onEnterEdit = { id ->
                         if (settings.lockLayout) {
                             Toast.makeText(
@@ -1814,7 +1808,7 @@ fun StartScreen(
                     },
                     onAdd = {
                         viewModel.exitEdit()
-                        settleTo(upper, instant = true)
+                        settleTo(upper)
                         Toast.makeText(context, "long-press an app to pin", Toast.LENGTH_SHORT)
                             .show()
                     },
@@ -1828,14 +1822,14 @@ fun StartScreen(
             AppListScreen(
                 modifier = Modifier.fillMaxSize(),
                 visible = isAppList,
-                onBack = { settleTo(lastActiveBlockIndex.toFloat(), instant = true) },
+                onBack = { settleTo(lastActiveBlockIndex.toFloat()) },
                 activeSectionId = activeSectionId,
-                onPinned = { settleTo(lastActiveBlockIndex.toFloat(), instant = true) },
+                onPinned = { settleTo(lastActiveBlockIndex.toFloat()) },
                 onAlreadyOnStart = { pageSectionId ->
                     // Block 0 is the main page; a named page's block is its
                     // index in sortedSections + 1 (see activeSectionId).
                     val block = if (pageSectionId == null) 0 else sortedSections.indexOfFirst { it.id == pageSectionId } + 1
-                    if (block >= 0) settleTo(block.toFloat(), instant = true)
+                    if (block >= 0) settleTo(block.toFloat())
                 },
                 onOpenPersonalize = viewModel::openPersonalize,
                 onAddWidget = { provider ->
