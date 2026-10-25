@@ -189,7 +189,15 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         if (handleWallpaperTargetIntent(intent)) return
-        startViewModel.goHome()
+        // Home pressed while TileShell is already on screen goes back to the first Start page
+        // (and closes everything). Coming back from an app (TileShell not visible when the
+        // intent arrives) keeps the page, app list and hubs it was left on, as stock
+        // launchers do; only the transient overlays are closed.
+        if (lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)) {
+            startViewModel.goHome()
+        } else {
+            startViewModel.returnFromApp()
+        }
         handleOpenHubIntent(intent)
         // Dismiss the keyboard when returning to Start via the Home button.
         // The search field in the app list / feed retains IME focus after

@@ -2392,6 +2392,17 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Home arrived while TileShell was behind an app: keep the Start page, app list and
+     * hubs as they were, closing only what shouldn't wait for the user (the long-press
+     * cluster, quick search, the quick panel).
+     */
+    fun returnFromApp() {
+        closeTileMenu()
+        closeSearch()
+        closeQuickPanel()
+    }
+
+    /**
      * Home pressed on Start: collapses any expanded folder (FR-4), leaves edit
      * mode (FR-3.1) and asks the screen to collapse the pager and scroll to
      * the top.
