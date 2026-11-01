@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*Updated for v5.5.0 (everything since 5.0.0; 5.1.0 and 5.2.0 were burned in Play, 5.3.0 never uploaded) — listing texts refreshed 2026-10-11; release notes and checklist below*
+*Updated for v5.5.0 (everything since 5.0.0; 5.1.0 and 5.2.0 were burned in Play, 5.3.0 is live) — listing texts refreshed 2026-10-11; release notes and checklist below*
 
 ---
 
@@ -276,7 +276,7 @@ original format as the historical record, unchanged). Still capped at Play's 500
 
 ## Release notes (v5.5.0)
 
-*Everything added after 5.0.0, folded into one release (the earlier 5.3.0 build, versionCode 530, was never uploaded, so its notes are merged in here). versionCode 550. History of the number: built as 5.1.0 (510), 5.2.0 (520, uploaded and discarded in Play Console because the live tv player left the screen held on) and 5.3.0 (530, with that fix), then 5.5.0 with the additions listed first below.*
+*Everything added after 5.0.0. 5.3.0 (versionCode 530) is live on Play; 5.5.0 (versionCode 550) follows it straight away, so these notes carry the feature additions of both: what is new since 5.3.0 and what 5.3.0 brought. Number history: built as 5.1.0 (510) and 5.2.0 (520, uploaded and discarded in Play Console because the live tv player left the screen held on), then released as 5.3.0 (530) with that fix.*
 
 ### Play-facing blurb (500 chars max)
 ```
@@ -301,7 +301,7 @@ Bugs fixed:
 
 ### Full changelog since v5.0.0 (for reference, not the Play-facing blurb above)
 
-#### Added since 5.3.0
+#### New in 5.5.0 (since the live 5.3.0)
 
 **Music + videos.** The music hub is now "music + videos": a videos page with videos from folders picked in the system folder picker (no storage permission), opened in the phone's default player; a "video and ott" apps section; editable apps lists (add, drag between sections, take off; most used first); a tile for the apps page. Podcast episodes keep their position, the last song resumes, played episodes are marked "played" or show the time left, and a finished episode goes on to the next newer unplayed one.
 
@@ -317,7 +317,7 @@ Bugs fixed:
 
 **Fixes.** Returning from an app lands on the page you left, not the first Start page. A tile no longer stays part-way through a flip after the screen goes off, a notification clears or a face changes.
 
-#### Added in 5.1.0 to 5.3.0 (since 5.0.0)
+#### New in 5.3.0 (since 5.0.0, carried here so the notes cover both)
 
 **Android Auto.** TileShell Music in the car: library, playlists, favourite podcasts (with episodes) and favourite radio stations with recently played under each; voice search ("play a show, station, artist or song", also through the assistant); a heart on now playing for shows and stations. One media session shared with the lock screen and Bluetooth controls. Behind the `tileshell.androidAuto` switch.
 
@@ -345,7 +345,7 @@ Bugs fixed:
 
 ### Play Console checklist for 5.5.0 (upload day)
 
-Build: `release-out/tileshell-5.5.0-release.aab`, versionCode 550 (510, 520 and 530 are not available or never uploaded; check the Console for the highest code before uploading), targetSdk 36, signed with the upload key (cert SHA-256 1a904ad5…), no `RECORD_AUDIO`.
+Build: `release-out/tileshell-5.5.0-release.aab`, versionCode 550 (510 and 520 are burned and 530 is live; check the Console for the highest code before uploading), targetSdk 36, signed with the upload key (cert SHA-256 1a904ad5…), no `RECORD_AUDIO`.
 
 **A. Before you open the Play Console (on this Mac / a device)**
 - [ ] Check the AAB is the one just built (`jarsigner -verify` says "jar verified"; check the file date).
