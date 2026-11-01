@@ -13,8 +13,8 @@ import kotlin.math.roundToInt
  * top 10 / side 9). Shared by [DenseTileGrid] (tile placement) and the
  * edit-mode drag hit-testing so both agree on exactly where each tile sits.
  *
- * [side] was briefly hardcoded to 0 (true edge-to-edge) at an earlier user
- * request, then reinstated — see DECISIONS.md.
+ * [side] equals the tile gap (user-requested: tiles use the full width but their
+ * outlines must stay visible at the screen corners; a 0 margin was tried).
  */
 class GridGeometry private constructor(
     val side: Float,
@@ -56,19 +56,19 @@ class GridGeometry private constructor(
         /**
          * [gapPx], when given, overrides the proportional tile gap (the
          * personalize "tile spacing" setting in px); null keeps the prototype's
-         * tight 3/393 ratio. Side padding and top stay proportional either way.
+         * tight 3/393 ratio. Side and top margins equal the tile gap.
          */
         fun of(
             totalWidthPx: Float,
             columns: Int = GridPacker.COLUMNS,
             gapPx: Float? = null,
         ): GridGeometry {
-            // Real Windows Phone's own Start-screen outer grid margin
-            // (launcher.js's --side: 9px on a 393px reference) — reinstated
-            // after a brief edge-to-edge experiment; see DECISIONS.md.
-            val side = totalWidthPx * (9f / 393f)
+            // Tiles fill the screen width; the outer margin (sides and top)
+            // equals the gap between tiles, so outlines at the screen edge stay
+            // visible (user-requested after a 0 margin let tiles touch the corners).
             val gap = gapPx ?: (totalWidthPx * (3f / 393f))
-            val topPad = totalWidthPx * (10f / 393f)
+            val side = gap
+            val topPad = gap
             val unit = (totalWidthPx - 2 * side - (columns - 1) * gap) / columns
             return GridGeometry(side, gap, unit, topPad)
         }

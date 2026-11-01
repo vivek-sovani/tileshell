@@ -274,6 +274,50 @@ labeled sections — "New features:" and "Bugs fixed:" — each a short bulleted
 "• New: / • Improved: / • Fixed:" per-line style used in every entry before this one (those keep their
 original format as the historical record, unchanged). Still capped at Play's 500-character limit.*
 
+## Release notes (v5.5.0)
+
+*Everything added after 5.3.0. versionCode 550. 5.3.0 (530) was never uploaded; 5.5.0 supersedes it, so upload this build instead.*
+
+### Play-facing blurb (500 chars max)
+```
+TileShell 5.5.0
+
+New features:
+• Music + videos hub: videos from folders you pick, video and ott apps
+• Hubs and apps grow out of the tile you tap
+• Podcasts and songs resume where you left; next unplayed episode plays on
+• Pick the number to call when a contact has several
+• Hub colour: same as tiles or your accent
+• Landscape wallpaper scrolls across Start pages
+• Lightning bolt on the battery gauge while charging
+
+Bugs fixed:
+• Returning from an app keeps your page
+• Tiles no longer stay half flipped
+```
+
+### Full changelog since v5.3.0 (for reference, not the Play-facing blurb above)
+
+**Music + videos.** The music hub is now "music + videos": a videos page with videos from folders picked in the system folder picker (no storage permission), opened in the phone's default player; a "video and ott" apps section; editable apps lists (add, drag between sections, take off; most used first); a tile for the apps page. Podcast episodes keep their position, the last song resumes, played episodes are marked "played" or show the time left, and a finished episode goes on to the next newer unplayed one.
+
+**Motion.** Hubs open by growing out of the tapped tile and close back into it. Launched apps grow out of the tile as a colour plate with the app icon (the wallpaper's most prominent colour when a wallpaper is set) and shrink back on return. The home window shows the wallpaper, so apps open with the system's quick fade instead of sliding in from the right.
+
+**Colour.** Hubs, sheets and the app list follow the wallpaper's colour when tiles take theirs from the wallpaper, with a "hub colour" choice in personalize (same as tiles, or the chosen accent).
+
+**People.** Call, message and whatsapp buttons let you pick the number when a contact has several; the hub's search box takes focus when opened.
+
+**Wallpaper.** Wide windows show the whole landscape wallpaper; a landscape wallpaper can scroll across Start pages (also behind tiles).
+
+**Battery.** A lightning bolt on the battery gauge while charging (tile, widget, quick panel).
+
+**Fixes.** Returning from an app lands on the page you left, not the first Start page. A tile no longer stays part-way through a flip after the screen goes off, a notification clears or a face changes.
+
+### Play Console checklist for 5.5.0 (upload day)
+
+Build: `release-out/tileshell-5.5.0-release.aab`, versionCode 550, signed with the upload key (cert SHA-256 1a904ad5…), no `RECORD_AUDIO`. The 5.3.0 and older checklist below still applies (accessibility video, Auto, large-screen screenshots, staged rollout). Add: the videos page needs no declaration (folder picker, no `READ_MEDIA_VIDEO`); update the privacy policy / listing text if they mention music only.
+
+---
+
 ## Release notes (v5.3.0)
 
 *Everything added after 5.0.0, folded into one release. versionCode 530. It was built as 5.1.0 (versionCode 510) until Play Console reported 510 already used on 2026-10-12, then as 5.2.0 (versionCode 520), which was uploaded and discarded in Play Console because the live tv player left the screen held on (the screen timeout never fired; fixed in 5.3.0). The release notes below are unchanged from 5.2.0 apart from the version. See the checklist below.*

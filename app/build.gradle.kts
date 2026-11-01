@@ -661,8 +661,11 @@ android {
         //   5.3.0 (530): 5.2.0 (520) was uploaded and discarded in Play Console because of the live tv
         //   player leaving the screen held on (screen timeout never fired; fixed in NewsHubScreen), so the
         //   same release ships as 5.3.0 with that fix and nothing else added.
-        versionCode = 530
-        versionName = "5.3.0"
+        //   5.5.0 (550): music + videos hub, hubs and launched apps grow out of the tapped tile,
+        //   podcast / song resume, hub colour choice, people number picker, landscape wallpaper,
+        //   flip and return-from-app fixes (see docs/PLAY_STORE.md "Release notes (v5.5.0)").
+        versionCode = 550
+        versionName = "5.5.0"
     }
 
     // Task reminders kill switch (gradle.properties → tileshell.taskReminders).
