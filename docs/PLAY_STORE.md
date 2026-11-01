@@ -1,6 +1,6 @@
 # TileShell — Play Store Listing & Data Safety
 
-*Updated for v5.3.0 (everything since 5.0.0; 5.1.0 and 5.2.0 were burned in Play) — listing texts refreshed 2026-10-11; release notes and checklist below*
+*Updated for v5.5.0 (everything since 5.0.0; 5.1.0 and 5.2.0 were burned in Play, 5.3.0 never uploaded) — listing texts refreshed 2026-10-11; release notes and checklist below*
 
 ---
 
@@ -20,7 +20,7 @@ visible impact for existing users and wasn't part of this ask.)*
 
 ### Full description (4 000 chars max)
 
-*Updated 2026-10-11 (for the build now numbered 5.3.0). Written against the two earlier rejections and Play's metadata policy: the optional Accessibility Service is disclosed in its own section and names exactly the three actions it performs (rejection 2026-10-08); headings are plain words with no star symbols, no ALL CAPS gimmicks, no repeated keywords and no claims that are not in the app; a line says TileShell is independent of Microsoft; every feature that reads notifications, messages or usage says so. If Play objects again, shorten the hubs list first.*
+*Updated 2026-10-11 (for the build now numbered 5.5.0). Written against the two earlier rejections and Play's metadata policy: the optional Accessibility Service is disclosed in its own section and names exactly the three actions it performs (rejection 2026-10-08); headings are plain words with no star symbols, no ALL CAPS gimmicks, no repeated keywords and no claims that are not in the app; a line says TileShell is independent of Microsoft; every feature that reads notifications, messages or usage says so. If Play objects again, shorten the hubs list first.*
 
 ```
 TileShell is a launcher for Android that recreates the Start screen of Windows Phone and Windows 10 Mobile, built from scratch in Kotlin with original icons. It is an independent app and is not affiliated with or endorsed by Microsoft.
@@ -253,7 +253,7 @@ cert SHA-256 1a904ad5…), keyboard left out. Permissions new since 4.5.0:
 9. **Usage access / device admin / battery exemption** — usage access and battery exemption
    are user-granted special access, explained in the policy; the device-admin receiver (screen
    lock on Android 8–9) and battery exemption shipped in 4.5.0 unchanged.
-10. **Store listing** — (5.0.0 figures; the 5.3.0 texts are 65 / 80 and 3909 / 4000 chars) release notes under 500 (below), no
+10. **Store listing** — (5.0.0 figures; the 5.5.0 texts are 65 / 80 and 3909 / 4000 chars) release notes under 500 (below), no
     keyboard mentions; app icon and screenshots use original glyphs, no Microsoft assets.
     Consider adding hub screenshots (not required).
 11. **Upload** — `release-out/tileshell-5.0.0-release.aab` (signed; Play App Signing re-signs).
@@ -276,27 +276,32 @@ original format as the historical record, unchanged). Still capped at Play's 500
 
 ## Release notes (v5.5.0)
 
-*Everything added after 5.3.0. versionCode 550. 5.3.0 (530) was never uploaded; 5.5.0 supersedes it, so upload this build instead.*
+*Everything added after 5.0.0, folded into one release (the earlier 5.3.0 build, versionCode 530, was never uploaded, so its notes are merged in here). versionCode 550. History of the number: built as 5.1.0 (510), 5.2.0 (520, uploaded and discarded in Play Console because the live tv player left the screen held on) and 5.3.0 (530, with that fix), then 5.5.0 with the additions listed first below.*
 
 ### Play-facing blurb (500 chars max)
 ```
 TileShell 5.5.0
 
 New features:
-• Music + videos hub: videos from folders you pick, video and ott apps
+• Music + videos hub
 • Hubs and apps grow out of the tile you tap
-• Podcasts and songs resume where you left; next unplayed episode plays on
-• Pick the number to call when a contact has several
-• Hub colour: same as tiles or your accent
-• Landscape wallpaper scrolls across Start pages
-• Lightning bolt on the battery gauge while charging
+• Dual-screen and foldable layouts
+• Android Auto: music, podcasts, radio
+• New hubs: markets, sports, news, clock, shopping, health
+• Long-press a tile for quick actions
+• Windows Phone flip on live tiles
+• Panchang in 8 languages, news in 13
+• Podcasts resume where you left
 
 Bugs fixed:
+• Less battery use
 • Returning from an app keeps your page
-• Tiles no longer stay half flipped
+• Tile flip, drag and backup fixes
 ```
 
-### Full changelog since v5.3.0 (for reference, not the Play-facing blurb above)
+### Full changelog since v5.0.0 (for reference, not the Play-facing blurb above)
+
+#### Added since 5.3.0
 
 **Music + videos.** The music hub is now "music + videos": a videos page with videos from folders picked in the system folder picker (no storage permission), opened in the phone's default player; a "video and ott" apps section; editable apps lists (add, drag between sections, take off; most used first); a tile for the apps page. Podcast episodes keep their position, the last song resumes, played episodes are marked "played" or show the time left, and a finished episode goes on to the next newer unplayed one.
 
@@ -312,37 +317,7 @@ Bugs fixed:
 
 **Fixes.** Returning from an app lands on the page you left, not the first Start page. A tile no longer stays part-way through a flip after the screen goes off, a notification clears or a face changes.
 
-### Play Console checklist for 5.5.0 (upload day)
-
-Build: `release-out/tileshell-5.5.0-release.aab`, versionCode 550, signed with the upload key (cert SHA-256 1a904ad5…), no `RECORD_AUDIO`. The 5.3.0 and older checklist below still applies (accessibility video, Auto, large-screen screenshots, staged rollout). Add: the videos page needs no declaration (folder picker, no `READ_MEDIA_VIDEO`); update the privacy policy / listing text if they mention music only.
-
----
-
-## Release notes (v5.3.0)
-
-*Everything added after 5.0.0, folded into one release. versionCode 530. It was built as 5.1.0 (versionCode 510) until Play Console reported 510 already used on 2026-10-12, then as 5.2.0 (versionCode 520), which was uploaded and discarded in Play Console because the live tv player left the screen held on (the screen timeout never fired; fixed in 5.3.0). The release notes below are unchanged from 5.2.0 apart from the version. See the checklist below.*
-
-### Play-facing blurb (500 chars max)
-```
-TileShell 5.3.0
-
-New features:
-• Dual-screen and foldable layouts (Surface Duo, Galaxy Z Fold)
-• Android Auto: music, podcasts, radio
-• New hubs: markets, sports, news, clock, shopping, health
-• Long-press a tile for quick actions
-• Real Windows Phone flip on live tiles
-• App list: left rail, square tiles
-• Panchang in 8 languages
-• News in 13 languages, China, Taiwan
-• Add personalize to quick settings
-
-Bugs fixed:
-• Less battery use from live tiles
-• Dragging, resizing and backup fixes
-```
-
-### Full changelog since v5.0.0 (for reference — not the Play-facing blurb above)
+#### Added in 5.1.0 to 5.3.0 (since 5.0.0)
 
 **Android Auto.** TileShell Music in the car: library, playlists, favourite podcasts (with episodes) and favourite radio stations with recently played under each; voice search ("play a show, station, artist or song", also through the assistant); a heart on now playing for shows and stations. One media session shared with the lock screen and Bluetooth controls. Behind the `tileshell.androidAuto` switch.
 
@@ -368,12 +343,12 @@ Bugs fixed:
 
 **Fixes and battery.** Battery audit of the background work (battery log, Bing, health sampler, weather, notification capture, animations, icons); opening an app clears its notification count; dragging tiles no longer carries a small tile to the next page by accident and small tiles drag from anywhere; a wallpaper type keeps its own pick; "play X" voice requests reach TileShell; timer chime plays on the alarm stream; Bluetooth music resumes after a disconnect.
 
-### Play Console checklist for 5.3.0 (upload day)
+### Play Console checklist for 5.5.0 (upload day)
 
-Build: `release-out/tileshell-5.3.0-release.aab`, versionCode 530 (510 and 520 are used in Play; check the Console for the highest code before uploading), targetSdk 36, signed with the upload key (cert SHA-256 1a904ad5…), no `RECORD_AUDIO`.
+Build: `release-out/tileshell-5.5.0-release.aab`, versionCode 550 (510, 520 and 530 are not available or never uploaded; check the Console for the highest code before uploading), targetSdk 36, signed with the upload key (cert SHA-256 1a904ad5…), no `RECORD_AUDIO`.
 
 **A. Before you open the Play Console (on this Mac / a device)**
-- [ ] Check the AAB is the one just built (`jarsigner -verify` says "jar verified"; the file date is 2026-10-14).
+- [ ] Check the AAB is the one just built (`jarsigner -verify` says "jar verified"; check the file date).
 - [ ] Hosted privacy policy is live at https://vivek-sovani.github.io/tileshell/ and matches `docs/index.html` (checked 2026-10-12: it lists Android Auto, shopping, Yahoo / ESPN, usage access). Re-read it against anything added since 2026-10-09 (Chinese wallets, dual-screen: no new data).
 - [ ] Fresh-install run on a phone: setup wizard, welcome card, then the system's "add tile" dialog for the quick settings tile (Android 13+). Not yet seen end to end.
 - [ ] Real Duo / Fold pass (only the emulator and a first look at the Duo so far): every hub spans both screens, the bar's right-hand buttons act on the right section, the section pivot jumps, setup / welcome cards keep to one screen, fold and unfold keeps state.
@@ -382,7 +357,7 @@ Build: `release-out/tileshell-5.3.0-release.aab`, versionCode 530 (510 and 520 a
 
 **B. Store listing (paste by hand; nothing syncs from the repo)**
 - [ ] Short description (65 / 80) and full description (3909 / 4000) from "Store Listing" above, including the two disclosure sections (notification access, accessibility service).
-- [ ] "What's new" blurb from "Play-facing blurb" above (492 / 500).
+- [ ] "What's new" blurb from "Play-facing blurb" above (480 / 500).
 - [ ] Screenshots: phone as before. **Add large-screen ones**: 7" and 10" tablet / foldable screenshots (a Duo or Fold spanned screen: Start beside the glance page, a hub across both screens). Without them Play shows the app as phone-only on large screens.
 - [ ] Form factors: tick **Android Auto** (Release > Setup > Advanced settings). Tablets / foldables need nothing extra: the manifest has no orientation lock and no required hardware features, and the app is resizable.
 
@@ -394,6 +369,7 @@ Build: `release-out/tileshell-5.3.0-release.aab`, versionCode 530 (510 and 520 a
 
 **D. Release**
 - [ ] Upload the AAB to **closed testing** first (Android for Cars review for the Auto form factor; wait for its result before production).
+- [ ] Videos page (new in 5.5.0): needs no declaration (folder picker, no `READ_MEDIA_VIDEO`); mention it in the reviewer notes. Update the privacy policy / listing text if they mention music only.
 - [ ] Reviewer notes: TileShell is a launcher (set as default Home) whose Music hub is a full media app. Grant "music access" when asked; play a song, a favourite podcast episode and a radio station.
 - [ ] Look at the **pre-launch report** (crashes on the Play test devices, including foldables) and Android vitals after rollout.
 - [ ] Promote to production with a **staged rollout** (20% then up). If the Auto review blocks it, set `tileshell.androidAuto=false` in `gradle.properties`, rebuild at a new versionCode, and ship the rest without it.
