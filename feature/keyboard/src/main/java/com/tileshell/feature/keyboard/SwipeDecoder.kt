@@ -15,9 +15,9 @@ data class Pt(val x: Float, val y: Float)
  */
 class SwipeDecoder(
     /** Letter → key centre. */
-    private val centres: Map<Char, Pt>,
+    val centres: Map<Char, Pt>,
     /** One key's width, the unit distances are measured in. */
-    private val keyWidth: Float,
+    val keyWidth: Float,
     /**
      * Corner rounding applied to both the finger's path and each word's ideal path
      * before they are compared (a moving average over ±[smoothing] of the 32 samples):

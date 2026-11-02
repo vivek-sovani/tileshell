@@ -370,13 +370,12 @@ internal fun KeyArea(
                             if (!cancelled && dec != null) {
                                 // The path is read as the touches are: moved by what was learned about this thumb.
                                 val d = density.density
-                                ctl.onSwipe(
-                                    t.path.map { o ->
-                                        val (bx, by) = if (ctl.adaptTouch) calibration.bias(zoneOf(o)) else 0f to -TouchCalibration.DEFAULT_DY.toFloat()
-                                        Pt(o.x + bx * d, o.y + by * d)
-                                    },
-                                    dec,
-                                )
+                                val shifted = t.path.map { o ->
+                                    val (bx, by) = if (ctl.adaptTouch) calibration.bias(zoneOf(o)) else 0f to -TouchCalibration.DEFAULT_DY.toFloat()
+                                    Pt(o.x + bx * d, o.y + by * d)
+                                }
+                                GlideLog.begin(shifted, dec.centres, dec.keyWidth)
+                                ctl.onSwipe(shifted, dec)
                             }
                         }
                     }

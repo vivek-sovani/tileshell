@@ -297,6 +297,17 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
                     .padding(vertical = 8.dp),
                 style = TextStyle(color = accent, fontSize = 22.sp, fontWeight = FontWeight.Light),
             )
+            BasicText(
+                "start the glide test  ›",
+                modifier = Modifier
+                    .clickable { context.startActivity(android.content.Intent(context, GlideTestActivity::class.java)) }
+                    .padding(vertical = 8.dp),
+                style = TextStyle(color = accent, fontSize = 22.sp, fontWeight = FontWeight.Light),
+            )
+            Note(
+                "The glide test: swipe 40 words on this keyboard (English), the way you usually do; it records the swipes so glide typing can be checked and tuned on your thumbs, and you can share the result.",
+                tokens,
+            )
             Note(
                 "Type eight short sentences with whichever keyboard is on, with no suggestions, to compare keyboards. " +
                     "With this keyboard it also shows where your taps land and which keys get mixed up. Nothing is saved or sent.",

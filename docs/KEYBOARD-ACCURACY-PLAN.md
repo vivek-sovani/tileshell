@@ -216,10 +216,19 @@ likely words get a bonus up to 0.5 key widths, so "too / to", "these / there"
 follow what was written; English only). Unit-tested; the context gain is not
 measured (the harness has no sentences).
 
-Not done, in the order worth doing: (a) a **glide test** in keyboard settings like
+**Glide test built (2026-11-02):** keyboard settings › "start the glide test": 40 words
+(short and long, doubled letters, look-alikes) to swipe on TileShell's keyboard in
+English; it shows what the decoder gave after each, then a result (right word first /
+in the top three, every miss) and "share the result and recordings" (text with every
+path in pixels). `GlideLog` records only while the screen is open. Offline: save the
+shared text under `feature/keyboard/glide-recordings/` (git-ignored) and run
+`GlideReplayTest` with `-i` to replay the swipes against the decoder as it is now, and
+tune on them.
+
+Not done, in the order worth doing: (a) ~~a **glide test** in keyboard settings like
 the typing test, recording real swipes for known words and replaying the decoder
 offline: the only way to know what real thumbs do and to tune weights
-(`FREQUENCY_WEIGHT`, `END_WEIGHT`, radii) on that, not on a simulation;
+(`FREQUENCY_WEIGHT`, `END_WEIGHT`, radii) on that, not on a simulation~~ (built, see above; now use it);
 (b) use speed: a finger slows and turns at letters, so slow-down and corner points
 are letter evidence (what SHARK2-style decoders use); (c) score a word by the keys
 the path passes through in order, softly, instead of the hard "missed more than one

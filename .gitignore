@@ -30,3 +30,6 @@ release-out/
 # Word lock/temp files
 ~$*
 press-images/
+
+# Real swipes shared from the glide test (personal typing data)
+feature/keyboard/glide-recordings/

@@ -652,6 +652,7 @@ class KeyboardController(
                     }
                 }
             }
+            GlideLog.decoded(results.map { it.word.lowercase() })
             if (words.isEmpty()) return@launch
             val ic = service.currentInputConnection ?: return@launch
             val before = ic.getTextBeforeCursor(1, 0)
