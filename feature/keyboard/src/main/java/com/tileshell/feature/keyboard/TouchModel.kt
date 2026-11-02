@@ -72,6 +72,31 @@ class TouchModel(
         return best
     }
 
+    /**
+     * How well a touch at ([x], [y]) fits each letter a–z, as log-likelihoods
+     * (0 for a touch dead on a key's centre, more negative the further away):
+     * what the spatial autocorrect keeps for each letter of a word, to tell a
+     * touch that was clearly on the key from one that nearly landed on its neighbour.
+     */
+    fun evidence(boxes: List<List<KeyBox>>, rows: List<KeyRow>, x: Float, y: Float): DoubleArray {
+        val out = DoubleArray(26) { -EVIDENCE_FLOOR }
+        for (r in boxes.indices) {
+            for (i in boxes[r].indices) {
+                val key = rows[r].keys[i]
+                if (!isLetter(key)) continue
+                val b = boxes[r][i]
+                val dx = (x - b.centerX) / b.width
+                val dy = (y - b.centerY) / b.width
+                out[key.label[0] - 'a'] = -(dx * dx + dy * dy) / (2.0 * sigma * sigma)
+            }
+        }
+        return out
+    }
+
+    private companion object {
+        const val EVIDENCE_FLOOR = 60.0
+    }
+
     private fun isLetter(key: Key) = key.kind == KeyKind.CHAR && key.label.length == 1 && key.label[0] in 'a'..'z'
 }
 

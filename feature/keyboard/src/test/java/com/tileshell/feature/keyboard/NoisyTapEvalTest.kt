@@ -196,6 +196,67 @@ class NoisyTapEvalTest {
         }
     }
 
+    private class Typed(val text: String, val evidence: List<DoubleArray>)
+
+    private fun typeWord(chooser: Chooser, s: Scenario, word: String, rnd: Random): Typed {
+        val text = StringBuilder()
+        val evidence = ArrayList<DoubleArray>()
+        val tm = TouchModel()
+        for (ch in word) {
+            val c = centres.getValue(ch)
+            val x = c.x + (s.dx + rnd.nextGaussian().toFloat() * s.sigma) * keyWidth
+            val y = c.y + (s.dy + rnd.nextGaussian().toFloat() * s.sigma) * keyWidth
+            val (r, i) = chooser.choose(boxes, x, y, text.toString()) ?: continue
+            if (rows[r].keys[i].kind != KeyKind.CHAR) continue
+            text.append(rows[r].keys[i].label)
+            evidence += tm.evidence(boxes, rows, x, y + BIAS_PX)
+        }
+        chooser.endWord()
+        return Typed(text.toString(), evidence)
+    }
+
+    @Test
+    fun `spatial autocorrect against plain`() {
+        val chooser = smart()
+        for (s in scenarios.drop(1).take(2)) {
+            val rnd = Random(11)
+            var mistyped = 0
+            var plainFixed = 0
+            var spatialFixed = 0
+            for (word in common().filter { it.length >= 4 }) {
+                val t = typeWord(chooser, s, word, rnd)
+                if (t.text == word || english.lookup(t.text) != null) continue
+                mistyped++
+                fun top(ev: List<DoubleArray>?) =
+                    Suggester.candidates(t.text, english, AutocorrectLevel.BALANCED, secondEdits = false, evidence = ev)
+                        .firstOrNull()?.entry?.word?.lowercase()
+                if (top(null) == word) plainFixed++
+                if (top(t.evidence) == word) spatialFixed++
+            }
+            // Names, codes and slang typed correctly: how often the keyboard wrongly changes them.
+            var typedRight = 0
+            var plainWrong = 0
+            var spatialWrong = 0
+            val rnd2 = Random(5)
+            for (word in reversed()) {
+                val t = typeWord(chooser, s, word, rnd2)
+                if (t.text != word || english.lookup(word) != null) continue
+                typedRight++
+                if (Suggester.correction(t.text, english, AutocorrectLevel.BALANCED, secondEdits = false) != null) plainWrong++
+                if (Suggester.correction(t.text, english, AutocorrectLevel.BALANCED, secondEdits = false, evidence = t.evidence) != null) spatialWrong++
+            }
+            println(
+                "SPATIAL ${s.name}: mistyped words fixed to the right word — plain ${"%.1f".format(plainFixed * 100.0 / mistyped)}%, " +
+                    "with touch evidence ${"%.1f".format(spatialFixed * 100.0 / mistyped)}% (of $mistyped);  " +
+                    "correct non-words wrongly changed — plain ${"%.1f".format(plainWrong * 100.0 / typedRight)}%, " +
+                    "with touch evidence ${"%.1f".format(spatialWrong * 100.0 / typedRight)}% (of $typedRight)",
+            )
+            // The touch evidence never makes corrections worse than plain edit distance does.
+            assertTrue("${s.name}: fixed $spatialFixed vs $plainFixed", spatialFixed >= plainFixed)
+            assertTrue("${s.name}: wrongly changed $spatialWrong vs $plainWrong", spatialWrong <= plainWrong)
+        }
+    }
+
     @Test
     fun `parameter sweep`() {
         if (System.getProperty("sweep") == null && System.getenv("TOUCH_SWEEP") == null) return

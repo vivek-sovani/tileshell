@@ -72,7 +72,17 @@ private val POPUP_INSET = 4.dp
 private val CURSOR_START = 12.dp
 private val CURSOR_STEP = 10.dp
 
-private class Touch(val keyId: String, val key: Key, val box: KeyBox, val down: Offset, val downAt: Long) {
+/** The key a touch went to, and how well the touch fitted each letter (for spatial autocorrect). */
+private class HitResult(val keyId: String, val key: Key, val box: KeyBox, val evidence: DoubleArray?)
+
+private class Touch(
+    val keyId: String,
+    val key: Key,
+    val box: KeyBox,
+    val down: Offset,
+    val downAt: Long,
+    val evidence: DoubleArray? = null,
+) {
     var mode = Mode.PRESS
 
     /** The key already acted (backspace, shift, or an earlier key committed by a later one). */
@@ -191,16 +201,23 @@ internal fun KeyArea(
                     }
                 }
 
-                fun hit(p: Offset): Triple<String, Key, KeyBox>? {
+                fun hit(p: Offset): HitResult? {
                     val b = currentBoxes()
                     // A fingertip lands a little above where it's aimed; read it a touch lower,
                     // so the row above doesn't fire by accident.
                     // The touch is moved by this person's learned offset (else the default 4dp lower), then
                     // likely next letters get the bigger target (smart touch); else the nearest key.
                     val (bx, by) = if (ctl.adaptTouch) calibration.bias(zoneOf(p)) else 0f to -TouchCalibration.DEFAULT_DY.toFloat()
-                    val (r, i) = touchModel.choose(b, currentRows, p.x + px(bx.dp), p.y + px(by.dp), ctl.touchPriors()) ?: return null
+                    val tx = p.x + px(bx.dp)
+                    val ty = p.y + px(by.dp)
+                    val (r, i) = touchModel.choose(b, currentRows, tx, ty, ctl.touchPriors()) ?: return null
                     val key = currentRows[r].keys[i]
-                    return Triple(keyId(r, i, key), key, b[r][i])
+                    val evidence = if (key.kind == KeyKind.CHAR && ctl.layer == KeyboardLayer.LETTERS && !ctl.devanagariKeys) {
+                        touchModel.evidence(b, currentRows, tx, ty)
+                    } else {
+                        null
+                    }
+                    return HitResult(keyId(r, i, key), key, b[r][i], evidence)
                 }
 
                 fun swipeDecoder(): SwipeDecoder? {
@@ -245,16 +262,19 @@ internal fun KeyArea(
                 }
 
                 fun onDown(id: PointerId, pos: Offset) {
-                    val (keyId, key, box) = hit(pos) ?: return
+                    val h = hit(pos) ?: return
+                    val keyId = h.keyId
+                    val key = h.key
+                    val box = h.box
                     // A new key commits a letter still held, keeping fast typing in order.
                     for (other in touches.values) {
                         if (other.mode == Touch.Mode.PRESS && !other.done && other.key.kind in TYPED_ON_LIFT) {
                             other.timer?.cancel()
                             other.done = true
-                            ctl.onKey(other.key)
+                            ctl.onKey(other.key, other.evidence)
                         }
                     }
-                    val t = Touch(keyId, key, box, pos, System.currentTimeMillis())
+                    val t = Touch(keyId, key, box, pos, System.currentTimeMillis(), h.evidence)
                     touches[id] = t
                     recordTap(key, pos, box)
                     learn(key, pos, box, t.downAt)
@@ -334,7 +354,7 @@ internal fun KeyArea(
                 fun onUp(t: Touch, cancelled: Boolean) {
                     t.timer?.cancel()
                     when (t.mode) {
-                        Touch.Mode.PRESS -> if (!t.done && !cancelled) ctl.onKey(t.key)
+                        Touch.Mode.PRESS -> if (!t.done && !cancelled) ctl.onKey(t.key, t.evidence)
                         Touch.Mode.POPUP -> {
                             val p = popup
                             popup = null

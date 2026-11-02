@@ -143,6 +143,29 @@ lift instead of touch-down is left until the typing test shows whether it is nee
   the neighbouring key becomes a strong candidate; a clean tap is trusted.
 - Tune against K1's harness with the existing accuracy floors.
 
+**K4 done (2026-11-02).** Each letter typed on the letter keys keeps how well its
+touch fitted every letter (`TouchModel.evidence`, log-likelihoods) in the
+controller's `wordTaps`, kept in step with the field (`syncWordTaps`: a deleted
+letter's touch goes, a changed word clears them all, and evidence is used only when
+the touches spell exactly the word). `Suggester.correction` / `strip` / `candidates`
+take it: a substitution costs `4 × (how much better the touch fitted the typed
+letter than the one put back)`, between 3 and 50 (was a flat 15 for a
+neighbouring key, 45 otherwise). Only the first edit uses it; two-edit searches
+and transposition / insertion / deletion are unchanged. Scale and cap picked by a
+sweep (`NoisyTapEvalTest`, fast typist, mistyped common words):
+
+| | plain | with touch evidence |
+|---|---|---|
+| mistyped real words fixed to the right word | 79.0% | 82.0% |
+| correctly typed non-words wrongly changed | 25.5% | 22.9% |
+
+A modest gain: most wrong-key errors are already caught by edit distance and
+frequency, and a larger penalty scale lowered the fix rate. Normal typist: 90.5%
+to 90.5% fixed, 24.5% to 23% wrongly changed (few mistyped words to learn from).
+The 23-25% of correct non-words that get changed is high for both: reversed
+words sit one edit from real ones, so it is a harsh test, but it says the
+autocorrect level is eager for unknown words (a separate question from touch).
+
 ### K5 — Geometry and feel
 - Settings for key height scale, key gap and side padding; try the WP-like
   values (tight gaps, full-width keys) and compare in the typing test. Because

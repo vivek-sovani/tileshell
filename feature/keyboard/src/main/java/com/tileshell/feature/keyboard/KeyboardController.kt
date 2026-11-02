@@ -128,6 +128,13 @@ class KeyboardController(
 
     /** The letters typed so far in the current word (English letters), or null when unknown; read by [touchPriors]. */
     private var touchPrefix: String? = null
+
+    /**
+     * The letters of the word being typed on this keyboard, each with how well its
+     * touch fitted every letter (null when unknown): lets autocorrect tell a touch
+     * that nearly landed on the neighbouring key from one that was clearly on its key.
+     */
+    private val wordTaps = ArrayList<Pair<Char, DoubleArray?>>()
     private var prefixModel: Pair<Lexicon, PrefixLetterModel>? = null
     private var fieldMode = FieldMode.NO_SUGGESTIONS
     private var learnHere = false
@@ -261,7 +268,7 @@ class KeyboardController(
         refresh()
     }
 
-    fun onKey(key: Key) {
+    fun onKey(key: Key, evidence: DoubleArray? = null) {
         if (emojiSearch && searchKey(key)) return
         val wasSpace = previousKeyWasSpace
         val undo = lastCorrection
@@ -272,7 +279,11 @@ class KeyboardController(
             KeyKind.CHAR -> when {
                 devanagariKeys -> commit(if (fullVowels && key.independent != null) key.independent else key.label)
                 translit -> compose(if (shift.upperCase) key.label.uppercase() else key.label)
-                else -> commit(if (shift.upperCase) key.label.uppercase() else key.label)
+                else -> {
+                    val c = key.label.singleOrNull()?.lowercaseChar()
+                    if (c != null && c in 'a'..'z') wordTaps += c to evidence else wordTaps.clear()
+                    commit(if (shift.upperCase) key.label.uppercase() else key.label)
+                }
             }
             KeyKind.SYMBOL -> when {
                 translit -> {
@@ -789,7 +800,7 @@ class KeyboardController(
         // A capital typed mid-sentence is a name: leave it.
         val beforeWord = before.subSequence(0, before.length - word.length)
         if (word[0].isUpperCase() && !TypingRules.sentenceStart(beforeWord)) return false
-        val fix = Suggester.correction(word, lex, settings.level) ?: return false
+        val fix = Suggester.correction(word, lex, settings.level, evidence = wordEvidence(word)) ?: return false
         replaceWord(word, fix, separator)
         lastCorrection = Correction(word, fix, separator)
         return true
@@ -861,6 +872,29 @@ class KeyboardController(
         audio?.playSoundEffect(effect, -1f)
     }
 
+    /** The touches behind [word] (as it stands in the field), or null unless they spell exactly these letters. */
+    private fun wordEvidence(word: String): List<DoubleArray>? {
+        if (wordTaps.size != word.length || word.isEmpty()) return null
+        val lower = word.lowercase()
+        val out = ArrayList<DoubleArray>(word.length)
+        for ((i, tap) in wordTaps.withIndex()) {
+            if (tap.first != lower[i]) return null
+            out += tap.second ?: return null
+        }
+        return out
+    }
+
+    /** Drops touches the field no longer shows: a deleted letter's, or all of a word that's gone or changed. */
+    private fun syncWordTaps(word: String) {
+        if (word.isEmpty()) {
+            wordTaps.clear()
+            return
+        }
+        val lower = word.lowercase()
+        val kept = wordTaps.indices.takeWhile { it < lower.length && wordTaps[it].first == lower[it] }.size
+        if (kept < lower.length) wordTaps.clear() else while (wordTaps.size > kept) wordTaps.removeAt(wordTaps.lastIndex)
+    }
+
     private fun typedWord(): String {
         val ic = service.currentInputConnection ?: return ""
         val after = ic.getTextAfterCursor(1, 0)?.firstOrNull()
@@ -909,6 +943,7 @@ class KeyboardController(
         val before = ic?.getTextBeforeCursor(CONTEXT_CHARS, 0)
         fullVowels = !TypingRules.endsInConsonant(before)
         val afterChar = ic?.getTextAfterCursor(1, 0)?.firstOrNull()
+        syncWordTaps(if (translit || devanagariKeys) "" else TypingRules.currentWord(before, afterChar))
         touchPrefix = when {
             translit -> latin.toString().lowercase()
             afterChar != null && afterChar.isLetterOrDigit() -> null
@@ -983,8 +1018,9 @@ class KeyboardController(
         val autocorrect = settings.autocorrect && !devanagariKeys
         val level = settings.level
         val next = predictions(withoutCurrentWord(before), PREDICT_FOR_RANKING)
+        val evidence = wordEvidence(word)
         stripJob = scope.launch {
-            val words = withContext(Dispatchers.Default) { Suggester.strip(word, lex, level, autocorrect, next) }
+            val words = withContext(Dispatchers.Default) { Suggester.strip(word, lex, level, autocorrect, next, evidence) }
             strip = if (devanagariKeys) words else StripWord.withEmoji(words, emojiWords?.get(word))
         }
     }

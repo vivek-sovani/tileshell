@@ -1,5 +1,7 @@
 package com.tileshell.feature.keyboard
 
+import kotlin.math.roundToInt
+
 /** How readily a misspelt word is replaced on space (settings → autocorrect level). */
 enum class AutocorrectLevel(val label: String, val minScore: Int, val secondEditMinLength: Int) {
     MILD("mild", minScore = 130, secondEditMinLength = Int.MAX_VALUE),
@@ -58,6 +60,7 @@ object Suggester {
         lexicon: Lexicon,
         level: AutocorrectLevel,
         secondEdits: Boolean = true,
+        evidence: List<DoubleArray>? = null,
     ): String? {
         if (typed.isEmpty() || typed.any { it.isDigit() }) return null
         val lower = typed.lowercase()
@@ -67,7 +70,7 @@ object Suggester {
         }
         lexicon.shortcut(lower)?.let { return applyCase(typed, it) }
         if (typed.length < 2) return null
-        val best = candidates(lower, lexicon, level, secondEdits).firstOrNull() ?: return null
+        val best = candidates(lower, lexicon, level, secondEdits, evidence).firstOrNull() ?: return null
         return if (best.score >= level.minScore) applyCase(typed, best.entry.word) else null
     }
 
@@ -83,9 +86,10 @@ object Suggester {
         level: AutocorrectLevel,
         autocorrect: Boolean,
         next: List<String> = emptyList(),
+        evidence: List<DoubleArray>? = null,
     ): List<StripWord> {
         val lower = typed.lowercase()
-        val fix = if (autocorrect) correction(typed, lexicon, level, secondEdits = false) else null
+        val fix = if (autocorrect) correction(typed, lexicon, level, secondEdits = false, evidence = evidence) else null
         val known = lexicon.lookup(lower) != null
         val out = ArrayList<StripWord>(STRIP_SIZE)
         out += StripWord(typed, StripWord.Kind.TYPED, best = fix == null)
@@ -99,7 +103,7 @@ object Suggester {
         val completions = lexicon.completions(lower, STRIP_SIZE + 1)
             .filter { it.freq >= MIN_COMPLETION_FREQ }
             .map { applyCase(typed, it.word) }
-        val near = if (known) emptyList() else candidates(lower, lexicon, level, secondEdits = false)
+        val near = if (known) emptyList() else candidates(lower, lexicon, level, secondEdits = false, evidence = evidence)
             .take(STRIP_SIZE).map { applyCase(typed, it.entry.word) }
         val expected = next.filter { it.length > lower.length && it.lowercase().startsWith(lower) }
             .map { applyCase(typed, lexicon.lookup(it.lowercase())?.word ?: it) }
@@ -146,6 +150,7 @@ object Suggester {
         lexicon: Lexicon,
         level: AutocorrectLevel,
         secondEdits: Boolean = true,
+        evidence: List<DoubleArray>? = null,
     ): List<Candidate> {
         val scored = HashMap<String, Candidate>()
         fun consider(spelling: String, penalty: Int) {
@@ -156,7 +161,8 @@ object Suggester {
             val prev = scored[key]
             if (prev == null || prev.score < score) scored[key] = Candidate(e, score)
         }
-        val first = edits(lower)
+        // Where each touch landed, when the taps behind exactly these letters are known.
+        val first = edits(lower, evidence?.takeIf { it.size == lower.length })
         first.forEach { (s, p) -> consider(s, p) }
         val goodFirst = scored.values.any { it.score >= level.minScore }
         if (secondEdits && !goodFirst && lower.length >= level.secondEditMinLength) {
@@ -171,9 +177,12 @@ object Suggester {
     /**
      * Every spelling one edit from [w], with a penalty: neighbouring-key slips
      * and swapped letters cost little, a missing apostrophe nothing, an
-     * unrelated letter a lot.
+     * unrelated letter a lot. With [evidence] (how well each touch fitted each
+     * letter) a substitution costs by how much closer the touch was to the typed
+     * letter than to the one put back: a touch that nearly landed on the
+     * neighbouring key is cheap to change, one dead on its key is not.
      */
-    internal fun edits(w: String): List<Pair<String, Int>> {
+    internal fun edits(w: String, evidence: List<DoubleArray>? = null): List<Pair<String, Int>> {
         val out = ArrayList<Pair<String, Int>>(w.length * 60)
         for (i in w.indices) {
             // Deletion: an extra letter typed (a doubled one is the usual slip).
@@ -189,7 +198,9 @@ object Suggester {
             // Substitution.
             for (ch in ALPHABET) {
                 if (ch == w[i]) continue
-                val penalty = if (KeyProximity.near(w[i], ch)) 15 else 45
+                val penalty = if (evidence != null && w[i] in 'a'..'z') {
+                    spatialPenalty(evidence[i], w[i], ch)
+                } else if (KeyProximity.near(w[i], ch)) 15 else 45
                 out += (w.substring(0, i) + ch + w.substring(i + 1) to penalty)
             }
         }
@@ -204,6 +215,14 @@ object Suggester {
         return out
     }
 
+    /** Cost of reading the touch for [typed] as [instead], from how much better the touch fitted [typed]. */
+    internal fun spatialPenalty(ev: DoubleArray, typed: Char, instead: Char): Int =
+        ((ev[typed - 'a'] - ev[instead - 'a']) * SPATIAL_SCALE).roundToInt().coerceIn(SPATIAL_MIN, SPATIAL_MAX)
+
+    // Picked by a sweep over scale and cap in NoisyTapEvalTest (smaller scales and higher caps won).
+    private const val SPATIAL_SCALE = 4.0
+    private const val SPATIAL_MIN = 3
+    private const val SPATIAL_MAX = 50
     private const val MIN_COMPLETION_FREQ = 70
     private const val ALPHABET = "abcdefghijklmnopqrstuvwxyz"
     private const val SECOND_EDIT_CUTOFF = 25
