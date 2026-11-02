@@ -131,6 +131,7 @@ private fun GlideTestScreen() {
                                 if (sample?.decoded != null) {
                                     val round = GlideRound(goal, sample)
                                     rounds = rounds + round
+                                    saveGlideRecording(ctx, rounds)
                                     last = "got “${round.decoded.firstOrNull() ?: "nothing"}”" +
                                         (if (round.first) "  ✓" else if (round.topThree) "  (in the top three)" else "  ✗")
                                     index++
@@ -194,6 +195,18 @@ private fun GlideTestScreen() {
                 style = TextStyle(color = accent, fontSize = 18.sp, fontWeight = FontWeight.SemiBold),
             )
         }
+    }
+}
+
+/**
+ * Keeps the swipes so far in the app's folder on the phone (Android/data/com.tileshell/files/glide-last.txt),
+ * after every swipe, so a half-finished test is kept and the file can be copied off by cable
+ * (a shared text may be cut short by the app it is pasted into).
+ */
+internal fun saveGlideRecording(context: android.content.Context, rounds: List<GlideRound>) {
+    runCatching {
+        val dir = context.getExternalFilesDir(null) ?: return
+        java.io.File(dir, "glide-last.txt").writeText(glideReport(rounds) + "\n\n" + GlideLog.export(rounds.map { it.word to it.sample }))
     }
 }
 

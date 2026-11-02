@@ -38,6 +38,15 @@ class GlideReplayTest {
             val text = file.readText()
             val rec = GlideLog.parse(text.substring(text.indexOf("GLIDE 1").coerceAtLeast(0))) ?: continue
             val decoder = SwipeDecoder(rec.centres, rec.keyWidth)
+            for (s in rec.swipes) {
+                val ranked = decoder.decode(s.path, english, limit = 400)
+                val at = ranked.indexOfFirst { it.word.lowercase() == s.word }
+                val ends = "end ${s.path.last().let { e -> rec.centres.minByOrNull { SwipeDecoder.dist(it.value, e) }!!.key }}"
+                println(
+                    "REPLAY   ${s.word}: rank ${if (at < 0) "not a candidate" else (at + 1)} (score ${if (at < 0) "-" else "%.2f".format(ranked[at].score)}); " +
+                        "best ${ranked.take(3).joinToString { "${it.word} %.2f".format(it.score) }}; path ends nearest key ${ends}",
+                )
+            }
             var first = 0
             var three = 0
             val misses = ArrayList<String>()
