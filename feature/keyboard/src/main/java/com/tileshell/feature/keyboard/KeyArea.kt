@@ -367,7 +367,17 @@ internal fun KeyArea(
                         Touch.Mode.SWIPE -> {
                             trail = emptyList()
                             val dec = swipeDecoder()
-                            if (!cancelled && dec != null) ctl.onSwipe(t.path.map { Pt(it.x, it.y) }, dec)
+                            if (!cancelled && dec != null) {
+                                // The path is read as the touches are: moved by what was learned about this thumb.
+                                val d = density.density
+                                ctl.onSwipe(
+                                    t.path.map { o ->
+                                        val (bx, by) = if (ctl.adaptTouch) calibration.bias(zoneOf(o)) else 0f to -TouchCalibration.DEFAULT_DY.toFloat()
+                                        Pt(o.x + bx * d, o.y + by * d)
+                                    },
+                                    dec,
+                                )
+                            }
                         }
                     }
                     unlight(t, scope)

@@ -18,17 +18,31 @@ class SwipeDecoder(
     private val centres: Map<Char, Pt>,
     /** One key's width, the unit distances are measured in. */
     private val keyWidth: Float,
+    /**
+     * Corner rounding applied to both the finger's path and each word's ideal path
+     * before they are compared (a moving average over ±[smoothing] of the 32 samples):
+     * a hurried swipe cuts corners, and a word whose ideal path is rounded the same
+     * way still matches it.
+     */
+    private val smoothing: Int = 0,
+    /** How near the path must pass to a letter's key (key widths) for the letter to count as visited. */
+    private val followRadius: Float = FOLLOW_RADIUS,
+    /** How many of a word's letters the path may miss. */
+    private val maxMissed: Int = 1,
 ) {
 
     data class Result(val word: String, val score: Float)
 
     /**
      * The best words for [path] (finger samples, first to last), best first.
-     * [lexicon] supplies candidates by their first letter.
+     * [lexicon] supplies candidates by their first letter. [likely] are the words the
+     * text before makes likely next, most likely first: a word on it gets a bonus
+     * (more the nearer the top), which settles swipes whose shapes are alike
+     * ("too" / "to", "these" / "there") by what was just written.
      */
-    fun decode(path: List<Pt>, lexicon: Lexicon, limit: Int = 4): List<Result> {
+    fun decode(path: List<Pt>, lexicon: Lexicon, limit: Int = 4, likely: List<String> = emptyList()): List<Result> {
         if (path.size < 2 || centres.isEmpty()) return emptyList()
-        val user = resample(path, SAMPLES)
+        val user = smooth(resample(path, SAMPLES), smoothing)
         val userLength = length(path)
         val starts = nearKeys(path.first(), START_RADIUS)
         val ends = nearKeys(path.last(), END_RADIUS).toSet()
@@ -43,19 +57,22 @@ class SwipeDecoder(
                 // Every letter's key near the path — one may fall just outside on a
                 // long zigzag; it costs, but doesn't rule the word out.
                 val missed = missedKeys(keys, user)
-                if (missed > 1) continue
+                if (missed > maxMissed) continue
                 val idealPoints = keys.map { centres.getValue(it) }
-                val ideal = resample(idealPoints, SAMPLES)
+                val idealRaw = resample(idealPoints, SAMPLES)
+                val ideal = smooth(idealRaw, smoothing)
                 // A long swipe isn't a short word whose path happens to share its shape.
                 val lengthMismatch = kotlin.math.abs(
                     kotlin.math.ln((userLength + keyWidth) / (length(idealPoints) + keyWidth)),
                 )
                 val distance = meanDistance(user, ideal) / keyWidth
                 // Where a swipe starts and ends is the most deliberate part of it.
-                val ends = (dist(path.first(), ideal.first()) + dist(path.last(), ideal.last())) / keyWidth
+                val ends = (dist(path.first(), idealRaw.first()) + dist(path.last(), idealRaw.last())) / keyWidth
+                val rank = likely.indexOf(lower)
+                val context = if (rank < 0) 0f else CONTEXT_BONUS * (1f - rank / (likely.size + 1f))
                 val score = distance * DISTANCE_WEIGHT + ends * END_WEIGHT + lengthMismatch * LENGTH_WEIGHT +
                     missed * MISSED_KEY_WEIGHT +
-                    (255 - entry.freq) / 255f * FREQUENCY_WEIGHT
+                    (255 - entry.freq) / 255f * FREQUENCY_WEIGHT - context
                 results += Result(word, score)
             }
         }
@@ -87,10 +104,10 @@ class SwipeDecoder(
         for (k in keys) {
             val c = centres.getValue(k)
             var j = i
-            while (j < user.size && dist(user[j], c) > keyWidth * FOLLOW_RADIUS) j++
+            while (j < user.size && dist(user[j], c) > keyWidth * followRadius) j++
             if (j == user.size) {
                 missed++
-                if (missed > 1) return missed
+                if (missed > maxMissed) return missed
             } else {
                 i = j
             }
@@ -112,6 +129,26 @@ class SwipeDecoder(
         private const val END_WEIGHT = 0.35f
         private const val MISSED_KEY_WEIGHT = 0.4f
         private const val LENGTH_WEIGHT = 0.8f
+
+        /** Taken off the score of the likeliest next word, in the same units as the distance (key widths). */
+        private const val CONTEXT_BONUS = 0.5f
+
+        /** Moving average over ±[k] points (the ends are held), or the points as they are for k = 0. */
+        fun smooth(points: List<Pt>, k: Int): List<Pt> {
+            if (k <= 0) return points
+            return points.indices.map { i ->
+                var x = 0f
+                var y = 0f
+                var n = 0
+                for (d in -k..k) {
+                    val p = points[(i + d).coerceIn(0, points.lastIndex)]
+                    x += p.x
+                    y += p.y
+                    n++
+                }
+                Pt(x / n, y / n)
+            }
+        }
 
         fun length(points: List<Pt>): Float = points.zipWithNext().sumOf { (a, b) -> dist(a, b).toDouble() }.toFloat()
 

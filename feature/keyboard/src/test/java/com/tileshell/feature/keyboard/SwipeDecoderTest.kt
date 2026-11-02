@@ -121,4 +121,19 @@ class SwipeDecoderTest {
         val r = SwipeDecoder.resample(listOf(Pt(0f, 0f), Pt(90f, 0f)), 4)
         assertEquals(listOf(0f, 30f, 60f, 90f), r.map { Math.round(it.x).toFloat() })
     }
+
+    @Test
+    fun `the words before settle swipes whose shapes are alike`() {
+        // "too" and "to" are the same path (a doubled letter is one key): what was written decides.
+        val pair = WordList.parse(sequenceOf("too\t120", "to\t120"))
+        val path = pathFor("to")
+        assertEquals("too", decoder.decode(path, pair, likely = listOf("too")).first().word)
+        assertEquals("to", decoder.decode(path, pair, likely = listOf("to")).first().word)
+    }
+
+    @Test
+    fun `no context changes nothing`() {
+        val path = pathFor("home")
+        assertEquals(decoder.decode(path, words).map { it.word }, decoder.decode(path, words, likely = emptyList()).map { it.word })
+    }
 }

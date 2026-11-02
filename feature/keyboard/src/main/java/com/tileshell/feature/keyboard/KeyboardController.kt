@@ -631,8 +631,15 @@ class KeyboardController(
         commitTranslit(separator = " ")
         resetTransient()
         val upper = shift
+        // What the words before make likely next (English only: Marathi / Hindi match romanised spellings).
+        val likely = if (indic == null) {
+            predictions(service.currentInputConnection?.getTextBeforeCursor(CONTEXT_CHARS, 0), SWIPE_CONTEXT_WORDS)
+                .map { it.lowercase() }
+        } else {
+            emptyList()
+        }
         scope.launch {
-            val results = withContext(Dispatchers.Default) { decoder.decode(path, lex) }
+            val results = withContext(Dispatchers.Default) { decoder.decode(path, lex, likely = likely) }
             val words = if (indic != null) {
                 // The Devanagari words behind the matched spellings.
                 results.flatMap { indic.devanagariFor(it.word) }.distinct().take(Suggester.STRIP_SIZE)
@@ -1109,6 +1116,9 @@ class KeyboardController(
 
     private companion object {
         const val CONTEXT_CHARS = 64
+
+        /** How many likely next words a swipe's ranking looks at. */
+        const val SWIPE_CONTEXT_WORDS = 8
 
         /** How many likely next words rank the word being typed. */
         const val PREDICT_FOR_RANKING = 12

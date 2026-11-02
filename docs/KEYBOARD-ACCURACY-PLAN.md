@@ -187,6 +187,45 @@ screen**, so check the Windows Phone look, a six-row Devanagari keyboard at
 "huge", and landscape on the phone. Which size and spacing suit is for the typing
 test to say: gap size is cosmetic, key height is what matters for accuracy.
 
+## Glide typing (user asked after K5, 2026-11-02)
+
+Measured with `SwipeStressTest` (opt-in: `SWIPE_STRESS=1`, minutes; simulated
+paths, not real thumbs). The existing `AccuracyEvalTest` only swipes the 600 most
+common words along tidy paths (98.5%); harder conditions, top-1 on common words:
+
+| path | top-1 |
+|---|---|
+| tidy (noise 0.05 key widths) | 95.0% |
+| noise 0.10 / 0.20 | 92.8% / 81.5% |
+| thumb lands off (0.10, -0.25) | 92.8% |
+| corners cut (moving average over ±2 / ±3 samples) | 58.7% / 23.5% |
+
+Less common words (rank 1500-5000), tidy: 92.1% top-1. So the decoder is sound on
+tidy or mildly noisy paths and falls apart only when corners are cut so hard that
+letters are skipped. Trying corner rounding on both paths and a looser "did the
+path pass the letter" check (`SwipeDecoder(smoothing, followRadius, maxMissed)`,
+defaults unchanged) gave at most +4 points there and cost accuracy on tidy paths,
+so they were not adopted: with a letter's corner gone the information is not in
+the path. The simulation's harshest style may be harsher than real thumbs; the
+way to know is real swipes.
+
+Done: (1) the swipe path is moved by the learned thumb offset (K3) like taps are
+(about +5 points when the thumb lands off and the swipe is hurried); (2) the words
+before the swipe rank its candidates (`decode(likely = …)`: the next-word model's
+likely words get a bonus up to 0.5 key widths, so "too / to", "these / there"
+follow what was written; English only). Unit-tested; the context gain is not
+measured (the harness has no sentences).
+
+Not done, in the order worth doing: (a) a **glide test** in keyboard settings like
+the typing test, recording real swipes for known words and replaying the decoder
+offline: the only way to know what real thumbs do and to tune weights
+(`FREQUENCY_WEIGHT`, `END_WEIGHT`, radii) on that, not on a simulation;
+(b) use speed: a finger slows and turns at letters, so slow-down and corner points
+are letter evidence (what SHARK2-style decoders use); (c) score a word by the keys
+the path passes through in order, softly, instead of the hard "missed more than one
+letter" cut; (d) glide in Marathi / Hindi context (romanised spellings have no
+sentence model yet); (e) capital and punctuation handling after a swipe.
+
 ## Not in this plan
 - A neural prediction model or Gboard-style transliteration ranking.
 - Shipping: the keyboard is still excluded from release builds
