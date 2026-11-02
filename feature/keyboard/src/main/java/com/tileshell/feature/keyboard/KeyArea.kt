@@ -133,6 +133,7 @@ internal fun KeyArea(
                 var boxesFor: Pair<List<KeyRow>, Int>? = null
                 var boxes: List<List<KeyBox>> = emptyList()
                 var decoder: SwipeDecoder? = null
+                var tapLayout: TapLayout? = null
 
                 fun currentBoxes(): List<List<KeyBox>> {
                     val k = currentRows to size.width
@@ -140,8 +141,33 @@ internal fun KeyArea(
                         boxes = KeyGeometry.layout(currentRows, size.width.toFloat(), keyHeightPx, px(ROW_GAP), px(KEY_GAP))
                         boxesFor = k
                         decoder = null
+                        tapLayout = null
                     }
                     return boxes
+                }
+
+                // The typing test's record of a tap: where it landed and which key got it.
+                fun recordTap(key: Key, pos: Offset, box: KeyBox) {
+                    if (!TapLog.recording) return
+                    val label = when (key.kind) {
+                        KeyKind.CHAR, KeyKind.SYMBOL -> key.label.lowercase()
+                        KeyKind.SPACE -> " "
+                        KeyKind.BACKSPACE -> TapLog.BACKSPACE
+                        else -> return
+                    }
+                    val layout = tapLayout ?: TapLayout(
+                        currentBoxes().flatMapIndexed { r, row ->
+                            row.mapIndexedNotNull { i, b ->
+                                currentRows[r].keys[i].let { k ->
+                                    if (k.kind == KeyKind.CHAR) k.label.lowercase() to Pt(b.centerX, b.centerY)
+                                    else if (k.kind == KeyKind.SPACE) " " to Pt(b.centerX, b.centerY)
+                                    else null
+                                }
+                            }
+                        }.toMap(),
+                        currentBoxes()[0][0].width,
+                    ).also { tapLayout = it }
+                    TapLog.add(TapRecord(pos.x, pos.y, label, layout))
                 }
 
                 fun hit(p: Offset): Triple<String, Key, KeyBox>? {
@@ -206,6 +232,7 @@ internal fun KeyArea(
                     }
                     val t = Touch(keyId, key, box, pos, System.currentTimeMillis())
                     touches[id] = t
+                    recordTap(key, pos, box)
                     light(keyId)
                     ctl.haptic(HapticKind.KEY_TAP)
                     when (key.kind) {
@@ -215,6 +242,7 @@ internal fun KeyArea(
                             t.timer = scope.launch {
                                 delay(REPEAT_START_MS)
                                 while (true) {
+                                    recordTap(key, pos, box)
                                     ctl.backspace()
                                     delay(REPEAT_EVERY_MS)
                                 }

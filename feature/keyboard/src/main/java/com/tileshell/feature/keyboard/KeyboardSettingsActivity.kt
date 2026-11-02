@@ -219,6 +219,21 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
             )
         }
 
+        Group("Typing test", tokens) {
+            BasicText(
+                "start the test  ›",
+                modifier = Modifier
+                    .clickable { context.startActivity(android.content.Intent(context, TypingTestActivity::class.java)) }
+                    .padding(vertical = 8.dp),
+                style = TextStyle(color = accent, fontSize = 22.sp, fontWeight = FontWeight.Light),
+            )
+            Note(
+                "Type eight short sentences with whichever keyboard is on, with no suggestions, to compare keyboards. " +
+                    "With this keyboard it also shows where your taps land and which keys get mixed up. Nothing is saved or sent.",
+                tokens,
+            )
+        }
+
         Group("Typing languages", tokens) {
             BasicText("English (India)", style = TextStyle(color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light))
             LanguageRow("मराठी", settings.marathi, accent, tokens) { on -> prefs.update { it.copy(marathi = on) } }

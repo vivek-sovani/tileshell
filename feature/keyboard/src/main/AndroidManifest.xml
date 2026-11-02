@@ -13,6 +13,12 @@
             android:taskAffinity="com.tileshell.keyboard.settings"
             android:excludeFromRecents="true"
             android:theme="@android:style/Theme.Material.NoActionBar" />
+        <activity
+            android:name=".TypingTestActivity"
+            android:exported="false"
+            android:label="@string/keyboard_typing_test"
+            android:windowSoftInputMode="adjustResize|stateVisible"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
         <service
             android:name=".TileShellImeService"
             android:exported="true"

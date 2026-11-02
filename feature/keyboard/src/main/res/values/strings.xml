@@ -2,5 +2,6 @@
 <resources>
     <string name="keyboard_name">TileShell keyboard</string>
     <string name="keyboard_settings">Keyboard settings</string>
+    <string name="keyboard_typing_test">Typing test</string>
     <string name="keyboard_subtype_en_in">English (India)</string>
 </resources>
