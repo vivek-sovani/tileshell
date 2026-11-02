@@ -58,7 +58,6 @@ import kotlin.math.roundToInt
 private val KEY_GAP = 6.dp
 private val ROW_GAP = 8.dp
 private const val PRESS_FLASH_MS = 140L
-private val TOUCH_BIAS = 4.dp
 private const val LONG_PRESS_MS = 350L
 private const val REPEAT_START_MS = 400L
 private const val REPEAT_EVERY_MS = 50L
@@ -115,6 +114,9 @@ internal fun KeyArea(
         devanagariDigits = controller.devanagariDigits,
     )
     val touchModel = remember { TouchModel() }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val calibration = remember { TouchCalibrationStore.get(context) }
+    val learner = remember { TapLearner(calibration) }
     val lit = remember { mutableStateMapOf<String, Boolean>() }
     var popup by remember { mutableStateOf<Popup?>(null) }
     var trail by remember { mutableStateOf<List<Offset>>(emptyList()) }
@@ -171,12 +173,32 @@ internal fun KeyArea(
                     TapLog.add(TapRecord(pos.x, pos.y, label, layout))
                 }
 
+                /** Which of the calibration's eight zones a touch is in (left / right half, by row). */
+                fun zoneOf(p: Offset) =
+                    TouchCalibration.zoneOf(p.x, size.width.toFloat(), (p.y / (keyHeightPx + px(ROW_GAP))).toInt())
+
+                // What a touch tells about the thumb: only numbers, never which letters.
+                fun learn(key: Key, pos: Offset, box: KeyBox, at: Long) {
+                    if (!ctl.learnsTouch) return
+                    val d = density.density
+                    when {
+                        key.kind == KeyKind.CHAR && ctl.layer == KeyboardLayer.LETTERS -> {
+                            learner.onLetter(zoneOf(pos), Pt(pos.x / d, pos.y / d), Pt(box.centerX / d, box.centerY / d), box.width / d, at)
+                            TouchCalibrationStore.touched()
+                        }
+                        key.kind == KeyKind.BACKSPACE -> learner.onBackspace(at)
+                        else -> learner.onOther()
+                    }
+                }
+
                 fun hit(p: Offset): Triple<String, Key, KeyBox>? {
                     val b = currentBoxes()
                     // A fingertip lands a little above where it's aimed; read it a touch lower,
                     // so the row above doesn't fire by accident.
-                    // Likely next letters get the bigger target (smart touch); else the nearest key.
-                    val (r, i) = touchModel.choose(b, currentRows, p.x, p.y + px(TOUCH_BIAS), ctl.touchPriors()) ?: return null
+                    // The touch is moved by this person's learned offset (else the default 4dp lower), then
+                    // likely next letters get the bigger target (smart touch); else the nearest key.
+                    val (bx, by) = if (ctl.adaptTouch) calibration.bias(zoneOf(p)) else 0f to -TouchCalibration.DEFAULT_DY.toFloat()
+                    val (r, i) = touchModel.choose(b, currentRows, p.x + px(bx.dp), p.y + px(by.dp), ctl.touchPriors()) ?: return null
                     val key = currentRows[r].keys[i]
                     return Triple(keyId(r, i, key), key, b[r][i])
                 }
@@ -235,6 +257,7 @@ internal fun KeyArea(
                     val t = Touch(keyId, key, box, pos, System.currentTimeMillis())
                     touches[id] = t
                     recordTap(key, pos, box)
+                    learn(key, pos, box, t.downAt)
                     light(keyId)
                     ctl.haptic(HapticKind.KEY_TAP)
                     when (key.kind) {
@@ -245,6 +268,7 @@ internal fun KeyArea(
                                 delay(REPEAT_START_MS)
                                 while (true) {
                                     recordTap(key, pos, box)
+                                    learner.onBackspace(System.currentTimeMillis())
                                     ctl.backspace()
                                     delay(REPEAT_EVERY_MS)
                                 }

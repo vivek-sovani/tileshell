@@ -119,6 +119,23 @@ setting on and off (keyboard settings → smart touch).
 - Also decide, from K1 data, whether to resolve the key at lift instead of
   touch-down for taps that slide a little.
 
+**K3 done (2026-11-02), with a change from the plan:** intent in normal typing is
+unknowable, so nothing is inferred from text. `TouchCalibration` (`TouchCalibration.kt`)
+keeps, for eight zones (left / right half × four rows), the running mean in dp of
+where touches landed relative to the centre of the key they went to, shrunk
+towards the old fixed offset (4 dp above) by 40 pseudo-touches, limited to 10 dp,
+window of ~600 touches. `TapLearner` feeds it: a letter touch counts once the
+next key shows it was not deleted at once; a letter deleted at once and followed
+by a neighbouring key is firm evidence for that neighbour (weight 3). Applied in
+`KeyArea.hit` before the touch model. Only numbers are stored (own prefs file
+`keyboard_touch`, saved every 25 touches and on close), nothing in password
+fields; "Touch calibration" in keyboard settings shows the learned offset, a
+switch and a reset. Simulated grip the default does not suit (dx +0.12, dy -0.28
+key widths): the learned offset came out 3.7 / -8.5 dp against the true 3.7 / -8.6,
+and wrong keys fell from 1.07% to 0.59%; for the three earlier scenarios learning
+is never worse (`NoisyTapEvalTest`, `TouchCalibrationTest`). Resolving the key at
+lift instead of touch-down is left until the typing test shows whether it is needed.
+
 ### K4 — Spatial autocorrect (closes most of the Gboard gap we can close)
 - Keep the tap points of the word being typed. Score correction candidates by
   the sum over letters of the touch likelihood plus word frequency, instead of

@@ -25,6 +25,7 @@ class NoisyTapEvalTest {
     /** What decides the key from a tap: today the nearest box, the touch shifted down by the bias. */
     private fun interface Chooser {
         fun choose(boxes: List<List<KeyBox>>, x: Float, y: Float, prefix: String): Pair<Int, Int>?
+        fun endWord() {}
     }
 
     private val nearest = Chooser { boxes, x, y, _ -> KeyGeometry.hit(boxes, x, y + BIAS_PX) }
@@ -34,6 +35,29 @@ class NoisyTapEvalTest {
         f.bufferedReader().useLines { WordList.parse(it) }
     }
     private val priors by lazy { PrefixLetterModel(english) }
+
+    /** The touch model with the keyboard's calibration learning as it goes (density 3 px per dp). */
+    private inner class Adaptive(private val model: TouchModel = TouchModel()) : Chooser {
+        val calibration = TouchCalibration()
+        private val learner = TapLearner(calibration)
+        private var clock = 0L
+
+        override fun choose(boxes: List<List<KeyBox>>, x: Float, y: Float, prefix: String): Pair<Int, Int>? {
+            val row = (y / (keyHeight + 24f)).toInt()
+            val zone = TouchCalibration.zoneOf(x, width, row)
+            val (bx, by) = calibration.bias(zone)
+            val hit = model.choose(boxes, rows, x + bx * DENSITY, y + by * DENSITY, priors.logPriors(prefix)) ?: return null
+            val box = boxes[hit.first][hit.second]
+            if (rows[hit.first].keys[hit.second].kind == KeyKind.CHAR) {
+                learner.onLetter(
+                    zone, Pt(x / DENSITY, y / DENSITY), Pt(box.centerX / DENSITY, box.centerY / DENSITY), box.width / DENSITY, clock++ * 150,
+                )
+            }
+            return hit
+        }
+
+        override fun endWord() = learner.onOther()
+    }
 
     private fun smart(model: TouchModel = TouchModel()) =
         Chooser { boxes, x, y, prefix -> model.choose(boxes, rows, x, y + BIAS_PX, priors.logPriors(prefix)) }
@@ -90,6 +114,7 @@ class NoisyTapEvalTest {
                     bad = true
                 }
             }
+            chooser.endWord()
             if (bad) wrongWords++
         }
         return Result(letters, wrongLetters, list.size, wrongWords)
@@ -99,6 +124,8 @@ class NoisyTapEvalTest {
         Scenario("careful (sigma 0.15, centred)", 0.15f, 0f, 0f),
         Scenario("normal (sigma 0.22, a little high)", 0.22f, 0f, -0.10f),
         Scenario("fast (sigma 0.30, high and to the side)", 0.30f, 0.05f, -0.15f),
+        // A grip the default 4dp does not suit: lands well above and to the right of where it aims.
+        Scenario("own grip (sigma 0.25, dx +0.12, dy -0.28)", 0.25f, 0.12f, -0.28f),
     )
 
     private fun line(name: String, set: String, sc: Scenario, r: Result) =
@@ -148,6 +175,28 @@ class NoisyTapEvalTest {
     }
 
     @Test
+    fun `calibration learns an unusual grip`() {
+        val grip = scenarios[3]
+        val plain = run(smart(), grip, common())
+        val adaptive = Adaptive()
+        val learned = run(adaptive, grip, common())
+        println("CALIBRATE ${line("smart touch", "common", grip, plain)}")
+        println("CALIBRATE ${line("+ learning", "common", grip, learned)}")
+        val s = adaptive.calibration.summary()!!
+        println("CALIBRATE learned mean landing ${"%.1f".format(s.meanDx)} dp across, ${"%.1f".format(s.meanDy)} dp down from ${s.touches} touches")
+        // The simulated thumb lands 0.12 / -0.28 key widths (3.7 / -8.6 dp at this layout) from the centre.
+        assertTrue("dy ${s.meanDy}", s.meanDy < -6.5f && s.meanDy > -10f)
+        assertTrue("dx ${s.meanDx}", s.meanDx > 1.5f && s.meanDx < 5.5f)
+        assertTrue("learning helps: ${learned.letterRate} vs ${plain.letterRate}", learned.letterRate < plain.letterRate * 0.8f)
+        // Someone the default suits is not made worse by learning.
+        for (i in 0..2) {
+            val base = run(smart(), scenarios[i], common())
+            val withLearning = run(Adaptive(), scenarios[i], common())
+            assertTrue("scenario $i: ${withLearning.letterRate} vs ${base.letterRate}", withLearning.letterRate <= base.letterRate * 1.1f + 0.0005f)
+        }
+    }
+
+    @Test
     fun `parameter sweep`() {
         if (System.getProperty("sweep") == null && System.getenv("TOUCH_SWEEP") == null) return
         for (sigma in listOf(0.2f, 0.25f, 0.3f)) {
@@ -171,6 +220,7 @@ class NoisyTapEvalTest {
     private companion object {
         /** The 4dp touch bias in pixels at the 3x density the layout above stands for. */
         const val BIAS_PX = 12f
+        const val DENSITY = 3f
         // Measured 2026-11-02: 0.00% / 0.56% / 4.35% wrong keys.
         const val CAREFUL_FLOOR = 0.002f
         const val NORMAL_FLOOR = 0.012f

@@ -29,6 +29,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -87,6 +88,7 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
     val accent = TileAccents.forId(launcher?.accentId)
     var learnedCount by remember { mutableIntStateOf(KeyboardDictionary.learnedCount(context)) }
     var learnedPairs by remember { mutableIntStateOf(KeyboardDictionary.learnedPairCount(context)) }
+    var touchSummary by remember { mutableStateOf(TouchCalibrationStore.get(context).summary()) }
 
     Column(
         modifier = Modifier
@@ -216,6 +218,42 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
             }
             Note(
                 "Names and words the keyboard didn't know, and which words you put after which (for next-word suggestions), kept only on this phone. Password fields never add to it.",
+                tokens,
+            )
+        }
+
+        Group("Touch calibration", tokens) {
+            Toggle("Adapt to the way I type", settings.adaptTouch, accent, tokens) { on -> prefs.update { it.copy(adaptTouch = on) } }
+            val s = touchSummary
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                BasicText(
+                    if (s == null) {
+                        "nothing learned yet"
+                    } else {
+                        "${"%.1f".format(kotlin.math.abs(s.meanDy))} dp ${if (s.meanDy < 0) "above" else "below"}, " +
+                            "${"%.1f".format(kotlin.math.abs(s.meanDx))} dp ${if (s.meanDx < 0) "left" else "right"}"
+                    },
+                    modifier = Modifier.weight(1f),
+                    style = TextStyle(color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.Light),
+                )
+                if (s != null) {
+                    BasicText(
+                        "reset",
+                        modifier = Modifier
+                            .clickable {
+                                TouchCalibrationStore.reset(context)
+                                touchSummary = null
+                                Toast.makeText(context, "touch calibration reset", Toast.LENGTH_SHORT).show()
+                            }
+                            .padding(vertical = 12.dp, horizontal = 4.dp),
+                        style = TextStyle(color = accent, fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+                    )
+                }
+            }
+            Note(
+                "The keyboard learns where your thumbs land compared with the keys' centres (left and right thumb, each row) " +
+                    "and shifts your touches to suit. Only these few numbers are kept on this phone, never what you type, and nothing in password fields. " +
+                    "Open this page again to see what has been learned.",
                 tokens,
             )
         }

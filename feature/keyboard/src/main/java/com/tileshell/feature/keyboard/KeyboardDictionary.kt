@@ -57,6 +57,7 @@ object KeyboardDictionary {
 
     /** Writes any learned words and pairs not yet on disk (the keyboard is closing). Saves are otherwise delayed until typing pauses. */
     fun flushLearned() {
+        TouchCalibrationStore.flush()
         synchronized(learned) { learned.values.toList() }.forEach { it.flush() }
         synchronized(pairs) { pairs.values.toList() }.forEach { it.flush() }
     }

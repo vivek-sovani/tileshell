@@ -885,6 +885,12 @@ class KeyboardController(
      * layer, Devanagari keys, passwords / email / web addresses / numbers, or no word
      * list loaded yet.
      */
+    /** Touches are moved by what was learned about this person's thumbs (else by the default offset). */
+    val adaptTouch: Boolean get() = settings.adaptTouch
+
+    /** Touches are learned from: switched on, and not in a password field. */
+    val learnsTouch: Boolean get() = settings.adaptTouch && fieldMode != FieldMode.INCOGNITO
+
     fun touchPriors(): DoubleArray? {
         if (!settings.smartTouch || layer != KeyboardLayer.LETTERS || devanagariKeys) return null
         if (fieldMode == FieldMode.INCOGNITO || !TypingRules.smartTouchAllowed(inputType)) return null

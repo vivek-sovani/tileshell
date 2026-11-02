@@ -34,6 +34,8 @@ data class KeyboardSettings(
     val swipe: Boolean = true,
     /** Likely next letters get bigger invisible targets (the Windows Phone keyboard's trick). */
     val smartTouch: Boolean = true,
+    /** Learn where this person's thumbs land and shift touches to suit (numbers only, never text). */
+    val adaptTouch: Boolean = true,
     val oneHand: OneHand = OneHand.OFF,
     /** Keep copied text for the clipboard panel (an hour unless pinned). */
     val clipboardHistory: Boolean = true,
@@ -119,6 +121,7 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             .putString(HAPTIC, next.haptic.name)
             .putBoolean(SWIPE, next.swipe)
             .putBoolean(SMART_TOUCH, next.smartTouch)
+            .putBoolean(ADAPT_TOUCH, next.adaptTouch)
             .putString(ONE_HAND, next.oneHand.name)
             .putBoolean(CLIPBOARD, next.clipboardHistory)
             .putBoolean(MARATHI, next.marathi)
@@ -147,6 +150,7 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             suggestions = prefs.getBoolean(SUGGESTIONS, d.suggestions),
             autocorrect = prefs.getBoolean(AUTOCORRECT, d.autocorrect),
             smartTouch = prefs.getBoolean(SMART_TOUCH, d.smartTouch),
+            adaptTouch = prefs.getBoolean(ADAPT_TOUCH, d.adaptTouch),
             level = AutocorrectLevel.entries.find { it.name == prefs.getString(LEVEL, null) } ?: d.level,
             autoCapitals = prefs.getBoolean(CAPS, d.autoCapitals),
             doubleSpacePeriod = prefs.getBoolean(PERIOD, d.doubleSpacePeriod),
@@ -177,6 +181,7 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
         private const val HAPTIC = "haptic_strength"
         private const val SWIPE = "swipe"
         private const val SMART_TOUCH = "smart_touch"
+        private const val ADAPT_TOUCH = "adapt_touch"
         private const val ONE_HAND = "one_hand"
         private const val CLIPBOARD = "clipboard_history"
         private const val EMOJI_RECENT = "emoji_recent"
