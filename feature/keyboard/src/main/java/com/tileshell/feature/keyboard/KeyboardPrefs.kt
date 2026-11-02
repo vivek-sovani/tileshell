@@ -32,6 +32,8 @@ data class KeyboardSettings(
     val haptic: HapticStrength = HapticStrength.MEDIUM,
     /** Swipe across letters to type a word. */
     val swipe: Boolean = true,
+    val keySize: KeySize = KeySize.NORMAL,
+    val keySpacing: KeySpacing = KeySpacing.NORMAL,
     /** Likely next letters get bigger invisible targets (the Windows Phone keyboard's trick). */
     val smartTouch: Boolean = true,
     /** Learn where this person's thumbs land and shift touches to suit (numbers only, never text). */
@@ -120,6 +122,8 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             .putBoolean(VIBRATE, next.vibrate)
             .putString(HAPTIC, next.haptic.name)
             .putBoolean(SWIPE, next.swipe)
+            .putString(KEY_SIZE, next.keySize.name)
+            .putString(KEY_SPACING, next.keySpacing.name)
             .putBoolean(SMART_TOUCH, next.smartTouch)
             .putBoolean(ADAPT_TOUCH, next.adaptTouch)
             .putString(ONE_HAND, next.oneHand.name)
@@ -150,6 +154,8 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             suggestions = prefs.getBoolean(SUGGESTIONS, d.suggestions),
             autocorrect = prefs.getBoolean(AUTOCORRECT, d.autocorrect),
             smartTouch = prefs.getBoolean(SMART_TOUCH, d.smartTouch),
+            keySize = KeySize.entries.find { it.name == prefs.getString(KEY_SIZE, null) } ?: d.keySize,
+            keySpacing = KeySpacing.entries.find { it.name == prefs.getString(KEY_SPACING, null) } ?: d.keySpacing,
             adaptTouch = prefs.getBoolean(ADAPT_TOUCH, d.adaptTouch),
             level = AutocorrectLevel.entries.find { it.name == prefs.getString(LEVEL, null) } ?: d.level,
             autoCapitals = prefs.getBoolean(CAPS, d.autoCapitals),
@@ -181,6 +187,8 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
         private const val HAPTIC = "haptic_strength"
         private const val SWIPE = "swipe"
         private const val SMART_TOUCH = "smart_touch"
+        private const val KEY_SIZE = "key_size"
+        private const val KEY_SPACING = "key_spacing"
         private const val ADAPT_TOUCH = "adapt_touch"
         private const val ONE_HAND = "one_hand"
         private const val CLIPBOARD = "clipboard_history"

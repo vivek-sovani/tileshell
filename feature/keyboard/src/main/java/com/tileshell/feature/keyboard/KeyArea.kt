@@ -55,8 +55,6 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private val KEY_GAP = 6.dp
-private val ROW_GAP = 8.dp
 private const val PRESS_FLASH_MS = 140L
 private const val LONG_PRESS_MS = 350L
 private const val REPEAT_START_MS = 400L
@@ -111,6 +109,8 @@ internal fun KeyArea(
     colors: KeyboardColors,
     accent: Color,
     keyHeight: Dp,
+    keyGap: Dp = 6.dp,
+    rowGap: Dp = 8.dp,
     /** Letter size: 22 (spec), 20 in one-handed mode. */
     letterSp: Int = 22,
 ) {
@@ -133,7 +133,10 @@ internal fun KeyArea(
 
     val ctl by rememberUpdatedState(controller)
     val currentRows by rememberUpdatedState(rows)
-    val keyHeightPx = with(density) { keyHeight.toPx() }
+    // Read inside the touch handler, which is started once: through state, so a changed setting reaches it.
+    val keyHeightPx by rememberUpdatedState(with(density) { keyHeight.toPx() })
+    val keyGapPx by rememberUpdatedState(with(density) { keyGap.toPx() })
+    val rowGapPx by rememberUpdatedState(with(density) { rowGap.toPx() })
 
     fun px(dp: Dp) = with(density) { dp.toPx() }
 
@@ -143,15 +146,15 @@ internal fun KeyArea(
             .pointerInput(Unit) {
                 val touches = HashMap<PointerId, Touch>()
                 // Key bounds, recomputed whenever the rows or the area's width change.
-                var boxesFor: Pair<List<KeyRow>, Int>? = null
+                var boxesFor: Triple<List<KeyRow>, Int, Triple<Float, Float, Float>>? = null
                 var boxes: List<List<KeyBox>> = emptyList()
                 var decoder: SwipeDecoder? = null
                 var tapLayout: TapLayout? = null
 
                 fun currentBoxes(): List<List<KeyBox>> {
-                    val k = currentRows to size.width
+                    val k = Triple(currentRows, size.width, Triple(keyHeightPx, keyGapPx, rowGapPx))
                     if (boxesFor != k) {
-                        boxes = KeyGeometry.layout(currentRows, size.width.toFloat(), keyHeightPx, px(ROW_GAP), px(KEY_GAP))
+                        boxes = KeyGeometry.layout(currentRows, size.width.toFloat(), keyHeightPx, rowGapPx, keyGapPx)
                         boxesFor = k
                         decoder = null
                         tapLayout = null
@@ -185,7 +188,7 @@ internal fun KeyArea(
 
                 /** Which of the calibration's eight zones a touch is in (left / right half, by row). */
                 fun zoneOf(p: Offset) =
-                    TouchCalibration.zoneOf(p.x, size.width.toFloat(), (p.y / (keyHeightPx + px(ROW_GAP))).toInt())
+                    TouchCalibration.zoneOf(p.x, size.width.toFloat(), (p.y / (keyHeightPx + rowGapPx)).toInt())
 
                 // What a touch tells about the thumb: only numbers, never which letters.
                 fun learn(key: Key, pos: Offset, box: KeyBox, at: Long) {
@@ -389,14 +392,14 @@ internal fun KeyArea(
                 }
             },
     ) {
-        val unit = (maxWidth - KEY_GAP * 9) / 10
-        Column(verticalArrangement = Arrangement.spacedBy(ROW_GAP)) {
+        val unit = (maxWidth - keyGap * 9) / 10
+        Column(verticalArrangement = Arrangement.spacedBy(rowGap)) {
             rows.forEachIndexed { r, row ->
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = if (row.inset) (unit + KEY_GAP) / 2 else 0.dp),
-                    horizontalArrangement = Arrangement.spacedBy(KEY_GAP),
+                        .padding(horizontal = if (row.inset) (unit + keyGap) / 2 else 0.dp),
+                    horizontalArrangement = Arrangement.spacedBy(keyGap),
                 ) {
                     row.keys.forEachIndexed { i, key ->
                         val id = keyId(r, i, key)

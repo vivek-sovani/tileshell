@@ -104,9 +104,6 @@ internal data class KeyboardColors(
     }
 }
 
-private val KEY_GAP = 6.dp
-private val ROW_GAP = 8.dp
-private val SIDE_PADDING = 4.dp
 private val STRIP_HEIGHT = 46.dp
 private const val PRESS_FLASH_MS = 140L
 private const val REPEAT_START_MS = 400L
@@ -135,7 +132,6 @@ internal fun KeyboardScreen(
     val accent = TileAccents.forId(settings?.accentId)
     // Landscape: shorter keys, so the keyboard doesn't take most of the screen.
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val keyHeight = if (landscape) 40.dp else 50.dp
 
     run {
         Column(
@@ -157,15 +153,17 @@ internal fun KeyboardScreen(
             // this keyboard is ~100dp taller than the English one.
             val sixRows = controller.devanagariKeys && controller.layer == KeyboardLayer.LETTERS
             val rows = if (sixRows) 6 else 4
-            val rowKeyHeight = if (sixRows) (if (landscape) 36.dp else 48.dp) else keyHeight
-            val keysHeight = 2.dp + rowKeyHeight * rows + ROW_GAP * (rows - 1) + 12.dp
+            val metrics = KeyMetrics.of(keyboard.keySize, keyboard.keySpacing, landscape, sixRows)
+            val keyHeight = KeyMetrics.of(keyboard.keySize, keyboard.keySpacing, landscape, sixRows = false).keyHeight.dp
+            val rowKeyHeight = metrics.keyHeight.dp
+            val keysHeight = metrics.areaHeight(rows).dp
             Row(Modifier.fillMaxWidth().height(keysHeight)) {
                 if (keyboard.oneHand == OneHand.RIGHT) OneHandPanel(keysOnRight = true, controller, colors)
                 Box(
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .padding(start = SIDE_PADDING, end = SIDE_PADDING, top = 2.dp, bottom = 12.dp),
+                        .padding(start = metrics.side.dp, end = metrics.side.dp, top = 2.dp, bottom = 12.dp),
                 ) {
                     when (controller.layer) {
                         KeyboardLayer.EMOJI -> EmojiPanel(controller, colors, accent, keyHeight)
@@ -173,6 +171,8 @@ internal fun KeyboardScreen(
                         KeyboardLayer.VOICE -> VoicePanel(controller, colors, accent)
                         else -> KeyArea(
                             controller, colors, accent, rowKeyHeight,
+                            keyGap = metrics.keyGap.dp,
+                            rowGap = metrics.rowGap.dp,
                             letterSp = if (keyboard.oneHand == OneHand.OFF) 22 else 20,
                         )
                     }

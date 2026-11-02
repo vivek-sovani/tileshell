@@ -121,6 +121,37 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
             }
         }
 
+        Group("Key size", tokens) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                for (k in KeySize.entries) {
+                    HubFilter(k.label, selected = settings.keySize == k, tokens = tokens, accent = accent) {
+                        prefs.update { it.copy(keySize = k) }
+                    }
+                }
+            }
+        }
+
+        Group("Key spacing", tokens) {
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                for (k in KeySpacing.entries) {
+                    HubFilter(k.label, selected = settings.keySpacing == k, tokens = tokens, accent = accent) {
+                        prefs.update { it.copy(keySpacing = k) }
+                    }
+                }
+            }
+            BasicText(
+                "use the Windows Phone look  ›",
+                modifier = Modifier
+                    .clickable { prefs.update { it.copy(keySize = KeySize.LARGE, keySpacing = KeySpacing.TIGHT) } }
+                    .padding(vertical = 8.dp),
+                style = TextStyle(color = accent, fontSize = 17.sp, fontWeight = FontWeight.SemiBold),
+            )
+            Note(
+                "Taller keys with tight gaps, as on Windows Phone. Spacing only changes how the keys look: a touch between two keys always goes to one of them, so there is no dead space.",
+                tokens,
+            )
+        }
+
         Group("Accent colour", tokens) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(28.dp).background(accent))

@@ -174,6 +174,19 @@ autocorrect level is eager for unknown words (a separate question from touch).
 - Check landscape, one-handed mode and the Devanagari 11-key rows (narrower keys
   make the touch model matter more there).
 
+**K5 done (2026-11-02).** Keyboard settings gained "Key size" (small / normal /
+large / huge: 0.9 / 1 / 1.12 / 1.25 × the canvas's 50 dp, held to 1.1 in landscape) and
+"Key spacing" (tight 2 / 3 / 2 dp, normal 6 / 8 / 4, wide 9 / 11 / 6 for key gap,
+row gap, side padding), plus a one-tap "use the Windows Phone look" (large + tight).
+`KeyMetrics` (pure, `KeyMetricsTest`) gives the dp measurements; `KeyboardScreen`
+and `KeyArea` use them (the touch handler reads them through state, so a changed
+setting reaches it). Devanagari's six rows are held to 56 dp (42 in landscape)
+so they don't fill the screen. Defaults are unchanged. The one-handed panel,
+emoji panel and landscape use the same metrics; **none of this was seen on
+screen**, so check the Windows Phone look, a six-row Devanagari keyboard at
+"huge", and landscape on the phone. Which size and spacing suit is for the typing
+test to say: gap size is cosmetic, key height is what matters for accuracy.
+
 ## Not in this plan
 - A neural prediction model or Gboard-style transliteration ranking.
 - Shipping: the keyboard is still excluded from release builds
