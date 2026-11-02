@@ -114,6 +114,7 @@ internal fun KeyArea(
         shifted = controller.shift.upperCase,
         devanagariDigits = controller.devanagariDigits,
     )
+    val touchModel = remember { TouchModel() }
     val lit = remember { mutableStateMapOf<String, Boolean>() }
     var popup by remember { mutableStateOf<Popup?>(null) }
     var trail by remember { mutableStateOf<List<Offset>>(emptyList()) }
@@ -174,7 +175,8 @@ internal fun KeyArea(
                     val b = currentBoxes()
                     // A fingertip lands a little above where it's aimed; read it a touch lower,
                     // so the row above doesn't fire by accident.
-                    val (r, i) = KeyGeometry.hit(b, p.x, p.y + px(TOUCH_BIAS)) ?: return null
+                    // Likely next letters get the bigger target (smart touch); else the nearest key.
+                    val (r, i) = touchModel.choose(b, currentRows, p.x, p.y + px(TOUCH_BIAS), ctl.touchPriors()) ?: return null
                     val key = currentRows[r].keys[i]
                     return Triple(keyId(r, i, key), key, b[r][i])
                 }

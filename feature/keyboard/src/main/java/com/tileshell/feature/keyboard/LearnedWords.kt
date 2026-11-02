@@ -127,6 +127,8 @@ class CombinedLexicon(val words: Lexicon, val learned: LearnedWords) : Lexicon {
     override fun startingWith(prefixLower: String): Sequence<LexEntry> =
         learned.completions(prefixLower, 200).asSequence() + words.startingWith(prefixLower)
 
+    override fun nextLetterWeights(prefixLower: String) = words.nextLetterWeights(prefixLower)
+
     override fun hasPrefix(prefixLower: String): Boolean =
         words.hasPrefix(prefixLower) || learned.completions(prefixLower, 1).isNotEmpty() || learned.entry(prefixLower) != null
 

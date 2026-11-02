@@ -81,6 +81,24 @@ object TypingRules {
         }
     }
 
+    /**
+     * Smart touch (likely letters get bigger targets) applies to ordinary text.
+     * Not to passwords, email and web addresses, where the letters are not words
+     * and a missed key must be a missed key, nor to numbers and phones.
+     */
+    fun smartTouchAllowed(inputType: Int): Boolean {
+        if (inputType and InputType.TYPE_MASK_CLASS != InputType.TYPE_CLASS_TEXT) return false
+        return when (inputType and InputType.TYPE_MASK_VARIATION) {
+            InputType.TYPE_TEXT_VARIATION_PASSWORD,
+            InputType.TYPE_TEXT_VARIATION_VISIBLE_PASSWORD,
+            InputType.TYPE_TEXT_VARIATION_WEB_PASSWORD,
+            InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS,
+            InputType.TYPE_TEXT_VARIATION_WEB_EMAIL_ADDRESS,
+            InputType.TYPE_TEXT_VARIATION_URI -> false
+            else -> true
+        }
+    }
+
     /** A web address field (a browser's address bar): opens in English. */
     fun isWebAddress(inputType: Int): Boolean =
         inputType and InputType.TYPE_MASK_CLASS == InputType.TYPE_CLASS_TEXT &&

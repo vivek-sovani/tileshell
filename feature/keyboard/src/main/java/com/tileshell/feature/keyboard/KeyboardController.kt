@@ -125,6 +125,10 @@ class KeyboardController(
     /** मराठी / हिन्दी words by their English-letter spelling, for swipe typing. */
     private val swipeLexicons = HashMap<KeyboardLanguage, RomanizedLexicon>()
     private var inputType = 0
+
+    /** The letters typed so far in the current word (English letters), or null when unknown; read by [touchPriors]. */
+    private var touchPrefix: String? = null
+    private var prefixModel: Pair<Lexicon, PrefixLetterModel>? = null
     private var fieldMode = FieldMode.NO_SUGGESTIONS
     private var learnHere = false
     private var previousKeyWasSpace = false
@@ -875,6 +879,22 @@ class KeyboardController(
     /** Marathi / Hindi can be typed in this field (any text field but passwords and email). */
     private val languagesHere: Boolean get() = TypingRules.languagesAllowed(inputType)
 
+    /**
+     * How likely each letter a–z is to be the next one typed (natural logs), for the
+     * touch model; null where smart touch doesn't apply: switched off, not the letter
+     * layer, Devanagari keys, passwords / email / web addresses / numbers, or no word
+     * list loaded yet.
+     */
+    fun touchPriors(): DoubleArray? {
+        if (!settings.smartTouch || layer != KeyboardLayer.LETTERS || devanagariKeys) return null
+        if (fieldMode == FieldMode.INCOGNITO || !TypingRules.smartTouchAllowed(inputType)) return null
+        val prefix = touchPrefix ?: return null
+        val lex = (if (translit) swipeLexicons[language] else lexicon) ?: return null
+        val model = prefixModel?.takeIf { it.first === lex }?.second
+            ?: PrefixLetterModel(lex).also { prefixModel = lex to it }
+        return model.logPriors(prefix)
+    }
+
     /** Re-reads the text round the cursor: auto capital and the strip. */
     private fun refresh() {
         devanagariKeys = language.indic && !settings.lettersNow
@@ -882,6 +902,12 @@ class KeyboardController(
         val ic = service.currentInputConnection
         val before = ic?.getTextBeforeCursor(CONTEXT_CHARS, 0)
         fullVowels = !TypingRules.endsInConsonant(before)
+        val afterChar = ic?.getTextAfterCursor(1, 0)?.firstOrNull()
+        touchPrefix = when {
+            translit -> latin.toString().lowercase()
+            afterChar != null && afterChar.isLetterOrDigit() -> null
+            else -> TypingRules.currentWord(before, null).lowercase()
+        }
         if (shift != ShiftState.LOCKED) {
             // Devanagari has no capitals; in मराठी / हिन्दी shift is only for T, D, N…
             val auto = !language.indic && settings.autoCapitals && TypingRules.autoCapital(before, inputType)

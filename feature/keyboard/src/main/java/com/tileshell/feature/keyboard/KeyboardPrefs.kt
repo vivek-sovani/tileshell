@@ -32,6 +32,8 @@ data class KeyboardSettings(
     val haptic: HapticStrength = HapticStrength.MEDIUM,
     /** Swipe across letters to type a word. */
     val swipe: Boolean = true,
+    /** Likely next letters get bigger invisible targets (the Windows Phone keyboard's trick). */
+    val smartTouch: Boolean = true,
     val oneHand: OneHand = OneHand.OFF,
     /** Keep copied text for the clipboard panel (an hour unless pinned). */
     val clipboardHistory: Boolean = true,
@@ -116,6 +118,7 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             .putBoolean(VIBRATE, next.vibrate)
             .putString(HAPTIC, next.haptic.name)
             .putBoolean(SWIPE, next.swipe)
+            .putBoolean(SMART_TOUCH, next.smartTouch)
             .putString(ONE_HAND, next.oneHand.name)
             .putBoolean(CLIPBOARD, next.clipboardHistory)
             .putBoolean(MARATHI, next.marathi)
@@ -143,6 +146,7 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
             theme = KeyboardTheme.entries.find { it.name == prefs.getString(THEME, null) } ?: d.theme,
             suggestions = prefs.getBoolean(SUGGESTIONS, d.suggestions),
             autocorrect = prefs.getBoolean(AUTOCORRECT, d.autocorrect),
+            smartTouch = prefs.getBoolean(SMART_TOUCH, d.smartTouch),
             level = AutocorrectLevel.entries.find { it.name == prefs.getString(LEVEL, null) } ?: d.level,
             autoCapitals = prefs.getBoolean(CAPS, d.autoCapitals),
             doubleSpacePeriod = prefs.getBoolean(PERIOD, d.doubleSpacePeriod),
@@ -172,6 +176,7 @@ class KeyboardPrefs private constructor(private val prefs: SharedPreferences) {
         private const val VIBRATE = "vibrate"
         private const val HAPTIC = "haptic_strength"
         private const val SWIPE = "swipe"
+        private const val SMART_TOUCH = "smart_touch"
         private const val ONE_HAND = "one_hand"
         private const val CLIPBOARD = "clipboard_history"
         private const val EMOJI_RECENT = "emoji_recent"

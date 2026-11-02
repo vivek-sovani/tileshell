@@ -88,6 +88,28 @@ be off only for password, URL, email, number and phone fields.
 - Unit tests: boundary shifts toward the likely letter, deep-inside taps never
   change, unlikely letters still typable, determinism. Re-run K1's harness.
 
+**K2 done (2026-11-02).** `TouchModel` + `PrefixLetterModel` (`TouchModel.kt`),
+`Lexicon.nextLetterWeights` (`WordList` scans the prefix range once, cached per
+prefix), `KeyboardController.touchPriors()` (prefix from the text before the
+cursor; in transliteration the English letters typed, from the romanised list),
+`TypingRules.smartTouchAllowed`, setting "Smart touch" (default on). Guard rails as
+planned: central 56% of a key always wins (`coreInset` 0.22), prior floored at
+e^-4, function keys untouched. Parameters (sigma 0.25 key widths, weight 1) picked
+by a sweep in `NoisyTapEvalTest` (`TOUCH_SWEEP=1`); results with simulated taps:
+
+| set / scenario | nearest-box | touch model |
+|---|---|---|
+| common words, normal | 0.56% | 0.20% |
+| common words, fast | 4.35% | 2.19% |
+| rare words, normal | 0.58% | 0.22% |
+| rare words, fast | 4.40% | 2.28% |
+| not words (reversed), normal | 0.70% | 0.74% |
+| not words (reversed), fast | 4.73% | 4.68% |
+| careful, any set | 0.00% | 0.00% |
+
+Simulated, not measured on a thumb: the real test is the typing test with the
+setting on and off (keyboard settings → smart touch).
+
 ### K3 — Per-user touch calibration
 - Replace the fixed 4dp bias with learned offsets, separate for the left and
   right half and per row (thumbs land differently). Learn from taps whose

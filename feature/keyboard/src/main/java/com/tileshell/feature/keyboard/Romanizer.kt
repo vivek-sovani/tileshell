@@ -182,6 +182,7 @@ class RomanizedLexicon(words: Sequence<LexEntry>, lang: KeyboardLanguage) : Lexi
 
     override fun lookup(lower: String) = latin.lookup(lower) ?: added[lower]
     override fun completions(prefixLower: String, limit: Int) = latin.completions(prefixLower, limit)
+    override fun nextLetterWeights(prefixLower: String) = latin.nextLetterWeights(prefixLower)
     override fun startingWith(prefixLower: String) =
         latin.startingWith(prefixLower) + added.values.asSequence().filter { it.word.startsWith(prefixLower) }
 }

@@ -26,6 +26,13 @@ interface Lexicon {
     /** Some word starts with [prefixLower] (or is it). */
     fun hasPrefix(prefixLower: String): Boolean = lookup(prefixLower) != null || completions(prefixLower, 1).isNotEmpty()
 
+    /**
+     * For each letter a–z, how common the words are that continue [prefixLower] with
+     * it (a weight per word that grows with its frequency), or null when this list
+     * can't say or no word continues the prefix. Drives the touch model.
+     */
+    fun nextLetterWeights(prefixLower: String): DoubleArray? = null
+
     /** Every word starting with [prefixLower], in no particular order (swipe typing). */
     fun startingWith(prefixLower: String): Sequence<LexEntry> = completions(prefixLower, 200).asSequence()
 }
@@ -67,6 +74,26 @@ class WordList private constructor(
     }
 
     override fun shortcut(lower: String): String? = shortcuts[lower]
+
+    override fun nextLetterWeights(prefixLower: String): DoubleArray? {
+        val at = prefixLower.length
+        val w = DoubleArray(26)
+        var total = 0.0
+        var i = lowerBound(prefixLower)
+        while (i < size && startsWith(i, prefixLower)) {
+            val start = starts[i]
+            if (!blocked[i] && starts[i + 1] - start > at) {
+                val ch = keys[start + at]
+                if (ch in 'a'..'z') {
+                    val weight = FREQ_WEIGHT[freqs[i].toInt() and 0xFF]
+                    w[ch - 'a'] += weight
+                    total += weight
+                }
+            }
+            i++
+        }
+        return if (total > 0.0) w else null
+    }
 
     /** Every word (romanising the Marathi / Hindi lists for swipe typing). */
     fun entries(): Sequence<LexEntry> = (0 until size).asSequence().map(::entry)
@@ -135,6 +162,9 @@ class WordList private constructor(
     companion object {
         /** Bounds a one-letter prefix scan (thousands of words) per keystroke. */
         private const val MAX_SCAN = 25_000
+
+        /** A word's weight from its 0–255 frequency: AOSP's scale is logarithmic (~e^(f/18.5)). */
+        private val FREQ_WEIGHT = DoubleArray(256) { kotlin.math.exp(it / 18.5) }
 
         /**
          * Parses the asset format: `word<TAB>freq[<TAB>x]` (x = never suggest) and

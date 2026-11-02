@@ -24,10 +24,19 @@ class NoisyTapEvalTest {
 
     /** What decides the key from a tap: today the nearest box, the touch shifted down by the bias. */
     private fun interface Chooser {
-        fun choose(boxes: List<List<KeyBox>>, x: Float, y: Float): Pair<Int, Int>?
+        fun choose(boxes: List<List<KeyBox>>, x: Float, y: Float, prefix: String): Pair<Int, Int>?
     }
 
-    private val nearest = Chooser { boxes, x, y -> KeyGeometry.hit(boxes, x, y + BIAS_PX) }
+    private val nearest = Chooser { boxes, x, y, _ -> KeyGeometry.hit(boxes, x, y + BIAS_PX) }
+
+    private val english: WordList by lazy {
+        val f = File("src/main/assets/keyboard/en_words.txt")
+        f.bufferedReader().useLines { WordList.parse(it) }
+    }
+    private val priors by lazy { PrefixLetterModel(english) }
+
+    private fun smart(model: TouchModel = TouchModel()) =
+        Chooser { boxes, x, y, prefix -> model.choose(boxes, rows, x, y + BIAS_PX, priors.logPriors(prefix)) }
 
     private val width = 1080f
     private val keyHeight = 150f
@@ -44,7 +53,7 @@ class NoisyTapEvalTest {
 
     private val keyWidth = boxes[0][0].width
 
-    private fun words(): List<String> =
+    private fun ranked(): List<String> =
         File("src/main/assets/keyboard/en_words.txt").readLines()
             .mapNotNull { line ->
                 val parts = line.split('\t')
@@ -53,23 +62,29 @@ class NoisyTapEvalTest {
                 if (w.length >= 3 && w.all { it in 'a'..'z' }) w to f else null
             }
             .sortedByDescending { it.second }
-            .take(3000)
             .map { it.first }
 
-    private fun run(chooser: Chooser, s: Scenario): Result {
+    private fun common() = ranked().take(3000)
+    private fun rare() = ranked().drop(3000).take(3000)
+
+    /** Not words at all (names, codes, slang): the prior must not hurt these much. */
+    private fun reversed() = ranked().take(1000).map { it.reversed() }
+
+    private fun run(chooser: Chooser, s: Scenario, list: List<String>): Result {
         val rnd = Random(7)
         var letters = 0
         var wrongLetters = 0
         var wrongWords = 0
-        val list = words()
         for (word in list) {
             var bad = false
+            val typed = StringBuilder()
             for (ch in word) {
                 val c = centres.getValue(ch)
                 val x = c.x + (s.dx + rnd.nextGaussian().toFloat() * s.sigma) * keyWidth
                 val y = c.y + (s.dy + rnd.nextGaussian().toFloat() * s.sigma) * keyWidth
-                val (r, i) = chooser.choose(boxes, x, y) ?: continue
+                val (r, i) = chooser.choose(boxes, x, y, typed.toString()) ?: continue
                 letters++
+                typed.append(rows[r].keys[i].label)
                 if (rows[r].keys[i].label != ch.toString()) {
                     wrongLetters++
                     bad = true
@@ -86,19 +101,71 @@ class NoisyTapEvalTest {
         Scenario("fast (sigma 0.30, high and to the side)", 0.30f, 0.05f, -0.15f),
     )
 
+    private fun line(name: String, set: String, sc: Scenario, r: Result) =
+        "%-12s %-9s %-42s wrong keys %5.2f%%  words with a wrong key %5.1f%%".format(name, set, sc.name, r.letterRate * 100, r.wordRate * 100)
+
     @Test
     fun `nearest box baseline`() {
         for (s in scenarios) {
-            val r = run(nearest, s)
-            println("BASELINE nearest-box  ${s.name}: wrong keys ${"%.2f".format(r.letterRate * 100)}%  words with a wrong key ${"%.1f".format(r.wordRate * 100)}%")
+            println("BASELINE " + line("nearest-box", "common", s, run(nearest, s, common())))
         }
-        val careful = run(nearest, scenarios[0])
-        val normal = run(nearest, scenarios[1])
-        val fast = run(nearest, scenarios[2])
+        val careful = run(nearest, scenarios[0], common())
+        val normal = run(nearest, scenarios[1], common())
+        val fast = run(nearest, scenarios[2], common())
         // Floors set just above the measured baseline (see docs/KEYBOARD-ACCURACY-PLAN.md).
         assertTrue("careful ${careful.letterRate}", careful.letterRate < CAREFUL_FLOOR)
         assertTrue("normal ${normal.letterRate}", normal.letterRate < NORMAL_FLOOR)
         assertTrue("fast ${fast.letterRate}", fast.letterRate < FAST_FLOOR)
+    }
+
+    @Test
+    fun `touch model against nearest box`() {
+        val sets = listOf("common" to common(), "rare" to rare(), "reversed" to reversed())
+        val chooser = smart()
+        val results = HashMap<String, Result>()
+        for ((name, list) in sets) {
+            for (s in scenarios) {
+                val base = run(nearest, s, list)
+                val model = run(chooser, s, list)
+                results["$name/${s.sigma}/nearest"] = base
+                results["$name/${s.sigma}/model"] = model
+                println("COMPARE " + line("nearest-box", name, s, base))
+                println("COMPARE " + line("touch model", name, s, model))
+            }
+        }
+        fun rate(set: String, sc: Scenario, who: String) = results.getValue("$set/${sc.sigma}/$who").letterRate
+        // On real words the model at least halves the wrong keys of a normal and a fast typist.
+        for (set in listOf("common", "rare")) {
+            assertTrue("$set normal", rate(set, scenarios[1], "model") < rate(set, scenarios[1], "nearest") * 0.55f)
+            assertTrue("$set fast", rate(set, scenarios[2], "model") < rate(set, scenarios[2], "nearest") * 0.60f)
+        }
+        // A careful typist is never made worse.
+        assertTrue(rate("common", scenarios[0], "model") <= rate("common", scenarios[0], "nearest") + 0.0005f)
+        // Strings that are not words (names, codes) are barely affected either way.
+        for (sc in scenarios) {
+            assertTrue("reversed ${sc.sigma}", rate("reversed", sc, "model") <= rate("reversed", sc, "nearest") * 1.15f + 0.0005f)
+        }
+    }
+
+    @Test
+    fun `parameter sweep`() {
+        if (System.getProperty("sweep") == null && System.getenv("TOUCH_SWEEP") == null) return
+        for (sigma in listOf(0.2f, 0.25f, 0.3f)) {
+            for (weight in listOf(0.5f, 1f, 1.5f)) {
+                for (inset in listOf(0.15f, 0.22f, 0.3f)) {
+                    val c = smart(TouchModel(sigma = sigma, priorWeight = weight, coreInset = inset))
+                    val out = StringBuilder("SWEEP sigma $sigma weight $weight inset $inset:")
+                    for (s in scenarios.drop(1)) {
+                        out.append("  ${"%.2f".format(run(c, s, common()).letterRate * 100)}%")
+                    }
+                    out.append("  | reversed")
+                    for (s in scenarios.drop(1)) {
+                        out.append("  ${"%.2f".format(run(c, s, reversed()).letterRate * 100)}%")
+                    }
+                    println(out)
+                }
+            }
+        }
     }
 
     private companion object {
