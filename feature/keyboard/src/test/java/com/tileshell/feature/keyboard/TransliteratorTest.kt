@@ -109,4 +109,28 @@ class TransliteratorTest {
         assertEquals("कन्या", mr("kanya"))
         assertEquals("जन्म", mr("janma"))
     }
+
+    @Test
+    fun `marathi words ending in a dot, and double t`() {
+        // The dot on the last letter: typed with n / m, or a final a.
+        assertEquals("जायचं", mr("jaychan"))
+        assertEquals("जायचं", mr("jaychn"))
+        assertEquals("करायचं", mr("karaychn"))
+        assertTrue(mr3("karayacha").contains("करायचं"))
+        assertTrue(mr3("vatayacha").contains("वाटायचं"))
+        assertEquals("होतं", mr("hotan"))
+        assertTrue(mr3("asa").contains("असं"))
+        // tt is ट्ट as well as त्त.
+        assertEquals("नट्टापट्टा", mr("nattapatta"))
+        assertTrue(mr3("patta").contains("पट्टा"))
+        assertEquals("उत्तर", mr("uttar"))
+    }
+
+    private fun mr3(latin: String) = Transliterator.candidates(latin, KeyboardLanguage.MARATHI, marathi, limit = 4)
+
+    @Test
+    fun `completions of a word being typed come from the likeliest spellings together`() {
+        val got = Transliterator.candidates("karay", KeyboardLanguage.MARATHI, marathi, limit = 4)
+        assertTrue(got.toString(), got.any { it == "करायचं" || it == "करायला" || it == "करायचा" })
+    }
 }

@@ -113,6 +113,9 @@ object Transliterator {
             "kh" to if (marathi) one("ख") else o("ख" to 0f, "ख़" to 1.0f), "gh" to one("घ"),
             "ch" to o("च" to 0f, "छ" to 1f),
             "jh" to one("झ"),
+            // tt is त्त (उत्तर, सत्ता) or ट्ट (पट्टा, नट्टापट्टा, सुट्टी); the word list says which.
+            "tt" to o("त्त" to 0f, "ट्ट" to 0.7f, "तत" to 0.8f, "ट्त" to 1.2f, "त्ट" to 1.2f, "टट" to 1.5f, "टत" to 2.0f, "तट" to 2.0f),
+            "tth" to o("त्थ" to 0f, "ट्ठ" to 0.7f, "थ्थ" to 1.2f),
             "th" to o("थ" to 0f, "ठ" to 1.2f), "Th" to one("ठ"),
             "dh" to if (marathi) o("ध" to 0f, "ढ" to 1.2f) else o("ध" to 0f, "ढ" to 1.2f, "ढ़" to 1.3f),
             "Dh" to one("ढ"),
@@ -144,6 +147,7 @@ object Transliterator {
     /** A nasal before these stays a joined letter, not ं (कन्या, जन्म, अन्न, वाङ्मय). */
     private const val NASAL_STAYS_BEFORE = "यरवलळमनण"
     private const val NASAL_JOIN_COST = 0.3f
+    private const val FINAL_DOT_COST = 0.5f
 
     /** "sh" starting a word may be क्ष, as many say it: shetra → क्षेत्र, shan → क्षण. */
     private val KSHA = Opt("क्ष", 1.0f)
@@ -235,6 +239,10 @@ object Transliterator {
                                 next += State(s.text.dropLast(1) + ANUSVARA + opt.text, s.cost + opt.cost + anusvaraCost, true, nasal)
                                 next += State(s.text.dropLast(1) + CHANDRABINDU + opt.text, s.cost + opt.cost + chandraCost, true, nasal)
                             }
+                            // A final n / m after the consonant is the dot on it: jaychn → जायचं.
+                            if (last && nasal) {
+                                next += State(s.text + ANUSVARA, s.cost + opt.cost + FINAL_DOT_COST, false, false)
+                            }
                             // Marathi's eyelash ra before y / h: दुसऱ्या, ऱ्हस्व.
                             if (lang == KeyboardLanguage.MARATHI && s.text.endsWith("र") && (opt.text == "य" || opt.text == "ह")) {
                                 next += State(s.text.dropLast(1) + "ऱ" + VIRAMA + opt.text, s.cost + opt.cost + 0.5f, true, nasal)
@@ -259,6 +267,10 @@ object Transliterator {
                             else -> unit.matra
                         }
                         for (opt in options) next += State(s.text + opt.text, s.cost + opt.cost, false, false)
+                        // A final a can be the dot on the consonant instead (जायचं, होतं, असं).
+                        if (last && s.pending && unit === vowels["a"]) {
+                            next += State(s.text + ANUSVARA, s.cost + FINAL_DOT_COST + 0.4f, false, false)
+                        }
                         // Marathi writes English words' short a as ॅ / ॲ (bag → बॅग, camera → कॅमेरा).
                         if (lang == KeyboardLanguage.MARATHI && unit === vowels["a"]) {
                             next += State(s.text + if (s.pending) "ॅ" else "ॲ", s.cost + 1.1f, false, false)
@@ -321,11 +333,19 @@ object Transliterator {
         val scored = byText.entries.map { it.key to it.value }.sortedByDescending { it.second }
         val out = LinkedHashSet<String>()
         remembered?.let { out += it }
-        val englishWord = loanSpellings.isEmpty() &&
-            english?.lookup(latin.lowercase())?.let { !it.blocked && it.freq >= ENGLISH_MIN_FREQ } == true
+        val englishEntry = english?.lookup(latin.lowercase())?.takeIf { !it.blocked }
+        val englishWord = loanSpellings.isEmpty() && englishEntry != null && englishEntry.freq >= ENGLISH_MIN_FREQ
         // No मराठी / हिन्दी spelling of an English word, and no native word reads
         // the same ("namaskar" is in the English list too): the English word itself.
         if (englishWord && scored.none { it.second > REAL_WORD / 2 }) out += latin
+        // A common English word beats a rarer native one that reads the same
+        // (the → थे, and → अँड, had → हद); a common native word (पण, हात, तो) still wins.
+        if (englishEntry != null && latin.length in ENGLISH_PRIORITY_LETTERS &&
+            englishEntry.freq >= if (loanSpellings.isEmpty()) ENGLISH_PRIORITY_MIN_FREQ else ENGLISH_PRIORITY_MIN_FREQ_LOAN
+        ) {
+            val nativeBest = scored.firstOrNull { it.second > REAL_WORD / 2 }?.let { it.second - REAL_WORD }
+            if (nativeBest != null && englishEntry.freq - nativeBest >= ENGLISH_PRIORITY_MARGIN) out += latin
+        }
         // Real words first; if none, a compound of real words (प्यारे + लाल), then
         // the most literal spelling.
         for ((text, score) in scored) if (score > REAL_WORD / 2 && out.size < limit) out += text
@@ -338,10 +358,18 @@ object Transliterator {
         for ((prefix, _) in spelled.take(2)) {
             for (w in next) if (w.length > prefix.length && w.startsWith(prefix) && out.size < limit) out += w
         }
-        if (lexicon != null) {
-            for ((prefix, _) in spelled.take(2)) {
-                for (c in lexicon.completions(prefix, 2)) if (out.size < limit) out += c.word
+        if (lexicon != null && out.size < limit) {
+            // Completions of the likeliest spellings together, the commonest (and
+            // the closest to what was typed) first, not just the first spelling's.
+            val pool = HashMap<String, Float>()
+            for ((prefix, cost) in spelled.take(COMPLETION_SPELLINGS)) {
+                for (c in lexicon.completions(prefix, COMPLETIONS_PER_SPELLING)) {
+                    if (c.word.length <= prefix.length) continue
+                    val score = c.freq - cost * COST_WEIGHT + if (c.word in next) NEXT_BONUS else 0f
+                    pool[c.word] = maxOf(pool[c.word] ?: Float.NEGATIVE_INFINITY, score)
+                }
             }
+            for ((w, _) in pool.entries.sortedByDescending { it.value }) if (out.size < limit) out += w
         }
         if (loans != null && latin.length >= MIN_LOAN_PREFIX) {
             for (c in loans.completions(latin, 1)) if (out.size < limit) out += c
@@ -395,6 +423,19 @@ object Transliterator {
     /** How common an English word must be to be offered in English letters. */
     private const val ENGLISH_MIN_FREQ = 60
     private const val MIN_LOAN_PREFIX = 3
+
+    /** English ahead of a native word needs a word this common, this much more so than the native one. */
+    private const val ENGLISH_PRIORITY_MIN_FREQ = 100
+    private const val ENGLISH_PRIORITY_MARGIN = 30
+
+    /** Over a मराठी / हिन्दी spelling of the English word (the → दि) only the commonest words lead. */
+    private const val ENGLISH_PRIORITY_MIN_FREQ_LOAN = 150
+
+    /** Short words collide by accident (the / थे); a long one that does is really native (namaskar). */
+    private val ENGLISH_PRIORITY_LETTERS = 3..5
+
+    private const val COMPLETION_SPELLINGS = 6
+    private const val COMPLETIONS_PER_SPELLING = 3
 
     /** How much a word the context makes likely moves up. */
     private const val NEXT_BONUS = 60f

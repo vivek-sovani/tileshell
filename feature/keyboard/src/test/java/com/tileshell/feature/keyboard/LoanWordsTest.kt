@@ -62,6 +62,19 @@ class LoanWordsTest {
     }
 
     @Test
+    fun `a common english word beats a rarer native word that reads the same`() {
+        assertEquals("the", mr("the").first())
+        assertEquals("and", mr("and").first())
+        assertEquals("had", mr("had").first())
+        // The native reading is still offered after it.
+        assertTrue(mr("had").drop(1).any { it.first() in '\u0900'..'\u097F' })
+        // Common native words are not displaced.
+        assertEquals("पण", mr("pan").first())
+        assertEquals("हात", mr("hat").first())
+        assertEquals("तो", mr("to").first())
+    }
+
+    @Test
     fun `an english word with no devanagari spelling stays english`() {
         // In the English list, not in the pronouncing dictionary.
         val word = "footballer"
