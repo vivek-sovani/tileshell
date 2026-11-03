@@ -274,6 +274,10 @@ object Transliterator {
                             else -> unit.matra
                         }
                         for (opt in options) next += State(s.text + opt.text, s.cost + opt.cost, false, false)
+                        // Hindi "mein" is also में (ei read as e).
+                        if (lang == KeyboardLanguage.HINDI && s.pending && unit === vowels["ei"]) {
+                            next += State(s.text + "े", s.cost + 0.3f, false, false)
+                        }
                         // A final a can be the dot on the consonant instead (जायचं, होतं, असं).
                         if (last && s.pending && unit === vowels["a"]) {
                             next += State(s.text + ANUSVARA, s.cost + FINAL_DOT_COST + 0.4f, false, false)
