@@ -133,4 +133,17 @@ class TransliteratorTest {
         val got = Transliterator.candidates("karay", KeyboardLanguage.MARATHI, marathi, limit = 4)
         assertTrue(got.toString(), got.any { it == "करायचं" || it == "करायला" || it == "करायचा" })
     }
+
+    @Test
+    fun `chha, chchha and schcha`() {
+        assertEquals("छायागीत", mr("chhayagit"))
+        assertEquals("छायागीत", mr("chayagit"))
+        assertEquals("अच्छा", mr("achha"))
+        assertEquals("इच्छा", mr("ichha"))
+        assertEquals("स्वच्छ", mr("swachh"))
+        assertEquals("मच्छर", mr("machhar"))
+        assertEquals("छत्री", mr("chhatri"))
+        assertEquals("पश्चिम", mr("paschim"))
+        assertEquals("निश्चय", mr("nischay"))
+    }
 }

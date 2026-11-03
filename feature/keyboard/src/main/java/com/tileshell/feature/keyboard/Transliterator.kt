@@ -110,6 +110,8 @@ object Transliterator {
             "shth" to o("ष्ठ" to 0f, "श्थ" to 1.5f), "sht" to o("ष्ट" to 0f, "श्त" to 1.5f),
             "dny" to one("ज्ञ"), "gy" to o("ग्य" to 0f, "ज्ञ" to 0.5f),
             "chh" to one("छ"), "shh" to one("ष"),
+            // paschim → पश्चिम, nischay → निश्चय typed with the s.
+            "sch" to o("श्च" to 0f, "स्च" to 0.8f),
             "kh" to if (marathi) one("ख") else o("ख" to 0f, "ख़" to 1.0f), "gh" to one("घ"),
             "ch" to o("च" to 0f, "छ" to 1f),
             "jh" to one("झ"),
@@ -151,9 +153,14 @@ object Transliterator {
 
     /** "sh" starting a word may be क्ष, as many say it: shetra → क्षेत्र, shan → क्षण. */
     private val KSHA = Opt("क्ष", 1.0f)
+    private val CCHA = Opt("च्छ", 0.9f)
 
-    private fun consOptions(unit: Cons, index: Int, lang: KeyboardLanguage): List<Opt> =
-        if (index == 0 && unit.options.any { it.text == "श" }) unit.options + KSHA else unit.options
+    private fun consOptions(unit: Cons, index: Int, lang: KeyboardLanguage): List<Opt> = when {
+        index == 0 && unit.options.any { it.text == "श" } -> unit.options + KSHA
+        // chh inside a word is usually च्छ (अच्छा, इच्छा, स्वच्छ, मच्छर); at its start it is छ.
+        index > 0 && unit.options.size == 1 && unit.options[0].text == "छ" -> unit.options + CCHA
+        else -> unit.options
+    }
 
     /** "ao": Marathi ends words in ाव (राव, गाव, नाव), Hindi in ाओ (जाओ, आओ). */
     private fun aoVowel(lang: KeyboardLanguage): Vowel {
