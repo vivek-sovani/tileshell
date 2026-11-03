@@ -340,6 +340,10 @@ object Transliterator {
         val scored = byText.entries.map { it.key to it.value }.sortedByDescending { it.second }
         val out = LinkedHashSet<String>()
         remembered?.let { out += it }
+        // The sound's own letter when just that is typed (th → थ, not the word तह; shr → श्र).
+        if (latin in LONE_SOUNDS) {
+            (SOUND_LETTER[latin] ?: spelled.minByOrNull { it.second }?.first)?.let { out += it }
+        }
         val englishEntry = english?.lookup(latin.lowercase())?.takeIf { !it.blocked }
         val englishWord = loanSpellings.isEmpty() && englishEntry != null && englishEntry.freq >= ENGLISH_MIN_FREQ
         // No मराठी / हिन्दी spelling of an English word, and no native word reads
@@ -443,6 +447,13 @@ object Transliterator {
 
     private const val COMPLETION_SPELLINGS = 6
     private const val COMPLETIONS_PER_SPELLING = 3
+
+    /** Letters that make one sound, which on their own mean that sound's letter. */
+    private val LONE_SOUNDS = setOf(
+        "kh", "gh", "ch", "chh", "jh", "th", "Th", "dh", "Dh", "ph", "bh", "sh", "Sh",
+        "ksh", "gy", "dny", "shr", "tr", "dhy", "tt", "tth", "sch",
+    )
+    private val SOUND_LETTER = mapOf("gy" to "ज्ञ", "dny" to "ज्ञ")
 
     /** How much a word the context makes likely moves up. */
     private const val NEXT_BONUS = 60f

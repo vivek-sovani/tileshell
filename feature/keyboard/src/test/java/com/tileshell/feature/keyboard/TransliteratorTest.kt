@@ -146,4 +146,14 @@ class TransliteratorTest {
         assertEquals("पश्चिम", mr("paschim"))
         assertEquals("निश्चय", mr("nischay"))
     }
+
+    @Test
+    fun `a sound's letters typed alone give that letter`() {
+        val want = mapOf(
+            "kh" to "ख", "gh" to "घ", "jh" to "झ", "th" to "थ", "dh" to "ध", "ph" to "फ", "bh" to "भ",
+            "sh" to "श", "ksh" to "क्ष", "gy" to "ज्ञ", "dny" to "ज्ञ", "shr" to "श्र", "tt" to "त्त",
+            "dhy" to "ध्य", "chh" to "छ", "Th" to "ठ", "Dh" to "ढ", "tr" to "त्र",
+        )
+        for ((typed, letter) in want) assertEquals(typed, letter, mr(typed))
+    }
 }
