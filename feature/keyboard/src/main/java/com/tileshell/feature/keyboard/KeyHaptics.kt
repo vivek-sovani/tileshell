@@ -10,9 +10,9 @@ import android.os.VibratorManager
 
 /** Haptic strength (keyboard settings), per the build spec: light / medium / strong. */
 enum class HapticStrength(val label: String, val millis: Long, val amplitude: Int) {
-    LIGHT("light", 8, 70),
-    MEDIUM("medium", 12, 150),
-    STRONG("strong", 18, 255),
+    LIGHT("light", 5, 35),
+    MEDIUM("medium", 7, 70),
+    STRONG("strong", 12, 150),
 }
 
 /** The build spec's three feedbacks, plus a faint tick for each cursor step. */
