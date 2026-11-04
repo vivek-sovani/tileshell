@@ -99,7 +99,7 @@ object Transliterator {
     private fun consonants(lang: KeyboardLanguage): Map<String, List<Opt>> =
         baseConsonants(lang).mapValues { (key, options) ->
             val base = aspirateParts[key] ?: return@mapValues options
-            options + Opt(base + "ह", 1.0f) + Opt(base + VIRAMA + "ह", 1.4f)
+            options + Opt(base + "ह", SPLIT_H_COST) + Opt(base + VIRAMA + "ह", SPLIT_H_COST + 0.4f)
         }
 
     private fun baseConsonants(lang: KeyboardLanguage): Map<String, List<Opt>> {
@@ -150,6 +150,9 @@ object Transliterator {
     private const val NASAL_STAYS_BEFORE = "यरवलळमनण"
     private const val NASAL_JOIN_COST = 0.3f
     private const val FINAL_DOT_COST = 0.5f
+
+    /** kh, ch, th… read as a consonant then ह (कहा for kaha) cost this much more than the aspirate, so "cha" is चा and not चहा. */
+    private const val SPLIT_H_COST = 3.2f
 
     /** "sh" starting a word may be क्ष, as many say it: shetra → क्षेत्र, shan → क्षण. */
     private val KSHA = Opt("क्ष", 1.0f)

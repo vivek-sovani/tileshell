@@ -172,4 +172,19 @@ class TransliteratorTest {
         assertEquals("में", hi("mein"))
         assertEquals("मैं", hi("main"))
     }
+
+    @Test
+    fun `cha is चा, so words ending in ाचा can be typed`() {
+        assertEquals("चा", mr("cha"))
+        assertEquals("खा", mr("kha"))
+        assertEquals("शा", mr("sha"))
+        assertEquals("पिवळ्याचा", mr("pivalyacha"))
+        assertEquals("पिवळ्याची", mr("pivalyachi"))
+        assertEquals("पिवळ्याच्या", mr("pivalyachya"))
+        // The consonant-then-ह reading still works where it is the word.
+        assertEquals("कहा", mr("kaha"))
+        assertEquals("चहा", mr("chaha"))
+        assertEquals("एकही", mr("ekhi"))
+        assertEquals("अपहरण", mr("apharan"))
+    }
 }
