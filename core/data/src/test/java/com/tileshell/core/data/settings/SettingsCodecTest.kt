@@ -66,6 +66,17 @@ class SettingsCodecTest {
     }
 
     @Test
+    fun `tileDepth defaults to tilt, round-trips, and a bad value keeps the default`() {
+        assertEquals(TileDepth.TILT, LauncherSettings().tileDepth)
+        assertEquals(TileDepth.TILT, SettingsCodec.decode("glass=true").tileDepth)
+        assertEquals(TileDepth.LIGHTING, SettingsCodec.decode("tileDepth=LIGHTING").tileDepth)
+        assertEquals(TileDepth.OFF, SettingsCodec.decode("tileDepth=OFF").tileDepth)
+        assertEquals(TileDepth.TILT, SettingsCodec.decode("tileDepth=deep").tileDepth)
+        val s = LauncherSettings(tileDepth = TileDepth.LIGHTING)
+        assertEquals(s, SettingsCodec.decode(SettingsCodec.encode(s)))
+    }
+
+    @Test
     fun `bad themedIcons keeps the default`() {
         assertEquals(true, SettingsCodec.decode("themedIcons=true").themedIcons)
         assertEquals(LauncherSettings().themedIcons, SettingsCodec.decode("themedIcons=maybe").themedIcons)

@@ -3095,6 +3095,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setHubsFollowTiles(enabled) }
     }
 
+    fun setTileDepth(depth: com.tileshell.core.data.settings.TileDepth) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileDepth(depth) }
+    }
+
+    /** See [LauncherSettings.peoplePhotoFlip]. */
     fun setPeoplePhotoFlip(enabled: Boolean) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setPeoplePhotoFlip(enabled) }
     }

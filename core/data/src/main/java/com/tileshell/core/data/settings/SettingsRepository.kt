@@ -293,6 +293,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(hubsFollowTiles = enabled) }
     }
 
+    /** See [LauncherSettings.tileDepth]. */
+    suspend fun setTileDepth(depth: TileDepth) {
+        store.updateData { it.copy(tileDepth = depth) }
+    }
+
     /** See [LauncherSettings.peoplePhotoFlip]. */
     suspend fun setPeoplePhotoFlip(enabled: Boolean) {
         store.updateData { it.copy(peoplePhotoFlip = enabled) }

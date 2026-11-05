@@ -273,6 +273,8 @@ fun PersonalizeSheet(
     onHideStatusBarChange: (Boolean) -> Unit,
     doubleTapLock: Boolean = false,
     onDoubleTapLockChange: (Boolean) -> Unit = {},
+    tileDepth: com.tileshell.core.data.settings.TileDepth = com.tileshell.core.data.settings.TileDepth.TILT,
+    onTileDepthChange: (com.tileshell.core.data.settings.TileDepth) -> Unit = {},
     peoplePhotoFlip: Boolean = true,
     onPeoplePhotoFlipChange: (Boolean) -> Unit = {},
     hubsFollowTiles: Boolean = true,
@@ -997,6 +999,34 @@ fun PersonalizeSheet(
                             }
                         }
                         // ---- grid columns ----
+                        SettingGroup(label = "tile depth", tokens.fgDim) {
+                            val depths = com.tileshell.core.data.settings.TileDepth.entries
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    for (depth in depths) {
+                                        SegCell(
+                                            when (depth) {
+                                                com.tileshell.core.data.settings.TileDepth.OFF -> "off"
+                                                com.tileshell.core.data.settings.TileDepth.TILT -> "tilt"
+                                                com.tileshell.core.data.settings.TileDepth.LIGHTING -> "lighting"
+                                            },
+                                            selected = tileDepth == depth,
+                                            accent = accent,
+                                            fg = tokens.fg,
+                                        ) { onTileDepthChange(depth) }
+                                    }
+                                }
+                                Text(
+                                    when (tileDepth) {
+                                        com.tileshell.core.data.settings.TileDepth.OFF -> "a pressed tile does not move"
+                                        com.tileshell.core.data.settings.TileDepth.TILT -> "a pressed tile leans away from your finger and dips, like windows phone"
+                                        com.tileshell.core.data.settings.TileDepth.LIGHTING -> "the lean, plus a light edge, shade and a highlight that slides across the tile, with the icon floating above it"
+                                    },
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                        }
                         SettingGroup(label = "grid columns", tokens.fgDim) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(

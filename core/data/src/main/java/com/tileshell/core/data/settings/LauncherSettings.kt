@@ -79,6 +79,9 @@ enum class MonochromeIconTint { ACCENT, NEUTRAL }
 /** See [LauncherSettings.appListStyle]'s doc comment. */
 enum class AppListStyle { ICONS, TILES }
 
+/** See [LauncherSettings.tileDepth]'s doc comment. */
+enum class TileDepth { OFF, TILT, LIGHTING }
+
 /**
  * Whether TileShell's own wallpaper (gradient or photo) is also pushed to the
  * real Android [android.app.WallpaperManager] — since this app draws its own
@@ -335,6 +338,12 @@ data class LauncherSettings(
     /** The people tile's photos turn over (a quick flip about the bubble's horizontal axis) when they change; off = a plain cut. */
     val peoplePhotoFlip: Boolean = true,
     /**
+     * How much a pressed tile reads as a raised object: [TileDepth.OFF] (a plain tap, no movement), [TileDepth.TILT]
+     * (the default, the Windows Phone press: the tile leans away from the finger and dips) or [TileDepth.LIGHTING]
+     * (the same lean with a light edge, shade and sliding highlight on the plate, and the face floating a few px above it).
+     */
+    val tileDepth: TileDepth = TileDepth.TILT,
+    /**
      * Hubs and the sheets over Start take the colour the tiles take from the wallpaper (on, the default); off keeps
      * them on the chosen accent. Only matters while the tile colour source is the wallpaper.
      */
@@ -447,6 +456,7 @@ object SettingsCodec {
         append("hideStatusBar=").append(settings.hideStatusBar).append('\n')
         append("doubleTapLock=").append(settings.doubleTapLock).append('\n')
         append("peoplePhotoFlip=").append(settings.peoplePhotoFlip).append('\n')
+        append("tileDepth=").append(settings.tileDepth.name).append('\n')
         append("hubsFollowTiles=").append(settings.hubsFollowTiles).append('\n')
         append("wallpaperSpanPages=").append(settings.wallpaperSpanPages).append('\n')
         append("quickPanelOrder=").append(settings.quickPanelTileOrder.joinToString("|")).append('\n')
@@ -510,6 +520,7 @@ object SettingsCodec {
         var hideStatusBar = d.hideStatusBar
         var doubleTapLock = d.doubleTapLock
         var peoplePhotoFlip = d.peoplePhotoFlip
+        var tileDepth = d.tileDepth
         var hubsFollowTiles = d.hubsFollowTiles
         var wallpaperSpanPages = d.wallpaperSpanPages
         var quickPanelTileOrder = d.quickPanelTileOrder
@@ -590,6 +601,7 @@ object SettingsCodec {
                 "hideStatusBar" -> hideStatusBar = value.toBooleanStrictOrNull() ?: hideStatusBar
                 "doubleTapLock" -> doubleTapLock = value.toBooleanStrictOrNull() ?: doubleTapLock
                 "peoplePhotoFlip" -> peoplePhotoFlip = value.toBooleanStrictOrNull() ?: peoplePhotoFlip
+                "tileDepth" -> TileDepth.entries.find { it.name == value }?.let { tileDepth = it }
                 "hubsFollowTiles" -> hubsFollowTiles = value.toBooleanStrictOrNull() ?: hubsFollowTiles
                 "wallpaperSpanPages" -> wallpaperSpanPages = value.toBooleanStrictOrNull() ?: wallpaperSpanPages
                 "quickPanelOrder" -> quickPanelTileOrder = if (value.isEmpty()) emptyList()
@@ -660,6 +672,7 @@ object SettingsCodec {
             hideStatusBar = hideStatusBar,
             doubleTapLock = doubleTapLock,
             peoplePhotoFlip = peoplePhotoFlip,
+            tileDepth = tileDepth,
             hubsFollowTiles = hubsFollowTiles,
             wallpaperSpanPages = wallpaperSpanPages,
             quickPanelTileOrder = quickPanelTileOrder,

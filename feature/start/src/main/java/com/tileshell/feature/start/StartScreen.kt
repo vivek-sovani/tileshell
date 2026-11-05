@@ -205,6 +205,7 @@ import com.tileshell.core.data.settings.IconShape
 import com.tileshell.core.data.settings.MonochromeIconTint
 import com.tileshell.core.data.settings.LiveRefreshRate
 import com.tileshell.core.data.settings.TileColorSource
+import com.tileshell.core.data.settings.TileDepth
 import com.tileshell.core.data.settings.TileFill
 import com.tileshell.core.data.settings.TilePackMode
 import com.tileshell.core.data.settings.WallpaperSyncTarget
@@ -235,6 +236,8 @@ import com.tileshell.core.design.colorTokens
 import com.tileshell.core.design.isLightBackground
 import com.tileshell.core.design.themedBase
 import com.tileshell.core.design.tileGradientBrush
+import com.tileshell.core.design.TilePressState
+import com.tileshell.core.design.pressParallax
 import com.tileshell.core.design.tiltOnPress
 import com.tileshell.core.design.wallpaperWindow
 import com.tileshell.feature.applist.AppListScreen
@@ -1259,6 +1262,7 @@ fun StartScreen(
         LocalTileFaceColor provides Glass.faceTextColor(
             (settings.glass || tiledWallpaper || settings.borderlessTiles) && chosenWallpaperIsLight,
         ),
+        LocalTileDepth provides settings.tileDepth,
         com.tileshell.feature.livetiles.LocalPeoplePhotoFlip provides settings.peoplePhotoFlip,
     ) {
     BoxWithConstraints(
@@ -5635,6 +5639,9 @@ internal fun TileView(
         label = "tileElevation",
     )
     val flipHost = remember { TileFlipHost() }
+    val tileDepth = LocalTileDepth.current
+    val pressState = remember { TilePressState() }
+    val depthActive = !editMode && !readOnly && tileDepth != TileDepth.OFF
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -5650,7 +5657,17 @@ internal fun TileView(
             // clip turn with the face. See tileFlip / FlipTile.
             .tileFlip(flipHost)
             // The press-tilt effect (S7) is replaced by the jiggle while editing.
-            .then(if (editMode || readOnly) Modifier else Modifier.tiltOnPress())
+            .then(
+                if (!depthActive) {
+                    Modifier
+                } else {
+                    Modifier.tiltOnPress(
+                        lighting = tileDepth == TileDepth.LIGHTING,
+                        cornerRadius = tileCornerRadius.dp,
+                        state = pressState,
+                    )
+                },
+            )
             // No drop shadow here — tried and removed (see DECISIONS.md
             // "Widget-card tiles: the drop shadow was removed a second
             // time"). Modifier.shadow rendered as a hard second rounded
@@ -5754,6 +5771,9 @@ internal fun TileView(
                     Modifier
                 },
             )
+            // Tile depth "lighting": the face floats a few dp against the lean, over the plate (draw-only, so it
+            // moves only what is drawn inside this node: the fill and outline above stay put).
+            .then(if (depthActive && tileDepth == TileDepth.LIGHTING) Modifier.pressParallax(pressState) else Modifier)
             // Accessibility: collapse the tile to a single labelled button and
             // expose its operations as actions (TalkBack), replacing the inert
             // descendant icon/label/live-face semantics.
@@ -10172,6 +10192,8 @@ private fun PersonalizeSheetLayer(
         onDoubleTapLockChange = viewModel::setDoubleTapLock,
         peoplePhotoFlip = settings.peoplePhotoFlip,
         onPeoplePhotoFlipChange = viewModel::setPeoplePhotoFlip,
+        tileDepth = settings.tileDepth,
+        onTileDepthChange = viewModel::setTileDepth,
         hubsFollowTiles = settings.hubsFollowTiles,
         onHubsFollowTilesChange = viewModel::setHubsFollowTiles,
         startPageCount = startPageCount,
@@ -10277,3 +10299,6 @@ private fun PanchangLanguageAskLayer(viewModel: StartViewModel, dark: Boolean, a
         onDismiss = { viewModel.answerPanchangLanguage(null) },
     )
 }
+
+/** See [com.tileshell.core.data.settings.LauncherSettings.tileDepth]; read by [TileView]. */
+internal val LocalTileDepth = androidx.compose.runtime.staticCompositionLocalOf { TileDepth.TILT }
