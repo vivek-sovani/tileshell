@@ -159,7 +159,7 @@ class KeyboardController(
     /** A swipe across letters can type a word here (in मराठी / हिन्दी, the Devanagari word). */
     val swipeEnabled: Boolean
         get() = settings.swipe && layer == KeyboardLayer.LETTERS && !devanagariKeys &&
-            (if (translit) languagesHere && language in swipeLexicons else fieldMode == FieldMode.NORMAL && lexicon != null)
+            (if (translit) languagesHere && language in swipeLexicons else swipeAllowedHere && lexicon != null)
 
     /** A space the keyboard added after a picked word; punctuation typed next takes its place. */
     private var autoSpaced = false
@@ -169,6 +169,11 @@ class KeyboardController(
     private val audio by lazy { service.getSystemService(Context.AUDIO_SERVICE) as? AudioManager }
     private val lexicon: Lexicon? get() = lexicons[language]
     /** मराठी / हिन्दी typed in English letters, shown as composing text. */
+    /** Swiping is not a suggestion: search boxes and other "no suggestions" text fields take it too; passwords never. */
+    private val swipeAllowedHere: Boolean
+        get() = fieldMode != FieldMode.INCOGNITO &&
+            (inputType and android.text.InputType.TYPE_MASK_CLASS) == android.text.InputType.TYPE_CLASS_TEXT
+
     private val translit: Boolean get() = language.indic && settings.lettersNow
 
     private data class Correction(val original: String, val replacement: String, val separator: String)
