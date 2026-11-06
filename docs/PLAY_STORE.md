@@ -20,13 +20,13 @@ visible impact for existing users and wasn't part of this ask.)*
 
 ### Full description (4 000 chars max)
 
-*Updated 2026-10-11 (for the build now numbered 5.5.0). Written against the two earlier rejections and Play's metadata policy: the optional Accessibility Service is disclosed in its own section and names exactly the three actions it performs (rejection 2026-10-08); headings are plain words with no star symbols, no ALL CAPS gimmicks, no repeated keywords and no claims that are not in the app; a line says TileShell is independent of Microsoft; every feature that reads notifications, messages or usage says so. If Play objects again, shorten the hubs list first.*
+*Updated 2026-11-06 for 5.6.0 (adds the Keyboard (beta) section; trimmed two sentences to fit). Written against the two earlier rejections and Play's metadata policy: the optional Accessibility Service is disclosed in its own section and names exactly the three actions it performs (rejection 2026-10-08); headings are plain words with no star symbols, no ALL CAPS gimmicks, no repeated keywords and no claims that are not in the app; a line says TileShell is independent of Microsoft; every feature that reads notifications, messages or usage says so. If Play objects again, shorten the hubs list first.*
 
 ```
-TileShell is a launcher for Android that recreates the Start screen of Windows Phone and Windows 10 Mobile, built from scratch in Kotlin with original icons. It is an independent app and is not affiliated with or endorsed by Microsoft.
+TileShell is a launcher for Android that recreates the Start screen of Windows Phone and Windows 10 Mobile. It is an independent app and is not affiliated with or endorsed by Microsoft.
 
 Start screen
-Live tiles in 4, 5 or 6 columns: small, medium, wide and large. Drag to rearrange, merge tiles into folders or widget stacks, resize, recolour or unpin. Press and hold a tile for quick actions: the app's own shortcuts, size and colour, move, app info, and for a notification, reply, mark read or open. Prefer icons? Switch to the Icons home style with your choice of icon shape. A short setup on first run picks the style, theme, colours and apps.
+Live tiles in 4, 5 or 6 columns: small, medium, wide and large. Drag to rearrange, merge tiles into folders or widget stacks, resize, recolour or unpin. Press and hold a tile for quick actions: the app's own shortcuts, size and colour, move, app info, and for a notification, reply, mark read or open. Prefer icons? Switch to the Icons home style with your choice of icon shape.
 
 Hubs
 Tap a tile to open its full screen hub with swipeable pages:
@@ -44,7 +44,7 @@ Tap a tile to open its full screen hub with swipeable pages:
 • Money: bank, UPI and card messages, bills by due date, locked with your fingerprint
 
 News in your language
-Choose countries or languages for the news feed: Hindi, Marathi, Gujarati, Bengali, Tamil, Telugu, Kannada, Malayalam, Punjabi, Odia, Urdu, Assamese and Chinese, plus India, China, Hong Kong, Taiwan and about twenty other countries. Add any RSS feed of your own.
+Choose countries or languages for the news feed: Hindi, Marathi, Gujarati, Bengali, Tamil, Telugu, Kannada, Malayalam, Punjabi, Odia, Urdu, Assamese and Chinese, plus India, China, Hong Kong, Taiwan and many other countries.
 
 Panchang
 Tithi, paksha, nakshatra, sunrise and moonrise, with festivals, Ekadashi, Sankashti and eclipses, in English, Hindi, Marathi, Gujarati, Tamil, Malayalam, Kannada or Telugu.
@@ -53,7 +53,10 @@ Live tiles and widgets
 Tiles flip like the originals: clock, weather, next event, now playing, contact photos, photos and notification previews. They pause in battery saver. Fourteen real home screen widgets work with any launcher. Merge same size tiles or widgets into a swipeable stack.
 
 Everything else
-A feed page with a greeting, agenda and news. A quick panel with resizable toggles and a quick search for apps, contacts and the web. An app list with an A to Z jump grid, a back and search rail and an optional square tile style. Fourteen accents, wallpaper colours, dark and light themes, glass or widget card tiles, photo, slideshow or daily wallpapers. Backup to your phone or to a file, with optional automatic export to a folder.
+A feed page with a greeting, agenda and news. A quick panel with resizable toggles and a quick search for apps, contacts and the web. An app list with an A to Z jump grid, a back and search rail and an optional square tile style. Fourteen accents, wallpaper colours, dark and light themes, glass or widget card tiles, photo, slideshow or daily wallpapers. Backup to your phone or to a file.
+
+Keyboard (beta)
+An optional Windows Phone style keyboard in your accent colour: wordflow swipe typing, suggestions, emoji, clipboard history, and Marathi and Hindi typing in English letters or on Devanagari keys. It never goes online.
 
 Notification access (optional)
 If you allow it, TileShell reads notifications on your phone to show badges and previews on tiles, to list messages in People, and to read order updates and bank messages for the Shopping and Money hubs. This stays on your phone. Everything else works without it.
@@ -71,7 +74,7 @@ No accounts, no analytics and no ads. Your data stays on your phone. Weather, ne
 Requires Android 8.0 or higher.
 ```
 
-*(3909 chars, under Play's 4 000 limit. Short description 65 of 80.)*
+*(3944 chars, under Play's 4 000 limit. Short description 65 of 80.)*
 
 ### Category
 Personalization
@@ -81,7 +84,8 @@ Everyone
 
 ### Tags / Keywords
 launcher, windows phone, live tiles, start screen, personalization, home screen,
-widget, tiles, windows mobile, wp8, wp10, metro, fluent, hubs, panchang
+widget, tiles, windows mobile, wp8, wp10, metro, fluent, hubs, panchang, keyboard,
+marathi keyboard, hindi keyboard, transliteration
 
 ---
 
@@ -183,6 +187,14 @@ location is shared (with Open-Meteo).*
 Data safety entry; its notes are in git history (commit before "keyboard held back") for when
 it ships.*
 
+### TileShell keyboard (beta)
+Not "collected" in Play's sense: nothing typed leaves the phone. Learned words and word pairs, the
+Marathi/Hindi spelling memory, clipboard history and a few touch-calibration numbers are kept in TileShell's own
+storage, can be cleared from the keyboard's settings, and are removed with the app. Password
+fields are never learned and never kept in clipboard history. The keyboard makes no
+network requests. Voice typing is off in this build (`tileshell.keyboardVoice=false`),
+so no RECORD_AUDIO permission is requested. The typing test and glide test are debug builds only.
+
 ### Encryption in transit?
 **Yes** — all network requests (Open-Meteo, RSS feeds, ESPN, Yahoo Finance, Bing, podcasts, Radio Browser) use HTTPS.
 
@@ -274,24 +286,25 @@ labeled sections — "New features:" and "Bugs fixed:" — each a short bulleted
 "• New: / • Improved: / • Fixed:" per-line style used in every entry before this one (those keep their
 original format as the historical record, unchanged). Still capped at Play's 500-character limit.*
 
-## Release notes (v5.5.0)
+## Release notes (v5.6.0)
 
-*Everything added after 5.0.0. 5.3.0 (versionCode 530) is live on Play; 5.5.0 (versionCode 550) follows it straight away, so these notes carry the feature additions of both: what is new since 5.3.0 and what 5.3.0 brought. Number history: built as 5.1.0 (510) and 5.2.0 (520, uploaded and discarded in Play Console because the live tv player left the screen held on), then released as 5.3.0 (530) with that fix.*
+*Everything added after 5.0.0. 5.3.0 (versionCode 530) is live on Play; 5.5.0 (versionCode 550) was uploaded but never released, so it is replaced by 5.6.0 (versionCode 560): the 5.5.0 points plus the TileShell keyboard (beta). These notes carry the additions of all three: what is new since 5.3.0 and what 5.3.0 brought. Number history: built as 5.1.0 (510) and 5.2.0 (520, uploaded and discarded in Play Console because the live tv player left the screen held on), then released as 5.3.0 (530) with that fix.*
 
 ### Play-facing blurb (500 chars max)
 ```
-TileShell 5.5.0
+TileShell 5.6.0
 
 New features:
+• Windows Phone style keyboard (beta)
+  with swipe typing, Marathi and Hindi
 • Music + videos hub
-• Hubs and apps grow out of the tile you tap
+• Hubs and apps grow out of the tile
 • Dual-screen and foldable layouts
 • Android Auto: music, podcasts, radio
-• New hubs: markets, sports, news, clock, shopping, health
+• New hubs: markets, sports, news,
+  clock, shopping, health
 • Long-press a tile for quick actions
 • Windows Phone flip on live tiles
-• Panchang in 8 languages, news in 13
-• Podcasts resume where you left
 
 Bugs fixed:
 • Less battery use
@@ -301,7 +314,11 @@ Bugs fixed:
 
 ### Full changelog since v5.0.0 (for reference, not the Play-facing blurb above)
 
-#### New in 5.5.0 (since the live 5.3.0)
+#### New in 5.6.0 (since the live 5.3.0; includes everything in the never-released 5.5.0)
+
+**TileShell keyboard (beta).** An optional Windows Phone / Metro-style keyboard (input method) in the accent colour and theme, turned on in Android's keyboard list and chosen from personalize › system (a BETA tag shows there; About and the guide describe it). Wordflow swipe typing, suggestions, autocorrect that learns, next-word suggestions, emoji with search and word emoji, clipboard history, number pad, one-handed mode, space-bar cursor, smart touch (likely letters are easier to hit) and touch calibration (learns where your thumbs land; numbers only), key size, key spacing and a one-tap Windows Phone look, haptic strength. Marathi and Hindi by English-letter transliteration or Devanagari keys. Never connects to the internet, learns nothing in password fields, no voice typing and no microphone permission. The typing test and glide test are for debug builds only and are not in this release. The what's-new card introduces it with a button to Android's keyboard list. Adds `BIND_INPUT_METHOD` (the service) and `VIBRATE`.
+
+#### The 5.5.0 points (never released, now in 5.6.0)
 
 **Music + videos.** The music hub is now "music + videos": a videos page with videos from folders picked in the system folder picker (no storage permission), opened in the phone's default player; a "video and ott" apps section; editable apps lists (add, drag between sections, take off; most used first); a tile for the apps page. Podcast episodes keep their position, the last song resumes, played episodes are marked "played" or show the time left, and a finished episode goes on to the next newer unplayed one.
 
@@ -343,9 +360,9 @@ Bugs fixed:
 
 **Fixes and battery.** Battery audit of the background work (battery log, Bing, health sampler, weather, notification capture, animations, icons); opening an app clears its notification count; dragging tiles no longer carries a small tile to the next page by accident and small tiles drag from anywhere; a wallpaper type keeps its own pick; "play X" voice requests reach TileShell; timer chime plays on the alarm stream; Bluetooth music resumes after a disconnect.
 
-### Play Console checklist for 5.5.0 (upload day)
+### Play Console checklist for 5.6.0 (upload day)
 
-Build: `release-out/tileshell-5.5.0-release.aab`, versionCode 550 (510 and 520 are burned and 530 is live; check the Console for the highest code before uploading), targetSdk 36, signed with the upload key (cert SHA-256 1a904ad5…), no `RECORD_AUDIO`.
+Build: `release-out/tileshell-5.6.0-release.aab`, versionCode 560 (510 and 520 are burned, 530 is live and 550 is uploaded but unreleased: discard that draft first, or the 5.6.0 upload sits behind it; check the Console for the highest code), targetSdk 36, signed with the upload key (cert SHA-256 1a904ad5…), no `RECORD_AUDIO`.
 
 **A. Before you open the Play Console (on this Mac / a device)**
 - [ ] Check the AAB is the one just built (`jarsigner -verify` says "jar verified"; check the file date).
@@ -356,12 +373,13 @@ Build: `release-out/tileshell-5.5.0-release.aab`, versionCode 550 (510 and 520 a
 - [ ] Re-record the **accessibility demo video** from this build (Play asks for a fresh one with every submission; follow the steps in the 5.0.0 checklist above, slowly, pausing on every bullet).
 
 **B. Store listing (paste by hand; nothing syncs from the repo)**
-- [ ] Short description (65 / 80) and full description (3909 / 4000) from "Store Listing" above, including the two disclosure sections (notification access, accessibility service).
+- [ ] Short description (65 / 80) and full description (3944 / 4000) from "Store Listing" above, including the two disclosure sections (notification access, accessibility service).
 - [ ] "What's new" blurb from "Play-facing blurb" above (480 / 500).
 - [ ] Screenshots: phone as before. **Add large-screen ones**: 7" and 10" tablet / foldable screenshots (a Duo or Fold spanned screen: Start beside the glance page, a hub across both screens). Without them Play shows the app as phone-only on large screens.
 - [ ] Form factors: tick **Android Auto** (Release > Setup > Advanced settings). Tablets / foldables need nothing extra: the manifest has no orientation lock and no required hardware features, and the app is resizable.
 
 **C. App content and declarations**
+- [ ] **Keyboard (new in this build):** Data safety: add the "TileShell keyboard (beta)" note (nothing typed leaves the phone; learned words, clipboard history and touch numbers stay on the device). Publish the updated privacy policy (it now has the keyboard rows and section) before submitting. Reviewer notes: the keyboard is optional, off until chosen in Android's keyboard list, never online, no microphone. Fresh-install check on a phone: turn it on, choose it, type in a normal field and a password field (nothing learned).
 - [ ] Accessibility API declaration: upload the new video link; say the service is not an accessibility tool and only calls `performGlobalAction` (lock screen, recents, notifications).
 - [ ] Foreground service `mediaPlayback` declaration with a short video (start a song, screen off, notification controls).
 - [ ] Data safety: no new data types in this re-cut (dual-screen and the quick settings tile collect nothing). Re-read the form against the 5.0.0 answers: financial info, messages, music files, fitness, approximate location to Open-Meteo.

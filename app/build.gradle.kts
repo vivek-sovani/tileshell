@@ -664,8 +664,10 @@ android {
         //   5.5.0 (550): music + videos hub, hubs and launched apps grow out of the tapped tile,
         //   podcast / song resume, hub colour choice, people number picker, landscape wallpaper,
         //   flip and return-from-app fixes (see docs/PLAY_STORE.md "Release notes (v5.5.0)").
-        versionCode = 550
-        versionName = "5.5.0"
+        //   5.6.0 (560): 5.5.0 (550) was uploaded but never released, so it ships as 5.6.0 with every
+        //   5.5.0 point plus the TileShell keyboard (beta; no typing / glide test in release builds).
+        versionCode = 560
+        versionName = "5.6.0"
     }
 
     // Task reminders kill switch (gradle.properties → tileshell.taskReminders).

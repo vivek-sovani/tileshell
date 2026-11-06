@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.pager.rememberPagerState
 import com.tileshell.core.design.HubAppBar
 import com.tileshell.core.design.HubAppBarAction
+import com.tileshell.core.data.KeyboardFeature
 import com.tileshell.core.design.HubPanorama
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.SquircleShape
@@ -333,6 +334,22 @@ fun PersonalizeGuideSheet(
                         )
                     }
                     5 -> {
+                        if (KeyboardFeature.ENABLED) {
+                            FeatureGroup(
+                                title = "windows phone-style keyboard (beta)",
+                                accent = accent,
+                                tokens = tokens,
+                                items = listOf(
+                                    "to use it: personalize · system · tileshell keyboard — tap \"turn on\", switch it on in android's keyboard list (android shows its own warning for every keyboard), come back and tap \"choose\", then pick tileshell in the keyboard picker",
+                                    "wordflow: put a finger on the first letter and glide across the letters of a word without lifting; the word is typed when you lift, and the strip offers other words to swap in. turn it off in keyboard settings if you'd rather tap",
+                                    "keyboard settings (open it from the personalize row, the keyboard's tools row or android's keyboard list) has key size, key spacing and \"use the windows phone look\", haptic strength, autocorrect level, theme and accent colour",
+                                    "smart touch makes the letters likely to come next a little easier to hit, and touch calibration learns where your thumbs land; both can be switched off, and nothing is kept but a few numbers",
+                                    "the tools row (the menu icon at the start of an empty strip) opens clipboard, one-handed mode and settings; the emoji key has search; hold space and slide to move the cursor",
+                                    "for मराठी or हिन्दी, turn the language on in keyboard settings and press the globe key to step between languages; then either spell words in english letters (\"namaskar\" → नमस्कार) and pick from the strip, or use the devanagari keys",
+                                    "learned words, clipboard history and your spellings stay on this phone and can be cleared in keyboard settings; it is a beta, so some words may still come out wrong",
+                                ),
+                            )
+                        }
                         FeatureGroup(
                             title = "permissions",
                             accent = accent,

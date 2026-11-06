@@ -41,6 +41,8 @@ simply stays inactive when a permission is denied.
 | `SET_WALLPAPER` | Nothing read; sets the photo or wallpaper you choose on your home and/or lock screen | Not read; no data transmitted |
 | `REQUEST_DELETE_PACKAGES` | Nothing read; opens Android's own uninstall prompt when you choose "uninstall" on an app | Not read; no data transmitted |
 | `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` | Whether you're online and Wi-Fi is on, for the Quick Panel and to skip fetches while offline | Not read beyond on/off; no data transmitted |
+| `BIND_INPUT_METHOD` — TileShell keyboard (beta, optional) | Only when you turn the TileShell keyboard on in Android's keyboard settings and choose it: the text you type into the field you're typing in, and text you copy (for clipboard history). See "TileShell keyboard" below | Stays on device |
+| `VIBRATE` | Nothing read; a short buzz on key presses in the TileShell keyboard (turn off in its settings) | Not read; no data transmitted |
 | `BIND_DEVICE_ADMIN` (optional, Android 8–9 only) | Used only to lock the screen when you ask, on Android versions without the accessibility lock action | Not read; no data transmitted |
 
 TileShell holds **no** SMS or call-log permission and never reads your SMS inbox or call
@@ -50,6 +52,13 @@ wallpaper and live-photos slideshow, the music on your device, and the videos in
 in the music + videos hub (read through the system folder picker, only those folders, never copied or
 sent anywhere; a video opens in your phone's own video player).
 
+
+### TileShell keyboard (beta)
+The TileShell keyboard is optional and works only after you turn it on in Android's keyboard
+settings and choose it. Android shows its own warning at that step, as it does for every
+keyboard, because a keyboard sees what you type. The TileShell keyboard never connects to the
+internet: nothing you type, learn or copy is sent anywhere. It has no voice typing and does not
+use the microphone. Its word lists ship with the app. Nothing is learned or kept in password fields.
 
 ---
 
@@ -132,6 +141,14 @@ DataStore):
 You can export a backup file of this data (including notes and tasks) from Personalize, and
 optionally have TileShell save one automatically to a folder you choose (for example in Google
 Drive). The files go only to that folder, which you pick and can change or stop at any time.
+
+- **TileShell keyboard (beta), only if you use it** — words and names it learns from your
+  typing, and which words you put after which (for next-word suggestions; never from password
+  fields), how you like to spell Marathi and Hindi words in
+  English letters, recently used emoji, clipboard history (text you copy, kept for an hour
+  unless you pin it; text an app marks as private, such as a password, is never kept), and a few
+  numbers on where your thumbs land on the keys (never what you typed). Clear
+  learned words or turn clipboard history off in the keyboard's settings. Never transmitted
 
 None of this data is backed up to the developer's servers. Android's standard auto-
 backup to Google may back it up according to your device's backup settings (you control

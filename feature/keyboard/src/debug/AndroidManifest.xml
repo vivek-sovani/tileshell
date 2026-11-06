@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The typing test and the glide test: debug builds only (no testing screens in a release). -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name=".TypingTestActivity"
+            android:exported="false"
+            android:label="@string/keyboard_typing_test"
+            android:windowSoftInputMode="adjustResize|stateVisible"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+        <activity
+            android:name=".GlideTestActivity"
+            android:exported="false"
+            android:label="@string/keyboard_glide_test"
+            android:windowSoftInputMode="adjustResize|stateVisible"
+            android:theme="@android:style/Theme.Material.NoActionBar" />
+    </application>
+</manifest>

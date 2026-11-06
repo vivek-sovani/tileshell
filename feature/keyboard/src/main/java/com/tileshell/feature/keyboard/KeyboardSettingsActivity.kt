@@ -289,7 +289,8 @@ private fun KeyboardSettingsScreen(prefs: KeyboardPrefs) {
             )
         }
 
-        Group("Typing test", tokens) {
+        // The typing test and the glide test are for working on the keyboard: debug builds only.
+        if (BuildConfig.DEBUG) Group("Typing test", tokens) {
             BasicText(
                 "start the test  ›",
                 modifier = Modifier

@@ -50,11 +50,16 @@
   <tr><td><code>SET_WALLPAPER</code></td><td>Nothing read; sets the photo or wallpaper you choose on your home and/or lock screen</td><td>Not read; no data transmitted</td></tr>
   <tr><td><code>REQUEST_DELETE_PACKAGES</code></td><td>Nothing read; opens Android's own uninstall prompt when you choose "uninstall" on an app</td><td>Not read; no data transmitted</td></tr>
   <tr><td><code>ACCESS_NETWORK_STATE</code>, <code>ACCESS_WIFI_STATE</code></td><td>Whether you're online and Wi-Fi is on, for the Quick Panel and to skip fetches while offline</td><td>Not read beyond on/off; no data transmitted</td></tr>
+  <tr><td><code>BIND_INPUT_METHOD</code> — TileShell keyboard (beta, optional)</td><td>Only when you turn the TileShell keyboard on in Android's keyboard settings and choose it: the text you type into the field you're typing in, and text you copy (for clipboard history). See "TileShell keyboard" below</td><td>Stays on device</td></tr>
+  <tr><td><code>VIBRATE</code></td><td>Nothing read; a short buzz on key presses in the TileShell keyboard (turn off in its settings)</td><td>Not read; no data transmitted</td></tr>
   <tr><td><code>BIND_DEVICE_ADMIN</code> (optional, Android 8–9 only)</td><td>Used only to lock the screen when you ask, on Android versions without the accessibility lock action</td><td>Not read; no data transmitted</td></tr>
 </table>
 <p>TileShell holds <strong>no</strong> SMS or call-log permission and never reads your SMS inbox or call log — bank messages are seen only as notifications, as described above. It does not use the microphone or camera, and reads no files beyond photos you explicitly pick for the wallpaper and live-photos slideshow, the music on your device, and the videos in folders you choose in the music + videos hub (read through the system folder picker, only those folders, never copied or sent anywhere; a video opens in your phone’s own video player).</p>
 
 
+
+<h3 style="font-size:1rem;margin-bottom:4px;">TileShell keyboard (beta)</h3>
+<p>The TileShell keyboard is optional and works only after you turn it on in Android's keyboard settings and choose it. Android shows its own warning at that step, as it does for every keyboard, because a keyboard sees what you type. The TileShell keyboard never connects to the internet: nothing you type, learn or copy is sent anywhere. It has no voice typing and does not use the microphone. Its word lists ship with the app. Nothing is learned or kept in password fields.</p>
 
 <h2>2. Third-party services</h2>
 <h3 style="font-size:1rem;margin-bottom:4px;">Open-Meteo (weather)</h3>
@@ -97,6 +102,7 @@
   <li><strong>Task reminders</strong> — the date, time and repeat you set on tasks, never transmitted</li>
   <li><strong>Money transactions</strong> read from bank and payment notifications — kept for one year, clearable from the Money hub, never transmitted</li>
   <li><strong>Notes and task lists</strong> you create in the Productivity hub, and music favourites, playlists and recently played podcasts/stations</li>
+  <li><strong>TileShell keyboard (beta), only if you use it</strong> — words and names it learns from your typing, and which words you put after which (for next-word suggestions; never from password fields), how you like to spell Marathi and Hindi words in English letters, recently used emoji, clipboard history (text you copy, kept for an hour, or longer if you pin it; text an app marks as private, such as a password, is never kept), and a few numbers on where your thumbs land on the keys (never what you typed). Clear learned words or turn clipboard history off in the keyboard's settings. Never transmitted</li>
 </ul>
 <p>You can export a backup file of this data (including notes and tasks) from Personalize, and optionally have TileShell save one automatically to a folder you choose (for example in Google Drive). The files go only to that folder, which you pick and can change or stop at any time. None of this data is backed up to the developer's servers. Android's standard auto-backup to Google may back it up according to your device's backup settings.</p>
 

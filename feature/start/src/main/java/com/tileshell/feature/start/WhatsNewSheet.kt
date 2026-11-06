@@ -103,6 +103,7 @@ fun WhatsNewSheet(
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Thin,
                         )
+                        if (KeyboardFeature.ENABLED) KeyboardIntro(accent = accent)
                         WhatsNewSection(title = "new features", accent = accent, items = WHATS_NEW_FEATURES)
                         WhatsNewSection(title = "bugs fixed", accent = accent, items = WHATS_NEW_FIXES)
                         Text(
@@ -224,6 +225,60 @@ private fun HubsIntro(accent: Color, onSetUp: () -> Unit, onKeep: () -> Unit) {
     )
 }
 
+/** 5.6.0: introduces the Windows Phone-style keyboard (beta) and opens Android's keyboard list to turn it on. */
+@Composable
+private fun KeyboardIntro(accent: Color) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val enabled = remember { KeyboardFeature.isEnabled(context) }
+    Row(
+        verticalAlignment = Alignment.Top,
+        modifier = Modifier.fillMaxWidth().border(1.dp, accent.copy(alpha = 0.6f), RoundedCornerShape(6.dp)).padding(12.dp),
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp).background(accent)) {
+            Text("अ", color = Color.White, fontSize = 16.sp)
+        }
+        Column(modifier = Modifier.padding(start = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("windows phone-style keyboard", color = Color(0xFFF6F6F8), fontSize = 14.sp)
+                Text(
+                    "BETA",
+                    color = accent,
+                    fontSize = 10.sp,
+                    letterSpacing = 1.sp,
+                    modifier = Modifier.padding(start = 8.dp).border(1.dp, accent).padding(horizontal = 5.dp, vertical = 1.dp),
+                )
+            }
+            Text(
+                "a metro keyboard in your accent colour with wordflow (swipe across letters to type), suggestions, " +
+                    "emoji and clipboard. type मराठी and हिन्दी in english letters or on devanagari keys. " +
+                    "it never connects to the internet, and it is still in beta.",
+                color = Color(0xFF9A9AA8),
+                fontSize = 12.sp,
+                lineHeight = 16.sp,
+            )
+            Text(
+                if (enabled) "turned on — choose it when you type, or in personalize › system" else "turn it on in android's keyboard settings  ›",
+                color = accent,
+                fontSize = 13.sp,
+                modifier = Modifier
+                    .padding(top = 4.dp)
+                    .clickable {
+                        runCatching {
+                            if (enabled) {
+                                context.getSystemService(android.view.inputmethod.InputMethodManager::class.java)?.showInputMethodPicker()
+                            } else {
+                                context.startActivity(
+                                    android.content.Intent(android.provider.Settings.ACTION_INPUT_METHOD_SETTINGS)
+                                        .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
+                                )
+                            }
+                        }
+                    },
+            )
+        }
+    }
+}
+
 private data class HubIntro(val name: String, val icon: String, val colorId: String, val description: String)
 
 private val HUB_INTROS = listOf(
@@ -236,8 +291,8 @@ private val HUB_INTROS = listOf(
     HubIntro("money", "money", "green", "bank, upi and card transactions from new bank sms, and card bills by due date, locked with your fingerprint — add it from add live tiles"),
 )
 
-/** True while [WHATS_NEW_VERSION_CODE] is the hubs release, whose card offers the hubs setup. */
-internal const val WHATS_NEW_OFFERS_HUB_SETUP = true
+/** True only for the hubs release (5.0.0), whose card offers the hubs setup; 5.6.0's card is the plain list. */
+internal const val WHATS_NEW_OFFERS_HUB_SETUP = false
 
 @Composable
 private fun WhatsNewSection(title: String, accent: Color, items: List<String>) {
@@ -273,8 +328,8 @@ private fun WhatsNewSection(title: String, accent: Color, items: List<String>) {
  * [WHATS_NEW_FIXES] are updated for a new release, or the card will show the
  * previous release's content under the new version's own version-code gate.
  */
-internal const val WHATS_NEW_VERSION_CODE = 500
-private const val WHATS_NEW_VERSION_NAME = "5.0.0"
+internal const val WHATS_NEW_VERSION_CODE = 560
+private const val WHATS_NEW_VERSION_NAME = "5.6.0"
 
 // Started word-for-word in sync with docs/PLAY_STORE.md's "Release notes (v4.5.0)"
 // Play-facing blurb (no character limit here, so each line reads as a full
@@ -284,23 +339,21 @@ private const val WHATS_NEW_VERSION_NAME = "5.0.0"
 // "Also folded into this same versionCode 450" in PLAY_STORE.md instead) —
 // this in-app card reflects what's actually in the build, not that frozen text.
 private val WHATS_NEW_FEATURES = listOf(
-    "hubs — tap the weather, music, calendar, people, productivity or battery tile for its own full-screen hub",
-    "music: your own library and playlists, podcasts and internet radio, all playing in the background",
-    "people: chats, messages, mail and social notifications in one list — reply inline, swipe to dismiss",
-    "productivity: your next meeting with a join button, notes, named task lists and office apps",
-    "task reminders: a date, time and repeat on any task, ringing with a banner or a toast on start",
-    "people favourites: your starred contacts in your own order and who recently messaged you, on a tile with call, message and chat buttons",
-    "battery tile, hub and widget, from tileshell's own battery log",
-    "money: bank, upi and card transactions from new bank sms and payment notifications, and card bills by due date, locked with your fingerprint, plus your payment and banking apps",
-    "weather shows a moon at night, plus sunrise, sunset and uv index; panchang shows moonrise and moonset",
-    "reset start layout now runs a quick setup — tiles or icons, theme, one colour or multicolour, and your apps",
-    "every permission, and refresh rates for weather, news, stocks and sports, each in one place",
+    "music + videos hub: videos from folders you choose, a video and ott apps section, podcasts and your last song carry on where you left them",
+    "hubs and launched apps grow out of the tile you tap and shrink back when you return",
+    "dual-screen and foldable layouts: hubs, personalize, the guide and about use both screens of a surface duo or galaxy z fold",
+    "android auto: your music, podcasts and radio in the car, with voice search",
+    "new hubs: markets, sports, news, clock, shopping and health",
+    "long-press a tile for quick actions: its shortcuts, size and colour, move, app info and the notification it is showing",
+    "live tiles flip like a windows phone tile, notification tiles are laid out like one, and the size picker is a grid with a live preview",
+    "panchang in eight languages with each region's festivals, and news in 13 languages plus china, hong kong and taiwan",
+    "hubs and sheets can follow your wallpaper's colour, with a hub colour choice in personalize",
 )
 
 private val WHATS_NEW_FIXES = listOf(
-    "less battery use: notification images are cached and background polling pauses with live tiles",
-    "music pauses when bluetooth or headphones disconnect",
-    "widget settings no longer cover the whole screen in landscape",
+    "less battery use from background work and animations",
+    "returning from an app lands on the page you left, not the first start page",
+    "a tile no longer stays part-way through a flip; dragging, backups and apps launched from a tile are smoother",
 )
 
 /**

@@ -464,17 +464,19 @@ fun AboutSheet(
                         )
                         if (KeyboardFeature.ENABLED) {
                             FeatureGroup(
-                                title = "tileshell keyboard (beta)",
+                                title = "windows phone-style keyboard (beta)",
                                 accent = accent,
                                 tokens = tokens,
                                 items = listOf(
-                                    "a metro-style keyboard in your accent colour and theme — turn it on in personalize · system · tileshell keyboard",
-                                    "suggestions, autocorrect that learns your words, and wordflow — swipe across letters to type",
+                                    "a metro-style keyboard in your accent colour and theme — turn it on in personalize · system · tileshell keyboard, then choose it when you type",
+                                    "wordflow: swipe across letters to type a word (on by default; turn it off in keyboard settings), plus suggestions and autocorrect that learns your words",
+                                    "smart touch and touch calibration: likely next letters are easier to hit, and the keyboard learns where your thumbs land — only a few numbers are kept, never what you type",
+                                    "key size, key spacing and a one-tap \"windows phone look\" (large keys, tight gaps), and light, medium or strong key haptics",
                                     "next-word suggestions from what you've just typed and your own habits — \"good\" offers morning, afternoon, evening or night by the time of day",
                                     "type मराठी or हिन्दी two ways: spell it in english letters (\"namaskar\" → नमस्कार, \"energy\" → एनर्जी), or use devanagari keys in varnamala order — the globe key steps through english, मराठी and हिन्दी",
                                     "emoji with search, and the emoji for the word you type in the strip (\"pizza\" → 🍕), clipboard history, a number pad for number fields, one-handed mode, and hold space to move the cursor",
-                                    "everything you type, learn or copy stays on your phone — the keyboard never connects to the internet",
-                                    "beta: marathi and hindi typing is still improving",
+                                    "everything you type, learn or copy stays on your phone — the keyboard never connects to the internet, and nothing is learned in password fields",
+                                    "beta: it is still being tuned, marathi and hindi typing and wordflow especially — if a word comes out wrong, the strip offers other spellings",
                                     "word lists from the android open source project (apache 2.0), tatoeba (cc-by 2.0 fr, also for next words), mozilla common voice (cc0) and marathi and hindi wikipedia (cc by-sa 4.0); english words in मराठी / हिन्दी spelling from the cmu pronouncing dictionary (bsd)",
                                 ),
                             )
