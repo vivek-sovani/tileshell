@@ -1,7 +1,7 @@
 # TileShell — Privacy Policy
 
 *Effective date: 2026-06-18*  
-*Last updated: 2026-10-04*
+*Last updated: 2026-11-06*
 
 ---
 
