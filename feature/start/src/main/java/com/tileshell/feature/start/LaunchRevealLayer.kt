@@ -36,7 +36,6 @@ import com.tileshell.core.design.HubOrigin
 import com.tileshell.feature.livetiles.rememberAppIconBitmap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -62,8 +61,6 @@ internal fun LaunchRevealLayer(wallpaperFallback: Color, wallpaperPhoto: ImageBi
     // How far the plate is from the tile (1 = the whole screen) and how visible it is.
     val progress = remember { Animatable(1f) }
     val fade = remember { Animatable(0f) }
-    // The icon comes in a little after the plate so it doesn't pop.
-    val iconFade = remember { Animatable(0f) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     var resumed by remember { mutableStateOf(lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) }
 
@@ -83,8 +80,6 @@ internal fun LaunchRevealLayer(wallpaperFallback: Color, wallpaperPhoto: ImageBi
         if (launched == null) return@LaunchedEffect
         progress.snapTo(1f)
         fade.snapTo(0f)
-        iconFade.snapTo(0f)
-        launch { iconFade.animateTo(1f, tween(ICON_FADE_MS, delayMillis = FADE_IN_MS / 2)) }
         fade.animateTo(1f, tween(FADE_IN_MS))
         // The app takes over (we pause) within a moment; if it never does, go back to the tile.
         withTimeoutOrNull(HOLD_MS) { snapshotFlow { resumed }.first { !it } }
@@ -92,7 +87,6 @@ internal fun LaunchRevealLayer(wallpaperFallback: Color, wallpaperPhoto: ImageBi
         snapshotFlow { resumed }.first { it }
         progress.animateTo(0f, tween(SHRINK_MS, easing = EASE))
         fade.snapTo(0f)
-        iconFade.snapTo(0f)
         launched = null
     }
 
@@ -113,17 +107,14 @@ internal fun LaunchRevealLayer(wallpaperFallback: Color, wallpaperPhoto: ImageBi
         val tileColor = if (origin.color != 0) Color(origin.color) else wallpaperColor
         val full = if (wallpaperColor.isSpecified) wallpaperColor else tileColor
         val plate = lerp(tileColor, full, p)
-        // Nearing the tile the plate dissolves (the tile itself is underneath) instead of being cut at the end.
-        val plateAlpha = shown * (p / PLATE_FADE_ZONE).coerceIn(0f, 1f)
-        drawRoundRect(plate, Offset(left, top), Size(right - left, bottom - top), CornerRadius(corner), alpha = plateAlpha)
+        drawRoundRect(plate, Offset(left, top), Size(right - left, bottom - top), CornerRadius(corner), alpha = shown)
         icon?.let {
             val side = (tile.width.coerceAtMost(tile.height) * 0.5f) * (1f - p) + 72.dp.toPx() * p
             val cx = (left + right) / 2f
             val cy = (top + bottom) / 2f
             drawImage(
                 image = it,
-                // Gone well before the plate reaches the tile; in with the launch.
-                alpha = shown * iconFade.value * ((p - 0.25f) / 0.5f).coerceIn(0f, 1f).let { if (p >= 1f) 1f else it },
+                alpha = shown,
                 dstOffset = IntOffset((cx - side / 2f).toInt(), (cy - side / 2f).toInt()),
                 dstSize = IntSize(side.toInt(), side.toInt()),
             )
@@ -159,8 +150,6 @@ internal fun prominentColor(photo: ImageBitmap): Color? {
 
 private const val SATURATION_FLOOR = 0.25f
 private const val FADE_IN_MS = 90
-private const val SHRINK_MS = 300
-private const val ICON_FADE_MS = 120
-private const val PLATE_FADE_ZONE = 0.3f
+private const val SHRINK_MS = 260
 private const val HOLD_MS = 1500L
-private val EASE = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
+private val EASE = CubicBezierEasing(0.22f, 0.61f, 0.36f, 1f)
