@@ -249,6 +249,7 @@ object LocalMusicPlayer {
             // Here rather than in a UI effect so an episode auto-advanced
             // to in the background still lands in the podcasts tab's recents.
             MusicRecents.record(context, item)
+            LastPlayed.save(context, item)
             preloadNext(context)
             startTicker(context)
         }

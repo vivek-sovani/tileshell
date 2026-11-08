@@ -220,6 +220,8 @@ class LocalMusicPlaybackService : Service() {
             isActive = false
         }
         session = null
+        // Let the car keep offering the last item to resume.
+        MusicMediaSession.showResumable(applicationContext)
         super.onDestroy()
     }
 

@@ -89,6 +89,51 @@ object MusicMediaSession {
     fun idleState(): PlaybackStateCompat =
         PlaybackStateCompat.Builder().setActions(IDLE_ACTIONS).setState(PlaybackStateCompat.STATE_NONE, 0L, 0f).build()
 
+    /**
+     * With nothing loaded but a last-played item on record, the session shows
+     * that item paused and offers play, so Android Auto (or a headset) has
+     * something to resume after a disconnect instead of a blank screen. The
+     * session stays active for that. No-op while the player holds something.
+     */
+    fun showResumable(context: Context) {
+        if (LocalMusicPlayer.state.value.item != null) return
+        val s = get(context)
+        val last = LastPlayed.load(context)
+        if (last == null) {
+            s.setPlaybackState(idleState())
+            return
+        }
+        PlaybackPositions.ensureLoaded(context)
+        val pos = PlaybackPositions.resumeMs(context, last)
+        s.setMetadata(
+            android.support.v4.media.MediaMetadataCompat.Builder()
+                .putString(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_TITLE, last.title)
+                .putString(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_ARTIST, last.subtitle)
+                .putLong(android.support.v4.media.MediaMetadataCompat.METADATA_KEY_DURATION, last.durationMs)
+                .build(),
+        )
+        s.setPlaybackState(
+            PlaybackStateCompat.Builder()
+                .setActions(IDLE_ACTIONS or PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PLAY_PAUSE)
+                .setState(
+                    PlaybackStateCompat.STATE_PAUSED,
+                    if (last is PlayableAudio.RadioStream) PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN else pos,
+                    0f,
+                )
+                .build(),
+        )
+        s.isActive = true
+    }
+
+    /** Play with nothing loaded: carries on with the last item played. */
+    private fun resumeOrRestart(context: Context) {
+        if (LocalMusicPlayer.state.value.item != null) {
+            LocalMusicPlayer.resume()
+            return
+        }
+        LastPlayed.load(context)?.let { LastPlayed.play(context, it) }
+    }
+
     @Synchronized
     fun get(context: Context): MediaSessionCompat =
         session ?: create(context.applicationContext).also { session = it }
@@ -100,7 +145,7 @@ object MusicMediaSession {
                 // keys: play only resumes and pause only pauses (a toggle here
                 // made "pause" restart already-paused audio). These fire only
                 // for actions advertised in the playback state.
-                override fun onPlay() { LocalMusicPlayer.resume() }
+                override fun onPlay() { resumeOrRestart(context) }
                 override fun onPause() { LocalMusicPlayer.pause() }
                 override fun onFastForward() { LocalMusicPlayer.seekBy(SEEK_FORWARD_MS) }
                 override fun onRewind() { LocalMusicPlayer.seekBy(-SEEK_BACK_MS) }

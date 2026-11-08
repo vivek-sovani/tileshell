@@ -24,6 +24,7 @@ class AutoMediaBrowserService : MediaBrowserServiceCompat() {
     override fun onCreate() {
         super.onCreate()
         sessionToken = MusicMediaSession.get(this).sessionToken
+        MusicMediaSession.showResumable(this)
     }
 
     override fun onDestroy() {

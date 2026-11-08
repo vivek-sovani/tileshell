@@ -336,6 +336,8 @@ Bugs fixed:
 
 #### New in 5.3.0 (since 5.0.0, carried here so the notes cover both)
 
+**Android Auto resumes after a disconnect.** When the phone is disconnected from the car (or the car stops) and reconnected, Auto no longer shows a blank screen: the last song, podcast episode or radio station is shown paused and play carries on from the same position (radio starts live again). Fixed in 5.6.0.
+
 **Android Auto.** TileShell Music in the car: library, playlists, favourite podcasts (with episodes) and favourite radio stations with recently played under each; voice search ("play a show, station, artist or song", also through the assistant); a heart on now playing for shows and stations. One media session shared with the lock screen and Bluetooth controls. Behind the `tileshell.androidAuto` switch.
 
 **New hubs and tiles.** Markets (watchlist, indices with day / week / month / year charts, movers, on-tile marks); sports (live and results pages, favourite sports and teams, match status and scorecards); news (top stories, topics, saved stories, live tv with in-place playback, rolling news tile with photos); clock (alarms dial, world clocks with day / night discs, timers, stopwatch, timer sets that can be pinned to Start with start / pause / stop); shopping (arriving orders with progress and delivery OTP, deals, past orders, shopping apps; US, European and Chinese stores); health (steps today, week, apps). "Add live tiles" is organised into hubs and widgets. Calendar systems tile enriched (structured date, month facts, observances, month grid); panchang month calendar on the big tile.
