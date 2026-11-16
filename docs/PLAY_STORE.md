@@ -305,12 +305,12 @@ New features:
   clock, shopping, health
 • Long-press a tile for quick actions
 • Windows Phone flip on live tiles
-• °F and miles by region, or your choice
+• °F and miles by region
 
 Bugs fixed:
 • Less battery use
 • Returning from an app keeps your page
-• Tile flip, drag and backup fixes
+• Tile flip and drag fixes
 ```
 
 ### Full changelog since v5.0.0 (for reference, not the Play-facing blurb above)
