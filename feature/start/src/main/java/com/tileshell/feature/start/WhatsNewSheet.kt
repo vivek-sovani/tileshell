@@ -339,21 +339,14 @@ private const val WHATS_NEW_VERSION_NAME = "5.6.0"
 // "Also folded into this same versionCode 450" in PLAY_STORE.md instead) —
 // this in-app card reflects what's actually in the build, not that frozen text.
 private val WHATS_NEW_FEATURES = listOf(
-    "music + videos hub: videos from folders you choose, a video and ott apps section, podcasts and your last song carry on where you left them",
-    "hubs and launched apps grow out of the tile you tap and shrink back when you return",
-    "dual-screen and foldable layouts: hubs, personalize, the guide and about use both screens of a surface duo or galaxy z fold",
-    "android auto: your music, podcasts and radio in the car, with voice search",
-    "new hubs: markets, sports, news, clock, shopping and health",
-    "long-press a tile for quick actions: its shortcuts, size and colour, move, app info and the notification it is showing",
-    "live tiles flip like a windows phone tile, notification tiles are laid out like one, and the size picker is a grid with a live preview",
-    "panchang in eight languages with each region's festivals, and news in 13 languages plus china, hong kong and taiwan",
-    "hubs and sheets can follow your wallpaper's colour, with a hub colour choice in personalize",
+    "units follow your region: °C, km/h and km, or °F, mph and miles, with a units choice in personalize › tiles",
+    "the news tile: tap it to read the story on show, swipe up or down (or tap the arrows) for the next one, and use the small list icon to open the news hub",
+    "the wallpaper slideshow can set your phone's home screen, lock screen or both, chosen with \"set on\" under personalize › wallpaper",
 )
 
 private val WHATS_NEW_FIXES = listOf(
-    "less battery use from background work and animations",
-    "returning from an app lands on the page you left, not the first start page",
-    "a tile no longer stays part-way through a flip; dragging, backups and apps launched from a tile are smoother",
+    "android auto resumes the same song, podcast episode or radio station after a reconnect, a shuffled queue included",
+    "the keyboard no longer overlaps the bottom bar when it first opens",
 )
 
 /**
