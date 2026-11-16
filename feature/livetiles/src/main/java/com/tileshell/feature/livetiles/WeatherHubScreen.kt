@@ -283,7 +283,7 @@ internal fun weatherHubStats(snapshot: WeatherSnapshot): List<Pair<String, Strin
     val today = snapshot.forecast.firstOrNull()
     return listOfNotNull(
         snapshot.feelsLikeC?.let { "feels like" to tempLabel(it) },
-        snapshot.windKph?.let { "wind speed" to "$it km/h" },
+        snapshot.windKph?.let { "wind speed" to Units.wind(it) },
         snapshot.humidityPct?.let { "humidity" to "$it%" },
         snapshot.uvIndexMax?.let { "uv index" to "$it · ${uvIndexCategory(it)}" },
         today?.sunriseMillis?.let { "sunrise" to sunTimeLabel(it, snapshot.utcOffsetSeconds) },

@@ -900,7 +900,7 @@ internal fun WeatherCard(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.Top,
                     ) {
-                        Text("${snapshot.tempC}°", color = onAccent, fontSize = 40.sp, fontWeight = FontWeight.Thin)
+                        Text(com.tileshell.feature.livetiles.tempLabel(snapshot.tempC), color = onAccent, fontSize = 40.sp, fontWeight = FontWeight.Thin)
                         // A richer multi-element illustration (user-requested, matching
                         // the home-screen widget's own WeatherConditionVisual) instead
                         // of the flat monoline glyph — same fixed-amber-sun exception
@@ -915,7 +915,7 @@ internal fun WeatherCard(
                     // Today's range right under the current temperature
                     // (user-requested), not down with the sun times.
                     Text(
-                        "h ${snapshot.highC}° · l ${snapshot.lowC}°",
+                        "h ${com.tileshell.feature.livetiles.tempLabel(snapshot.highC)} · l ${com.tileshell.feature.livetiles.tempLabel(snapshot.lowC)}",
                         color = onAccentDim,
                         fontSize = 13.sp,
                     )

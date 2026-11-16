@@ -109,6 +109,7 @@ class WeatherWidgetRefreshWorker(
          * to "current" rather than showing nothing.
          */
         suspend fun pushAll(context: Context) {
+            com.tileshell.feature.livetiles.Units.load(context)
             val manager = AppWidgetManager.getInstance(context)
             val ids = manager.getAppWidgetIds(ComponentName(context, WeatherAppWidgetProvider::class.java))
             if (ids.isEmpty()) return WeatherSunAlarm.cancel(context)

@@ -366,7 +366,7 @@ internal fun batteryBackLines(stats: BatteryStats): List<String> = listOfNotNull
     "screen on · ${stats.split.onDrop}%",
     "screen off · ${stats.split.offDrop}%",
     stats.currentMa?.let { if (it < 0) "now · charging ${-it} mA" else "now · $it mA" },
-    listOfNotNull(stats.temperatureC?.let { "${"%.0f".format(it)} °C" }, stats.health).joinToString(" · ").ifBlank { null },
+    listOfNotNull(stats.temperatureC?.let { Units.tempWithScale(it) }, stats.health).joinToString(" · ").ifBlank { null },
 )
 
 /** What the battery tile and hub show beyond the plain percent. */

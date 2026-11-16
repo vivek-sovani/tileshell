@@ -79,6 +79,9 @@ enum class MonochromeIconTint { ACCENT, NEUTRAL }
 /** See [LauncherSettings.appListStyle]'s doc comment. */
 enum class AppListStyle { ICONS, TILES }
 
+/** Measuring units for weather, battery and health labels; AUTO follows the phone's region. */
+enum class UnitSystem { AUTO, METRIC, IMPERIAL }
+
 /** See [LauncherSettings.tileDepth]'s doc comment. */
 enum class TileDepth { OFF, TILT, LIGHTING }
 
@@ -343,6 +346,8 @@ data class LauncherSettings(
      * (the same lean with a light edge, shade and sliding highlight on the plate, and the face floating a few px above it).
      */
     val tileDepth: TileDepth = TileDepth.TILT,
+    /** °C / km/h / km, or °F / mph / miles; [UnitSystem.AUTO] picks by the phone's region. */
+    val unitSystem: UnitSystem = UnitSystem.AUTO,
     /**
      * Hubs and the sheets over Start take the colour the tiles take from the wallpaper (on, the default); off keeps
      * them on the chosen accent. Only matters while the tile colour source is the wallpaper.
@@ -457,6 +462,7 @@ object SettingsCodec {
         append("doubleTapLock=").append(settings.doubleTapLock).append('\n')
         append("peoplePhotoFlip=").append(settings.peoplePhotoFlip).append('\n')
         append("tileDepth=").append(settings.tileDepth.name).append('\n')
+        append("unitSystem=").append(settings.unitSystem.name).append('\n')
         append("hubsFollowTiles=").append(settings.hubsFollowTiles).append('\n')
         append("wallpaperSpanPages=").append(settings.wallpaperSpanPages).append('\n')
         append("quickPanelOrder=").append(settings.quickPanelTileOrder.joinToString("|")).append('\n')
@@ -521,6 +527,7 @@ object SettingsCodec {
         var doubleTapLock = d.doubleTapLock
         var peoplePhotoFlip = d.peoplePhotoFlip
         var tileDepth = d.tileDepth
+        var unitSystem = d.unitSystem
         var hubsFollowTiles = d.hubsFollowTiles
         var wallpaperSpanPages = d.wallpaperSpanPages
         var quickPanelTileOrder = d.quickPanelTileOrder
@@ -601,6 +608,7 @@ object SettingsCodec {
                 "hideStatusBar" -> hideStatusBar = value.toBooleanStrictOrNull() ?: hideStatusBar
                 "doubleTapLock" -> doubleTapLock = value.toBooleanStrictOrNull() ?: doubleTapLock
                 "peoplePhotoFlip" -> peoplePhotoFlip = value.toBooleanStrictOrNull() ?: peoplePhotoFlip
+                "unitSystem" -> UnitSystem.entries.find { it.name == value }?.let { unitSystem = it }
                 "tileDepth" -> TileDepth.entries.find { it.name == value }?.let { tileDepth = it }
                 "hubsFollowTiles" -> hubsFollowTiles = value.toBooleanStrictOrNull() ?: hubsFollowTiles
                 "wallpaperSpanPages" -> wallpaperSpanPages = value.toBooleanStrictOrNull() ?: wallpaperSpanPages
@@ -673,6 +681,7 @@ object SettingsCodec {
             doubleTapLock = doubleTapLock,
             peoplePhotoFlip = peoplePhotoFlip,
             tileDepth = tileDepth,
+            unitSystem = unitSystem,
             hubsFollowTiles = hubsFollowTiles,
             wallpaperSpanPages = wallpaperSpanPages,
             quickPanelTileOrder = quickPanelTileOrder,

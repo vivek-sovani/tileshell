@@ -151,7 +151,7 @@ object SampleWeatherProvider : WeatherProvider {
 }
 
 /** Formats a Celsius value as the WP tile shows it: integer + degree sign. */
-fun tempLabel(tempC: Int): String = "$tempC°"
+fun tempLabel(tempC: Int): String = Units.temp(tempC)
 
 /** The back-face high/low line, e.g. `26° / 17°` (prototype). */
 fun highLowLabel(highC: Int, lowC: Int): String = "${tempLabel(highC)} / ${tempLabel(lowC)}"

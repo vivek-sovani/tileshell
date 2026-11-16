@@ -959,6 +959,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         // Re-arm the scheduled auto-export (a no-op unless the user turned it on).
         AutoExportScheduler.sync(application)
         com.tileshell.feature.livetiles.HubAppChoices.ensureLoaded(application)
+        // Weather / battery / health labels follow the units setting (auto = the phone's region).
+        com.tileshell.feature.livetiles.Units.load(application)
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.settings.map { it.unitSystem }.distinctUntilChangedBy { u -> u }.collect {
+                com.tileshell.feature.livetiles.Units.apply(getApplication(), it)
+            }
+        }
         // Background refreshes follow the "live data refresh" rates.
         viewModelScope.launch(Dispatchers.IO) {
             settingsRepository.settings
@@ -3097,6 +3104,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTileDepth(depth: com.tileshell.core.data.settings.TileDepth) {
         viewModelScope.launch(Dispatchers.IO) { settingsRepository.setTileDepth(depth) }
+    }
+
+    /** See [LauncherSettings.unitSystem]. */
+    fun setUnitSystem(system: com.tileshell.core.data.settings.UnitSystem) {
+        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setUnitSystem(system) }
     }
 
     /** See [LauncherSettings.peoplePhotoFlip]. */

@@ -196,7 +196,7 @@ private fun BatteryTodayPage(face: BatteryFace, stats: BatteryStats, tokens: Col
             DetailGrid(
                 listOf(
                     "current" to (stats.currentMa?.let { if (it < 0) "charging ${-it} mA" else "$it mA draw" } ?: "—"),
-                    "temperature" to (stats.temperatureC?.let { "${"%.0f".format(it)} °C" } ?: "—"),
+                    "temperature" to (stats.temperatureC?.let { Units.tempWithScale(it) } ?: "—"),
                     "health" to (stats.health ?: "—"),
                     "charge cycles" to (stats.cycleCount?.toString() ?: "—"),
                 ),
@@ -318,7 +318,7 @@ private fun BatteryDetailsPage(face: BatteryFace, stats: BatteryStats, tokens: C
                     "charger" to (stats.chargerType ?: if (face.isCharging) "plugged in" else "unplugged"),
                     "current" to (stats.currentMa?.let { if (it < 0) "charging ${-it} mA" else "$it mA draw" } ?: "—"),
                     "voltage" to (stats.voltageMv?.let { "${"%.2f".format(it / 1000.0)} V" } ?: "—"),
-                    "temperature" to (stats.temperatureC?.let { "${"%.1f".format(it)} °C" } ?: "—"),
+                    "temperature" to (stats.temperatureC?.let { Units.tempWithScale(it, 1) } ?: "—"),
                     "health" to (stats.health ?: "—"),
                     "charge cycles" to (stats.cycleCount?.toString() ?: "not reported"),
                 ),

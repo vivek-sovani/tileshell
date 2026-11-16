@@ -277,6 +277,8 @@ fun PersonalizeSheet(
     onTileDepthChange: (com.tileshell.core.data.settings.TileDepth) -> Unit = {},
     peoplePhotoFlip: Boolean = true,
     onPeoplePhotoFlipChange: (Boolean) -> Unit = {},
+    unitSystem: com.tileshell.core.data.settings.UnitSystem = com.tileshell.core.data.settings.UnitSystem.AUTO,
+    onUnitSystemChange: (com.tileshell.core.data.settings.UnitSystem) -> Unit = {},
     hubsFollowTiles: Boolean = true,
     onHubsFollowTilesChange: (Boolean) -> Unit = {},
     /** How many Start pages there are; the photo's landscape / portrait choice shows with 2 or more. */
@@ -999,6 +1001,29 @@ fun PersonalizeSheet(
                             }
                         }
                         // ---- grid columns ----
+                        SettingGroup(label = "units", tokens.fgDim) {
+                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(modifier = Modifier.fillMaxWidth()) {
+                                    for (u in com.tileshell.core.data.settings.UnitSystem.entries) {
+                                        SegCell(
+                                            when (u) {
+                                                com.tileshell.core.data.settings.UnitSystem.AUTO -> "auto"
+                                                com.tileshell.core.data.settings.UnitSystem.METRIC -> "°C · km"
+                                                com.tileshell.core.data.settings.UnitSystem.IMPERIAL -> "°F · miles"
+                                            },
+                                            selected = unitSystem == u,
+                                            accent = accent,
+                                            fg = tokens.fg,
+                                        ) { onUnitSystemChange(u) }
+                                    }
+                                }
+                                Text(
+                                    "temperature, wind and distance on the weather, battery and health tiles. auto follows your phone's region (fahrenheit and miles in the US)",
+                                    color = tokens.fgDim,
+                                    fontSize = 12.sp,
+                                )
+                            }
+                        }
                         SettingGroup(label = "tile depth", tokens.fgDim) {
                             val depths = com.tileshell.core.data.settings.TileDepth.entries
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

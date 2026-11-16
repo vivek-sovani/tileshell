@@ -10192,6 +10192,8 @@ private fun PersonalizeSheetLayer(
         onDoubleTapLockChange = viewModel::setDoubleTapLock,
         peoplePhotoFlip = settings.peoplePhotoFlip,
         onPeoplePhotoFlipChange = viewModel::setPeoplePhotoFlip,
+        unitSystem = settings.unitSystem,
+        onUnitSystemChange = viewModel::setUnitSystem,
         tileDepth = settings.tileDepth,
         onTileDepthChange = viewModel::setTileDepth,
         hubsFollowTiles = settings.hubsFollowTiles,

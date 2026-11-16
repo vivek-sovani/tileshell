@@ -298,6 +298,11 @@ class SettingsRepository(private val store: DataStore<LauncherSettings>) {
         store.updateData { it.copy(tileDepth = depth) }
     }
 
+    /** See [LauncherSettings.unitSystem]. */
+    suspend fun setUnitSystem(system: UnitSystem) {
+        store.updateData { it.copy(unitSystem = system) }
+    }
+
     /** See [LauncherSettings.peoplePhotoFlip]. */
     suspend fun setPeoplePhotoFlip(enabled: Boolean) {
         store.updateData { it.copy(peoplePhotoFlip = enabled) }

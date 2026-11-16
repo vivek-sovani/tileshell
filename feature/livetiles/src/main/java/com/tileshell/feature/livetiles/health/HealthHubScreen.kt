@@ -234,7 +234,7 @@ private fun TodayPage(steps: Int?, granted: Boolean, settings: HealthSettings, h
             }
         }
         val rows = listOf(
-            "distance" to String.format(Locale.US, "%.1f km", distanceKm(shown, settings.heightCm)),
+            "distance" to com.tileshell.feature.livetiles.Units.distance(distanceKm(shown, settings.heightCm)),
             "calories (estimate)" to "${n(caloriesKcal(shown))} kcal",
             "active minutes (estimate)" to "${activeMinutes(shown)} min",
             "streak" to streak(history.let { recordDay(it, today, shown) }, today, settings.goal).let { if (it == 0) "no days at goal yet" else if (it == 1) "1 day at goal" else "$it days at goal" },
@@ -382,7 +382,7 @@ private fun HealthSettingsPage(settings: HealthSettings, tokens: ColorTokens, ac
             Text("height, for the distance estimate", color = tokens.fg, fontSize = 15.sp)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = Modifier.padding(top = 6.dp)) {
                 Text("−", color = accent, fontSize = 26.sp, modifier = Modifier.clickable { HealthPrefs.update(context) { it.copy(heightCm = it.heightCm - 5) } }.padding(horizontal = 10.dp))
-                Text("${settings.heightCm} cm", color = tokens.fg, fontSize = 18.sp, fontWeight = FontWeight.Light)
+                Text(com.tileshell.feature.livetiles.Units.height(settings.heightCm), color = tokens.fg, fontSize = 18.sp, fontWeight = FontWeight.Light)
                 Text("+", color = accent, fontSize = 26.sp, modifier = Modifier.clickable { HealthPrefs.update(context) { it.copy(heightCm = it.heightCm + 5) } }.padding(horizontal = 10.dp))
             }
         }
