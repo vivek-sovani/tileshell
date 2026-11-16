@@ -214,6 +214,10 @@ object LocalMusicPlayer {
         playItems(context, queue.map { PlayableAudio.RadioStream(it) }, index)
     }
 
+    /** Carries on with a queue saved by [LastPlayed] (order kept). */
+    fun playSavedQueue(context: Context, queue: List<PlayableAudio>, index: Int) =
+        playItems(context, queue, index)
+
     private fun playItems(context: Context, queue: List<PlayableAudio>, startIndex: Int) {
         if (startIndex !in queue.indices) return
         if (!requestAudioFocus(context)) return
@@ -250,6 +254,7 @@ object LocalMusicPlayer {
             // to in the background still lands in the podcasts tab's recents.
             MusicRecents.record(context, item)
             LastPlayed.save(context, item)
+            _state.value.let { LastPlayed.saveQueue(context, it.queue, it.queueIndex) }
             preloadNext(context)
             startTicker(context)
         }

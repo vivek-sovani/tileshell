@@ -1,6 +1,7 @@
 package com.tileshell.feature.livetiles
 
 import android.content.Context
+import org.json.JSONArray
 import org.json.JSONObject
 
 /**
@@ -18,9 +19,49 @@ object LastPlayed {
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(FILE, Context.MODE_PRIVATE)
 
+    private const val QUEUE_KEY = "last_queue"
+    private const val INDEX_KEY = "last_queue_index"
+    private const val MAX_QUEUE = 300
+    private var savedQueue: List<PlayableAudio>? = null
+
     fun save(context: Context, item: PlayableAudio) {
         runCatching { prefs(context).edit().putString(KEY, encode(item)).apply() }
     }
+
+    /**
+     * Keeps the playing queue too (a shuffled playlist keeps its order), so
+     * the same list carries on after a disconnect. Long queues keep the
+     * next [MAX_QUEUE] items from the playing one. The list is written only
+     * when it changed; a track change just moves the index.
+     */
+    fun saveQueue(context: Context, queue: List<PlayableAudio>, index: Int) {
+        if (index !in queue.indices) return
+        runCatching {
+            val edit = prefs(context).edit()
+            if (savedQueue !== queue) {
+                val window = if (queue.size <= MAX_QUEUE) queue
+                else List(MAX_QUEUE) { queue[(index + it) % queue.size] }
+                val start = if (queue.size <= MAX_QUEUE) index else 0
+                edit.putString(QUEUE_KEY, JSONArray(window.map { encode(it) }).toString())
+                edit.putInt(INDEX_KEY, start)
+                savedQueue = queue
+                queueBase = index
+            } else {
+                edit.putInt(INDEX_KEY, if (queue.size <= MAX_QUEUE) index else Math.floorMod(index - queueBase, queue.size))
+            }
+            edit.apply()
+        }
+    }
+    private var queueBase = 0
+
+    /** The saved queue and the playing index in it, or null. */
+    fun loadQueue(context: Context): Pair<List<PlayableAudio>, Int>? = runCatching {
+        val p = prefs(context)
+        val arr = JSONArray(p.getString(QUEUE_KEY, null) ?: return null)
+        val items = (0 until arr.length()).mapNotNull { decode(arr.getString(it)) }
+        val i = p.getInt(INDEX_KEY, 0)
+        if (items.size == arr.length() && i in items.indices) items to i else null
+    }.getOrNull()
 
     fun load(context: Context): PlayableAudio? =
         runCatching { prefs(context).getString(KEY, null)?.let { decode(it) } }.getOrNull()
@@ -81,10 +122,17 @@ object LastPlayed {
 
     /** Starts [item] again (a podcast episode or song from where it was left). */
     fun play(context: Context, item: PlayableAudio) {
+        val saved = loadQueue(context)
+        if (saved != null && sameItem(saved.first[saved.second], item)) {
+            LocalMusicPlayer.playSavedQueue(context, saved.first, saved.second)
+            return
+        }
         when (item) {
             is PlayableAudio.Local -> LocalMusicPlayer.playQueue(context, listOf(item.track), 0)
             is PlayableAudio.Episode -> LocalMusicPlayer.playEpisodes(context, item.show, listOf(item.episode), 0)
             is PlayableAudio.RadioStream -> LocalMusicPlayer.playStation(context, item.station)
         }
     }
+
+    private fun sameItem(a: PlayableAudio, b: PlayableAudio) = encode(a) == encode(b)
 }

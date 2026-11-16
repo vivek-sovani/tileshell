@@ -305,6 +305,7 @@ New features:
   clock, shopping, health
 • Long-press a tile for quick actions
 • Windows Phone flip on live tiles
+• °F and miles by region, or your choice
 
 Bugs fixed:
 • Less battery use
@@ -317,6 +318,8 @@ Bugs fixed:
 #### New in 5.6.0 (since the live 5.3.0; includes everything in the never-released 5.5.0)
 
 **TileShell keyboard (beta).** An optional Windows Phone / Metro-style keyboard (input method) in the accent colour and theme, turned on in Android's keyboard list and chosen from personalize › system (a BETA tag shows there; About and the guide describe it). Wordflow swipe typing, suggestions, autocorrect that learns, next-word suggestions, emoji with search and word emoji, clipboard history, number pad, one-handed mode, space-bar cursor, smart touch (likely letters are easier to hit) and touch calibration (learns where your thumbs land; numbers only), key size, key spacing and a one-tap Windows Phone look, haptic strength. Marathi and Hindi by English-letter transliteration or Devanagari keys. Never connects to the internet, learns nothing in password fields, no voice typing and no microphone permission. The typing test and glide test are for debug builds only and are not in this release. The what's-new card introduces it with a button to Android's keyboard list. Adds `BIND_INPUT_METHOD` (the service) and `VIBRATE`.
+
+**Units.** Weather, battery temperature and the health hub's distance and height show °C, km/h and km, or °F, mph and miles, by the phone's region (the US and a few other regions get imperial), with a "units" choice in personalize › tiles (auto, °C · km, °F · miles).
 
 #### The 5.5.0 points (never released, now in 5.6.0)
 
