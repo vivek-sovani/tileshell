@@ -295,18 +295,20 @@ original format as the historical record, unchanged). Still capped at Play's 500
 TileShell 5.6.0
 
 New features:
-• Windows Phone style keyboard (beta)
-  with swipe typing, Marathi and Hindi
-• °F and miles by region (units setting)
-• News tile: tap to read a story, swipe
-  or use the arrows for the next one
-• Wallpaper slideshow can set the home
-  screen, lock screen or both
+• A keyboard like the one Windows
+  Phone had (beta): swipe typing,
+  Marathi, Hindi. Turn it on in
+  personalize > system > TileShell
+  keyboard
+• °F and miles by region
+• News tile: tap to read, swipe or
+  arrows for the next story
+• Slideshow sets home, lock or both
+  wallpapers
 
 Bugs fixed:
 • Android Auto resumes the same song,
-  episode or station after a reconnect,
-  a shuffled queue included
+  episode or station, shuffle too
 • Keyboard no longer overlaps the
   bottom bar
 ```
