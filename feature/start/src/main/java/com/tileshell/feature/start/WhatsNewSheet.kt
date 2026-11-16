@@ -178,7 +178,7 @@ private fun HubsIntro(accent: Color, onSetUp: () -> Unit, onKeep: () -> Unit) {
             Column(modifier = Modifier.padding(start = 12.dp)) {
                 Text("windows phone-style keyboard · beta", color = Color(0xFFF6F6F8), fontSize = 14.sp)
                 Text(
-                    "a metro keyboard in your accent colour, with swipe typing, emoji and clipboard. type मराठी " +
+                    "the keyboard windows phone had, now on android, in your accent colour, with swipe typing, emoji and clipboard. type मराठी " +
                         "and हिन्दी in english letters or on devanagari keys. turn it on in personalize › system › " +
                         "tileshell keyboard.",
                     color = Color(0xFF9A9AA8),
@@ -249,7 +249,7 @@ private fun KeyboardIntro(accent: Color) {
                 )
             }
             Text(
-                "a metro keyboard in your accent colour with wordflow (swipe across letters to type), suggestions, " +
+                "the keyboard windows phone had, now on android, in your accent colour with wordflow (swipe across letters to type), suggestions, " +
                     "emoji and clipboard. type मराठी and हिन्दी in english letters or on devanagari keys. " +
                     "it never connects to the internet, and it is still in beta.",
                 color = Color(0xFF9A9AA8),
