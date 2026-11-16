@@ -300,13 +300,11 @@ New features:
   Marathi, Hindi. Turn it on in
   personalize > system > TileShell
   keyboard
-• Units follow your region: °F, mph
-  and miles (US and a few others) or
-  °C, km/h and km; change in settings
+• Units follow your region: °F, mph,
+  miles (US and others) or °C, km/h, km
 • News tile: tap to read, swipe or
   arrows for the next story
 • Slideshow sets home, lock or both
-  wallpapers
 
 Bugs fixed:
 • Android Auto resumes the same song,
