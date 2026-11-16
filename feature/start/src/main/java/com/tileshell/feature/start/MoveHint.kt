@@ -29,6 +29,8 @@ val LocalTileOnlyEdit = staticCompositionLocalOf { false }
  * time the handover is done. Returns false (nothing happens, the cluster stays) when the layout is locked. Null where
  * a tile has no such handover.
  */
+/** Opens the news hub's list from the news tile's own list button (the tile itself opens the story). */
+val LocalOpenNewsHub = staticCompositionLocalOf<() -> Unit> { {} }
 val LocalTileDragStart = staticCompositionLocalOf<((Offset) -> Boolean)?> { null }
 
 /**

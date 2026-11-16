@@ -1717,6 +1717,7 @@ fun StartScreen(
                     dragEntryFlow = viewModel.dragEntry,
                     onArmedDragHandled = viewModel::clearArmedDrag,
                     onDragFromLongPress = viewModel::enterTileEditByDrag,
+                    onOpenNewsHub = viewModel::openNewsHub,
                     onTilePickerHandled = viewModel::clearTilePicker,
                     onOpenTileMenu = { tile, bounds ->
                         // A top-level app tile, folder or widget stack gets the cluster (an inline-expanded folder
@@ -3061,6 +3062,7 @@ private fun StartPage(
     // Long press on a tile: true when the tile's quick-action cluster opened (given the tile's bounds in the
     // root), false to fall back to entering edit mode as before.
     onOpenTileMenu: (TileModel, androidx.compose.ui.geometry.Rect) -> Boolean,
+    onOpenNewsHub: () -> Unit = {},
     // A colour or size picker asked for from a tile's quick-action cluster (outside edit mode).
     tilePickerRequests: kotlinx.coroutines.flow.StateFlow<TilePickerRequest?>,
     // Edit mode opened from a tile's quick actions: that tile's own controls only (no page headers, add page, edit bar).
@@ -3993,6 +3995,7 @@ private fun StartPage(
                     com.tileshell.feature.livetiles.LocalNotificationMuted provides (model.id in mutedNotificationTiles),
                     LocalTileOnlyEdit provides tileOnlyEdit,
                     LocalTileDragStart provides dragStart,
+                    LocalOpenNewsHub provides onOpenNewsHub,
                 ) {
                 Box(
                     modifier = Modifier
@@ -8136,7 +8139,7 @@ private fun AppTileContent(
             return
         }
         LiveFace.NEWSHUB -> {
-            com.tileshell.feature.livetiles.NewsHubTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize())
+            com.tileshell.feature.livetiles.NewsHubTileFace(size = tile.size, active = liveActive, interactive = interactive, onOpenHub = LocalOpenNewsHub.current, modifier = Modifier.fillMaxSize())
             return
         }
         LiveFace.SPORTSHUB -> {

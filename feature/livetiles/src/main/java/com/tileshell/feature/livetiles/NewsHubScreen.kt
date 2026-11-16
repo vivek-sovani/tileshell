@@ -74,6 +74,10 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
@@ -1001,16 +1005,21 @@ const val NEWS_TILE_STORIES = 8
  * tile) and reads the stored news only; tapping opens the hub.
  */
 @Composable
-fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier = Modifier) {
+fun NewsHubTileFace(size: TileSize, active: Boolean = true, interactive: Boolean = true, onOpenHub: () -> Unit = {}, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val feed by remember { FeedStore.create(context).data }.collectAsState(initial = FeedData())
     val color = LocalTileFaceColor.current
     val stories = remember(feed.articles) { feed.articles.sortedByDescending { it.publishedAtMillis }.take(NEWS_TILE_STORIES) }
     var index by remember { mutableIntStateOf(0) }
-    LaunchedEffect(active, stories.size) {
+    // 0 = the timer rolled it, 1 = swiped up to the next, -1 = swiped down to the previous.
+    var dir by remember { mutableIntStateOf(0) }
+    // A swipe restarts the timer, so the story just chosen is not rolled away a moment later.
+    var swipes by remember { mutableIntStateOf(0) }
+    LaunchedEffect(active, stories.size, swipes) {
         if (!active || stories.size < 2) return@LaunchedEffect
         while (true) {
             kotlinx.coroutines.delay(NEWS_TILE_ROLL_MS)
+            dir = 0
             index = (index + 1) % stories.size
         }
     }
@@ -1031,7 +1040,66 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
     }
     // The next story rises from the bottom while the old one leaves through the top, like every tile that shows
     // items one after another (see MessageSlide).
-    Box(modifier = modifier.fillMaxSize()) { MessageSlide(index.coerceIn(0, stories.lastIndex)) { i ->
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val swipePx = with(density) { 36.dp.toPx() }
+    val shownNow = stories[index.coerceIn(0, stories.lastIndex)]
+    fun step(d: Int) {
+        dir = d
+        index = (index + d + stories.size) % stories.size
+        swipes++
+    }
+    // Tap opens the story on show, a vertical swipe (up = next, down = previous) steps through the stories, and the small
+    // list button opens the hub's full list. It is taken only once the finger has clearly gone
+    // up or down (horizontal drags belong to Start's page swipe, which claims them first).
+    Box(
+        modifier = modifier.fillMaxSize()
+            .pointerInput(stories.size, interactive) {
+                if (stories.size < 2 || !interactive) return@pointerInput
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    var dx = 0f
+                    var dy = 0f
+                    var taken = false
+                    while (true) {
+                        val ev = awaitPointerEvent()
+                        val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!c.pressed) break
+                        val d = c.positionChange()
+                        dx += d.x; dy += d.y
+                        if (!taken && kotlin.math.abs(dy) > viewConfiguration.touchSlop && kotlin.math.abs(dy) > 1.5f * kotlin.math.abs(dx)) taken = true
+                        if (taken) c.consume()
+                    }
+                    if (taken && kotlin.math.abs(dy) >= swipePx) {
+                        step(if (dy < 0) 1 else -1)
+                    }
+                }
+            }
+            .then(if (interactive) Modifier.clickable { openArticle(context, shownNow) } else Modifier),
+    ) { androidx.compose.animation.AnimatedContent(
+        targetState = index.coerceIn(0, stories.lastIndex),
+        modifier = Modifier.fillMaxSize(),
+        transitionSpec = {
+            val v = androidx.compose.animation.core.tween<androidx.compose.ui.unit.IntOffset>(
+                450, easing = androidx.compose.animation.core.FastOutSlowInEasing,
+            )
+            val h = androidx.compose.animation.core.tween<androidx.compose.ui.unit.IntOffset>(
+                260, easing = androidx.compose.animation.core.FastOutSlowInEasing,
+            )
+            when (dir) {
+                0 -> androidx.compose.animation.ContentTransform(
+                    targetContentEnter = androidx.compose.animation.slideInVertically(v) { it },
+                    initialContentExit = androidx.compose.animation.slideOutVertically(v) { -it },
+                    sizeTransform = androidx.compose.animation.SizeTransform(clip = true),
+                )
+                else -> androidx.compose.animation.ContentTransform(
+                    targetContentEnter = androidx.compose.animation.slideInVertically(h) { it * dir },
+                    initialContentExit = androidx.compose.animation.slideOutVertically(h) { -it * dir },
+                    sizeTransform = androidx.compose.animation.SizeTransform(clip = true),
+                )
+            }
+        },
+        label = "newsTileSlide",
+    ) { i ->
         val a = stories[i.coerceIn(0, stories.lastIndex)]
         val photo = rememberRemoteImage(a.imageUrl)
         Box(modifier = Modifier.fillMaxSize().clipToBounds()) {
@@ -1045,7 +1113,7 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
             }
             Column(
                 verticalArrangement = Arrangement.Bottom,
-                modifier = Modifier.fillMaxSize().padding(if (narrow) 5.dp else 8.dp),
+                modifier = Modifier.fillMaxSize().padding(start = if (narrow) 5.dp else 8.dp, top = if (narrow) 5.dp else 8.dp, bottom = if (narrow) 5.dp else 8.dp, end = if (stories.size > 1 && interactive) (if (narrow) 22.dp else 28.dp) else if (narrow) 5.dp else 8.dp),
             ) {
                 Text(
                     a.source,
@@ -1060,7 +1128,31 @@ fun NewsHubTileFace(size: TileSize, active: Boolean = true, modifier: Modifier =
                 )
             }
         }
-    } }
+    }
+    // Up / down arrows: they show the tile can be swiped, and tapping one does the same step.
+    if (stories.size > 1 && interactive) {
+        Column(
+            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 2.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            val arrow = Color.White.copy(alpha = 0.85f)
+            Box(Modifier.size(if (narrow) 22.dp else 28.dp).clickable { step(-1) }, contentAlignment = Alignment.Center) {
+                Text("\u25B2", color = arrow, fontSize = if (narrow) 9.sp else 11.sp)
+            }
+            Box(Modifier.size(if (narrow) 22.dp else 28.dp).clickable { step(1) }, contentAlignment = Alignment.Center) {
+                Text("\u25BC", color = arrow, fontSize = if (narrow) 9.sp else 11.sp)
+            }
+        }
+    }
+    // Opens the news hub with the whole list (the tile itself now opens the story).
+    Box(
+        modifier = Modifier.align(Alignment.TopEnd).padding(2.dp).size(if (narrow) 24.dp else 28.dp)
+            .then(if (interactive) Modifier.clickable(onClickLabel = "open news list", onClick = onOpenHub) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(TileIcons["newshub"], contentDescription = "news list", tint = Color.White.copy(alpha = 0.9f), modifier = Modifier.size(if (narrow) 14.dp else 16.dp))
+    }
+    }
 }
 
 
