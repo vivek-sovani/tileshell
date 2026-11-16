@@ -347,7 +347,7 @@ private const val WHATS_NEW_VERSION_NAME = "5.6.0"
 // "Also folded into this same versionCode 450" in PLAY_STORE.md instead) —
 // this in-app card reflects what's actually in the build, not that frozen text.
 private val WHATS_NEW_FEATURES = listOf(
-    "units follow your region: °C, km/h and km, or °F, mph and miles, with a units choice in personalize › tiles",
+    "units follow your region: weather, battery and health show °F, mph and miles in the us and a few other regions, and °C, km/h and km elsewhere — change it in personalize › tiles › units",
     "the news tile: tap it to read the story on show, swipe up or down (or tap the arrows) for the next one, and use the small list icon to open the news hub",
     "the wallpaper slideshow can set your phone's home screen, lock screen or both, chosen with \"set on\" under personalize › wallpaper",
 )
