@@ -10050,6 +10050,8 @@ private fun PersonalizeSheetLayer(
         onWallpaperSlideshowChange = viewModel::setWallpaperSlideshowEnabled,
         wallpaperSlideshowIntervalMin = settings.wallpaperSlideshowIntervalMin,
         onWallpaperSlideshowIntervalChange = viewModel::setWallpaperSlideshowInterval,
+        wallpaperSyncTarget = settings.wallpaperSyncTarget,
+        onWallpaperSyncTargetChange = viewModel::setSlideshowSyncTarget,
         wallpaperSlideshowUris = wallpaperSlideshowUris,
         onPickWallpaperSlideshowPhotos = {
             wallpaperSlideshowPicker.launch(

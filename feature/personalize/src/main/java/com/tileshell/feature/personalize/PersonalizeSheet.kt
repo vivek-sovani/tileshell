@@ -201,6 +201,9 @@ fun PersonalizeSheet(
     onWallpaperSlideshowChange: (Boolean) -> Unit,
     wallpaperSlideshowIntervalMin: Int,
     onWallpaperSlideshowIntervalChange: (Int) -> Unit,
+    wallpaperSyncTarget: com.tileshell.core.data.settings.WallpaperSyncTarget =
+        com.tileshell.core.data.settings.WallpaperSyncTarget.NONE,
+    onWallpaperSyncTargetChange: (com.tileshell.core.data.settings.WallpaperSyncTarget) -> Unit = {},
     wallpaperSlideshowUris: List<String>,
     onPickWallpaperSlideshowPhotos: () -> Unit,
     onClearWallpaperSlideshowPhotos: () -> Unit,
@@ -679,6 +682,21 @@ fun PersonalizeSheet(
                                         listOf(15 to "15m", 30 to "30m", 60 to "1h", 180 to "3h").forEach { (min, label) ->
                                             HubFilter(label, wallpaperSlideshowIntervalMin == min, tokens, accent) {
                                                 onWallpaperSlideshowIntervalChange(min)
+                                            }
+                                        }
+                                    }
+                                    Spacer(Modifier.height(10.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    ) {
+                                        Text(text = "set on", color = tokens.fgDim, fontSize = 14.sp)
+                                        Spacer(Modifier.weight(1f))
+                                        val t = com.tileshell.core.data.settings.WallpaperSyncTarget.entries
+                                        listOf(t[1] to "home", t[2] to "lock", t[3] to "both").forEach { (target, label) ->
+                                            HubFilter(label, (wallpaperSyncTarget.takeIf { it != com.tileshell.core.data.settings.WallpaperSyncTarget.NONE } ?: t[3]) == target, tokens, accent) {
+                                                onWallpaperSyncTargetChange(target)
                                             }
                                         }
                                     }

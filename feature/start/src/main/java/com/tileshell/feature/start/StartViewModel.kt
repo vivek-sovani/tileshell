@@ -1587,7 +1587,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             settingsRepository.setWallpaperSlideshowEnabled(on)
             if (on) {
                 val uris = com.tileshell.feature.livetiles.WallpaperSlideshowStore.create(context).read().uris
-                if (uris.isNotEmpty()) settingsRepository.setWallpaperSlide(uris.first(), 0)
+                if (uris.isNotEmpty()) {
+                    settingsRepository.setWallpaperSlide(uris.first(), 0)
+                    com.tileshell.feature.livetiles.SlideSystemSync.apply(context, settings.value.wallpaperSyncTarget, uris.first())
+                }
             }
         }
         if (on) {
@@ -1596,6 +1599,19 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             )
         } else {
             com.tileshell.feature.livetiles.WallpaperSlideshowWorker.cancel(context)
+        }
+    }
+
+    /** Where slides are set: the app only, home, lock or both; applies the current slide now. */
+    fun setSlideshowSyncTarget(target: com.tileshell.core.data.settings.WallpaperSyncTarget) {
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setWallpaperSyncTarget(target)
+            val s = settings.value
+            val uri = s.customWallpaperUri
+            if (s.wallpaperSlideshowEnabled && uri != null) {
+                com.tileshell.feature.livetiles.SlideSystemSync.apply(context, target, uri)
+            }
         }
     }
 
@@ -1609,7 +1625,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Apply [uri] at [index] as the current slideshow photo (used when photos are (re)picked). */
     fun setWallpaperSlide(uri: String, index: Int) {
-        viewModelScope.launch(Dispatchers.IO) { settingsRepository.setWallpaperSlide(uri, index) }
+        val context = getApplication<Application>()
+        viewModelScope.launch(Dispatchers.IO) {
+            settingsRepository.setWallpaperSlide(uri, index)
+            if (settings.value.wallpaperSlideshowEnabled) {
+                com.tileshell.feature.livetiles.SlideSystemSync.apply(context, settings.value.wallpaperSyncTarget, uri)
+            }
+        }
     }
 
     /** After slideshow photos were removed: shows the first one left, or no
@@ -1619,7 +1641,12 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             val current = settings.value.customWallpaperUri
             when {
                 remaining.isEmpty() -> settingsRepository.clearWallpaperSlide()
-                current !in remaining -> settingsRepository.setWallpaperSlide(remaining.first(), 0)
+                current !in remaining -> {
+                    settingsRepository.setWallpaperSlide(remaining.first(), 0)
+                    com.tileshell.feature.livetiles.SlideSystemSync.apply(
+                        getApplication(), settings.value.wallpaperSyncTarget, remaining.first(),
+                    )
+                }
             }
         }
     }

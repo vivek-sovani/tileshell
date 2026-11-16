@@ -34,6 +34,7 @@ class WallpaperSlideshowWorker(
         if (uris.isEmpty()) return@withContext Result.success()
         val nextIndex = (current.wallpaperSlideshowIndex + 1).mod(uris.size)
         settings.setWallpaperSlide(uris[nextIndex], nextIndex)
+        SlideSystemSync.apply(applicationContext, current.wallpaperSyncTarget, uris[nextIndex])
         Result.success()
     }
 
