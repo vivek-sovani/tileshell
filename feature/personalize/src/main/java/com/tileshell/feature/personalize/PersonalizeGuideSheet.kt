@@ -141,7 +141,7 @@ fun PersonalizeGuideSheet(
                             items = listOf(
                                 "personalize · wallpaper: choose none, a photo, a slideshow, daily bing, or a stock gradient",
                                 "with a photo or bing wallpaper set, use \"adjust position · reframe\" to pinch-zoom and drag it into place",
-                                "slideshow rotates through photos you pick, every 15 minutes to 3 hours",
+                                "slideshow rotates through photos you pick, every 15 minutes to 3 hours; \"set on\" (home, lock or both) also puts each slide on your phone's real wallpaper",
                                 "turn on \"behind tiles\" (tile background) to let the wallpaper show through the grid",
                                 "after picking a new wallpaper, choose home screen, lock screen, or both to also set it as your device's real system wallpaper, framed exactly as you positioned it — cancel to skip and keep it just for start",
                             ),
@@ -158,6 +158,9 @@ fun PersonalizeGuideSheet(
                                 "widget cards also carries onto the feed page — weather, today, and now-playing become the same translucent cards there",
                                 "and onto quick panel — every toggle shares the same translucent card; an active one shows in accent colour on its icon and label instead of a filled tile",
                                 "quick panel's brightness/volume sliders match too — a frosted translucent track instead of a solid bar",
+                                "personalize · tiles · units: °C · km or °F · mph · miles, or auto by region",
+                                "personalize · tiles · tile depth: off, tilt (leans when pressed) or lighting (highlight, shading and a floating face)",
+                                "personalize · colours · hub colour (with tile colour on \"wallpaper\"): hubs follow the tiles or keep your accent",
                                 "\"tile outline\" (transparent & behind tiles only) drops the thin edge line around each tile, so neighbours read as one continuous surface",
                                 "tile style · corner radius slider rounds every tile's corners",
                                 "tile style · tile spacing slider sets the gap between tiles — drag it up to spread them out, down to pack them tighter",
@@ -276,6 +279,10 @@ fun PersonalizeGuideSheet(
                                 "clock hub: add it from \"add live tiles\" — the tile shows the time and flips to your next alarm; tap it for alarms, world clocks, timers, a stopwatch and timer sets (swipe between them, and in sets build a row of timers with the + in the bar); \"pin\" on a set puts it on start as its own tile with start, pause and stop buttons",
                                 "weather hub: the globe button in its bar opens google weather for your place in the browser (\"···\" adds accuweather and timeanddate)",
                                 "shopping hub: its deals page collects your stores' offers from their apps, store texts and business chats such as amazon india on whatsapp; arriving shows orders on their way",
+                                "news tile: tap it to open the story showing, swipe up or down (or tap ▲ ▼) to step through stories, and tap the small list icon to open the news hub",
+                                "podcasts and your last song resume where you left them; android auto picks up the same song, episode or station — and a shuffled queue in its shuffled order — after the car reconnects",
+                                "people: when a contact has several numbers, call / message / whatsapp ask which to use",
+                                "hubs open by growing out of the tile you tapped and close back into it",
                             ),
                         )
                         FeatureGroup(

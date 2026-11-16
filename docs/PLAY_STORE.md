@@ -321,6 +321,14 @@ Bugs fixed:
 
 **Units.** Weather, battery temperature and the health hub's distance and height show °C, km/h and km, or °F, mph and miles, by the phone's region (the US and a few other regions get imperial), with a "units" choice in personalize › tiles (auto, °C · km, °F · miles).
 
+**News tile.** Tapping the news tile opens the story on show in the browser, swiping it up or down (or tapping the ▲ ▼ arrows at its edge) steps through the stories without waiting for the roll, and a small list icon in its corner opens the news hub.
+
+**Wallpaper slideshow on the real wallpaper.** Each slide is also set as the phone's home screen, lock screen or both wallpaper, chosen with a "set on" row under personalize › wallpaper › slides (as a single photo already could be).
+
+**Android Auto resumes.** After the car disconnects and reconnects, the same song, podcast episode or radio station carries on from the same place, and a shuffled playlist resumes with its whole queue in the same shuffled order.
+
+**Guide and About** now describe all of the above, units, tile depth and hub colour.
+
 #### The 5.5.0 points (never released, now in 5.6.0)
 
 **Music + videos.** The music hub is now "music + videos": a videos page with videos from folders picked in the system folder picker (no storage permission), opened in the phone's default player; a "video and ott" apps section; editable apps lists (add, drag between sections, take off; most used first); a tile for the apps page. Podcast episodes keep their position, the last song resumes, played episodes are marked "played" or show the time left, and a finished episode goes on to the next newer unplayed one.
