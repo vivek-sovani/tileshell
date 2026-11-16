@@ -297,20 +297,18 @@ TileShell 5.6.0
 New features:
 • Windows Phone style keyboard (beta)
   with swipe typing, Marathi and Hindi
-• Music + videos hub
-• Hubs and apps grow out of the tile
-• Dual-screen and foldable layouts
-• Android Auto: music, podcasts, radio
-• New hubs: markets, sports, news,
-  clock, shopping, health
-• Long-press a tile for quick actions
-• Windows Phone flip on live tiles
-• °F and miles by region
+• °F and miles by region (units setting)
+• News tile: tap to read a story, swipe
+  or use the arrows for the next one
+• Wallpaper slideshow can set the home
+  screen, lock screen or both
 
 Bugs fixed:
-• Less battery use
-• Returning from an app keeps your page
-• Tile flip and drag fixes
+• Android Auto resumes the same song,
+  episode or station after a reconnect,
+  a shuffled queue included
+• Keyboard no longer overlaps the
+  bottom bar
 ```
 
 ### Full changelog since v5.0.0 (for reference, not the Play-facing blurb above)
