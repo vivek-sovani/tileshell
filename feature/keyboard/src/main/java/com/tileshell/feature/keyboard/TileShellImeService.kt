@@ -70,7 +70,12 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
      * over the input view without reporting it as an inset, which covered the
      * bottom key row and took its touches; the keyboard pads by this instead.
      */
-    private val imeNavBarHeight = mutableIntStateOf(0)
+    private val imeNavBarHeight by lazy {
+        // Start from the height measured last time: the bar is only measured after the first layout, and
+        // until then the bottom row sat under it, then jumped up once the height arrived (a glitch as
+        // typing began). A phone without such a bar never measures one, so this stays 0 there.
+        mutableIntStateOf(getSharedPreferences("keyboard_nav", MODE_PRIVATE).getInt("bar_height", 0))
+    }
 
     override fun onCreateInputView(): View {
         window?.window?.decorView?.let { decor ->
@@ -79,7 +84,12 @@ class TileShellImeService : InputMethodService(), LifecycleOwner, SavedStateRegi
             decor.viewTreeObserver.addOnGlobalLayoutListener {
                 val bar = findNavigationBarFrame(decor)
                 val h = if (bar != null && bar.isShown) bar.height else 0
-                if (h != imeNavBarHeight.intValue) imeNavBarHeight.intValue = h
+                // Only a real measurement changes it: a pass before the bar is laid out (0) must not drop
+                // the remembered height and let the bar cover the bottom row again.
+                if (h > 0 && h != imeNavBarHeight.intValue) {
+                    imeNavBarHeight.intValue = h
+                    getSharedPreferences("keyboard_nav", MODE_PRIVATE).edit().putInt("bar_height", h).apply()
+                }
             }
         }
         return ComposeView(this).apply {
