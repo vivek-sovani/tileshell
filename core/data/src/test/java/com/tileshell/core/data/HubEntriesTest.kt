@@ -71,4 +71,12 @@ class HubEntriesTest {
         assertTrue("music + videos" in found)
         assertTrue("Music Player" in found)
     }
+
+    @Test
+    fun `every hub has a tile colour the palette knows, and the music hub is orange like its tile`() {
+        val known = setOf("blue", "cobalt", "purple", "magenta", "red", "orange", "amber", "lime", "green", "teal", "cyan", "steel", "mauve", "slate")
+        assertTrue(HubEntries.ALL.all { it.colorId in known })
+        assertEquals("orange", HubEntries.colorIdOf(HubEntries.entryFor(HubEntries.ALL.first { it.id == "music" })))
+        assertNull(HubEntries.colorIdOf(app("Maps")))
+    }
 }

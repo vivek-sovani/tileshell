@@ -17,6 +17,9 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
+import androidx.compose.material3.Icon
+import com.tileshell.core.design.TileAccents
+import com.tileshell.core.design.TileIcons
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -458,5 +461,34 @@ internal fun MaskedAppIcon(
                 )
             }
         }
+    }
+}
+
+
+/**
+ * A hub's entry in the app list or quick search: the hub's glyph in white on a plate in the colour of its
+ * Start tile. [square] is the app list's tiles style (a square tile, like the other rows in that style);
+ * otherwise the plate takes the chosen icon shape in icons home style, else a rounded square.
+ */
+@Composable
+fun HubPlate(
+    glyphKey: String,
+    colorId: String,
+    size: Dp,
+    square: Boolean,
+    homeStyle: HomeStyle,
+    shape: IconShape,
+    modifier: Modifier = Modifier,
+) {
+    val plateShape: Shape = when {
+        square -> RectangleShape
+        homeStyle == HomeStyle.ICONS -> shape.toShape() ?: RoundedCornerShape(percent = 22)
+        else -> RoundedCornerShape(percent = 22)
+    }
+    Box(
+        modifier = modifier.size(size).clip(plateShape).background(TileAccents.forId(colorId)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(TileIcons[glyphKey], null, tint = Color.White, modifier = Modifier.size(size * 0.62f))
     }
 }

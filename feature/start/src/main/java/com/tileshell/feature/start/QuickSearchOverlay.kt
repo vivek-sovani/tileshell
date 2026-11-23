@@ -71,6 +71,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.HubEntries
+import com.tileshell.core.data.settings.IconShape
+import com.tileshell.core.data.settings.HomeStyle
+import com.tileshell.feature.applist.HubPlate
 import com.tileshell.core.data.RecentApps
 import com.tileshell.core.data.RecentSearches
 import com.tileshell.core.design.ColorTokens
@@ -397,8 +400,18 @@ private fun AppResultRow(app: AppEntry, tokens: ColorTokens, onTap: () -> Unit) 
         verticalAlignment = Alignment.CenterVertically,
     ) {
         val hubKey = HubEntries.iconKeyOf(app)
+        val hubColor = HubEntries.colorIdOf(app)
         val icon = if (hubKey != null) null else rememberAppIconBitmap(app.packageName)
-        if (icon != null) {
+        if (hubKey != null && hubColor != null) {
+            HubPlate(
+                glyphKey = hubKey,
+                colorId = hubColor,
+                size = 32.dp,
+                square = false,
+                homeStyle = HomeStyle.TILES,
+                shape = IconShape.ROUNDED,
+            )
+        } else if (icon != null) {
             Image(
                 bitmap = icon,
                 contentDescription = null,
@@ -406,7 +419,7 @@ private fun AppResultRow(app: AppEntry, tokens: ColorTokens, onTap: () -> Unit) 
                 modifier = Modifier.size(32.dp),
             )
         } else {
-            Icon(TileIcons[hubKey ?: "app"], null, tint = tokens.fg, modifier = Modifier.size(24.dp))
+            Icon(TileIcons["app"], null, tint = tokens.fg, modifier = Modifier.size(24.dp))
         }
         Spacer(Modifier.width(14.dp))
         Text(app.label, color = tokens.fg, fontSize = 16.sp)

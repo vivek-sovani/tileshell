@@ -3,7 +3,7 @@ package com.tileshell.core.data
 import android.content.Context
 
 /** A hub as it appears in the app list and quick search. [id] is stable (it is stored in the recent list). */
-data class HubEntry(val id: String, val label: String, val iconKey: String)
+data class HubEntry(val id: String, val label: String, val iconKey: String, val colorId: String)
 
 /**
  * The hubs as searchable, launchable entries (experiment, switch
@@ -26,20 +26,20 @@ object HubEntries {
     const val MAX_RECENT_HUBS = 2
 
     val ALL: List<HubEntry> = listOf(
-        HubEntry("music", "music + videos", "music"),
-        HubEntry("people", "people", "people"),
-        HubEntry("weather", "weather", "weather"),
-        HubEntry("calendar", "calendar", "calendar"),
-        HubEntry("productivity", "productivity", "productivity"),
-        HubEntry("clock", "clock", "clock"),
-        HubEntry("battery", "battery", "battery"),
-        HubEntry("money", "money", "money"),
-        HubEntry("markets", "markets", "markets"),
-        HubEntry("sports", "sports", "sportshub"),
-        HubEntry("news", "news", "newshub"),
-        HubEntry("shopping", "shopping", "shophub"),
-        HubEntry("health", "health", "healthhub"),
-        HubEntry("panchang", "panchang", "calsys"),
+        HubEntry("music", "music + videos", "music", "orange"),
+        HubEntry("people", "people", "people", "teal"),
+        HubEntry("weather", "weather", "weather", "cyan"),
+        HubEntry("calendar", "calendar", "calendar", "magenta"),
+        HubEntry("productivity", "productivity", "productivity", "cobalt"),
+        HubEntry("clock", "clock", "clock", "cobalt"),
+        HubEntry("battery", "battery", "battery", "green"),
+        HubEntry("money", "money", "money", "green"),
+        HubEntry("markets", "markets", "markets", "cobalt"),
+        HubEntry("sports", "sports", "sportshub", "orange"),
+        HubEntry("news", "news", "newshub", "red"),
+        HubEntry("shopping", "shopping", "shophub", "magenta"),
+        HubEntry("health", "health", "healthhub", "lime"),
+        HubEntry("panchang", "panchang", "calsys", "cobalt"),
     )
 
     fun entryFor(hub: HubEntry): AppEntry =
@@ -62,6 +62,9 @@ object HubEntries {
 
     /** The glyph (`TileIcons` key) for a hub entry. */
     fun iconKeyOf(app: AppEntry): String? = idOf(app)?.let { id -> ALL.firstOrNull { it.id == id }?.iconKey }
+
+    /** The tile colour (`TileAccents` id) of a hub entry: the colour its Start tile has, so the row matches it. */
+    fun colorIdOf(app: AppEntry): String? = idOf(app)?.let { id -> ALL.firstOrNull { it.id == id }?.colorId }
 
     /** The recent-list key a launch of hub [id] is stored under (same shape as [AppEntry.key]). */
     fun recentKey(id: String): String = "/$PREFIX$id"

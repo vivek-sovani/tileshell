@@ -571,7 +571,19 @@ private fun AppRow(
                 contentAlignment = Alignment.Center,
             ) {
                 val icon = if (isPseudo) null else rememberMaskableAppIcon(app.packageName, app.activityName)
-                if (isPseudo) {
+                val hubGlyph = HubEntries.iconKeyOf(app)
+                val hubColor = HubEntries.colorIdOf(app)
+                if (hubGlyph != null && hubColor != null) {
+                    // A hub: its glyph on a plate in its Start tile's colour (square in the tiles style).
+                    HubPlate(
+                        glyphKey = hubGlyph,
+                        colorId = hubColor,
+                        size = if (appListStyle == AppListStyle.TILES) 44.dp else 40.dp,
+                        square = appListStyle == AppListStyle.TILES,
+                        homeStyle = homeStyle,
+                        shape = iconShape,
+                    )
+                } else if (isPseudo) {
                     Icon(
                         TileIcons[HubEntries.iconKeyOf(app) ?: "settings"], null,
                         tint = LocalColorTokens.current.fg,
