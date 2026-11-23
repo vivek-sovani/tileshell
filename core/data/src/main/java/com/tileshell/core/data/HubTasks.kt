@@ -93,9 +93,10 @@ object HubTasks {
     fun openHub(context: Context, id: String, page: String? = null, location: WeatherTile.Location? = null): Boolean {
         if (id == "music") return openMusic(context, page)
         val intent = hubIntent(context, id, page, location) ?: return false
-        val origin = LaunchOrigin.take()
-        val started = runCatching { context.startActivity(intent, LaunchOrigin.optionsFor(context, origin?.bounds)) }.isSuccess
-        if (started) LaunchOrigin.notifyLaunched(origin, context.packageName)
-        return started
+        // The hub's task shows a copy of Start and grows the hub out of the tile itself (HubOrigin), so there is
+        // no launch plate here and no system transition between the two identical screens.
+        LaunchOrigin.take()
+        val options = android.app.ActivityOptions.makeCustomAnimation(context, 0, 0).toBundle()
+        return runCatching { context.startActivity(intent, options) }.isSuccess
     }
 }

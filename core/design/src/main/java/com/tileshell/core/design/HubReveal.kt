@@ -46,6 +46,14 @@ object HubOrigin {
         at = System.currentTimeMillis()
     }
 
+    /**
+     * Restarts the clock on a recorded origin. A hub that opens in a task of its own takes a moment to start (a
+     * whole Start screen is composed first), longer than [VALID_MS], so it calls this as it starts.
+     */
+    fun refresh() {
+        if (pending != null) at = System.currentTimeMillis()
+    }
+
     fun take(): HubOriginData? {
         val origin = pending
         val fresh = origin != null && System.currentTimeMillis() - at <= VALID_MS

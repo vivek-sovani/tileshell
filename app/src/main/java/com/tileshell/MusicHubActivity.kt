@@ -10,7 +10,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
@@ -29,6 +31,7 @@ import com.tileshell.feature.livetiles.MusicHubScreen
 import com.tileshell.feature.start.rememberHubAccentId
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
@@ -48,6 +51,7 @@ import kotlinx.coroutines.launch
 class MusicHubActivity : ComponentActivity() {
 
     private val page = mutableStateOf<String?>(null)
+    private var closing = false
     private val pinMessages = MutableSharedFlow<String>(extraBufferCapacity = 4)
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -65,13 +69,22 @@ class MusicHubActivity : ComponentActivity() {
             }
             val dark = if (settings.followSystemTheme) isSystemInDarkTheme() else settings.dark
             val accentId = rememberHubAccentId(settings)
+            // Slides up on open and down on close, as a hub does when it has no tile to grow from.
+            var visible by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) { visible = true }
+            LaunchedEffect(visible) {
+                if (!visible && closing) {
+                    delay(HUB_CLOSE_MS)
+                    finish()
+                }
+            }
             StatusBarVisibilityEffect(hide = settings.hideStatusBar)
             CompositionLocalProvider(LocalHinge provides rememberHinge(this@MusicHubActivity)) {
                 MusicHubScreen(
-                    visible = true,
+                    visible = visible,
                     dark = dark,
                     accentId = accentId,
-                    onDismiss = { finish() },
+                    onDismiss = { closing = true; visible = false },
                     rightHalf = false,
                     initialPage = page.value,
                     onPinApps = ::pinMediaApps,
@@ -115,3 +128,5 @@ class MusicHubActivity : ComponentActivity() {
         }
     }
 }
+
+private const val HUB_CLOSE_MS = 330L

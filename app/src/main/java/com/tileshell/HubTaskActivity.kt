@@ -14,6 +14,7 @@ import com.tileshell.core.data.HubTasks
 import com.tileshell.core.data.WeatherTile
 import com.tileshell.core.design.HubOrigin
 import com.tileshell.core.design.TileAccents
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
@@ -33,15 +34,34 @@ class HubTaskActivity : MainActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // A tile tap records the tile a hub would grow out of; the hub here is not over that tile.
-        HubOrigin.take()
+        // This task shows a copy of Start, so the hub grows out of the tapped tile exactly as in the main window;
+        // the recorded tile's clock restarts since this screen took a moment to start.
+        noTransition()
+        HubOrigin.refresh()
         openFrom(intent)
-        // Finish once the hub has been closed (Back), not before it has opened.
+        // Finish once the hub has been closed (Back) and has finished shrinking back into its tile, not before.
         lifecycleScope.launch {
             var seenOpen = false
             startViewModel.anyHubOpen.collect { open ->
-                if (open) seenOpen = true else if (seenOpen) finish()
+                if (open) {
+                    seenOpen = true
+                } else if (seenOpen) {
+                    delay(HUB_CLOSE_MS)
+                    finish()
+                    noTransition()
+                }
             }
+        }
+    }
+
+    /** No window animation between this task and the identical Start under it, going in or out. */
+    @Suppress("DEPRECATION")
+    private fun noTransition() {
+        if (Build.VERSION.SDK_INT >= 34) {
+            overrideActivityTransition(OVERRIDE_TRANSITION_OPEN, 0, 0)
+            overrideActivityTransition(OVERRIDE_TRANSITION_CLOSE, 0, 0)
+        } else {
+            overridePendingTransition(0, 0)
         }
     }
 
@@ -110,3 +130,6 @@ class HubTaskActivity : MainActivity() {
         return ActivityManager.TaskDescription(label, bitmap, opaque)
     }
 }
+
+/** A hub's close animation is 300 ms; the task waits for it. */
+private const val HUB_CLOSE_MS = 330L
