@@ -82,7 +82,7 @@ private val WIDGET_CATALOG = listOf(
     WidgetCatalogEntry("stickynote", "sticky note", "one note, pinned to its own tile", "stickynote", "amber"),
     WidgetCatalogEntry("countdown", "countdown", "days until a date you set — pin as many as you like", "countdown", "magenta"),
     WidgetCatalogEntry("calsys", "calendar systems", "today's date in a calendar system of your choice (Hindu, Islamic, Hebrew, Persian and more), and the roman date; tap the tile to change it", "calsys", "cobalt"),
-    WidgetCatalogEntry("moonphase", "moon phase", "tonight's phase and illumination; opens the panchang hub", "moonphase", "slate"),
+    WidgetCatalogEntry("moonphase", "moon phase", "tonight's phase and illumination", "moonphase", "slate"),
     WidgetCatalogEntry("flashlight", "flashlight", "tap the tile to turn it on or off", "flashlight", "steel"),
 )
 

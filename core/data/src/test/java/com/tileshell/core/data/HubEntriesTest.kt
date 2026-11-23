@@ -90,4 +90,13 @@ class HubEntriesTest {
         assertTrue(HubEntries.matchesKeyword(entry, "personali"))
         assertTrue(!HubEntries.matchesKeyword(app("Maps"), "personali"))
     }
+
+    @Test
+    fun `the panchang has a recents card but is not an app list entry`() {
+        assertTrue(HubEntries.ALL.none { it.id == "panchang" })
+        assertEquals("panchang", HubEntries.hubFor("panchang")?.label)
+        assertEquals("people", HubEntries.hubFor("people")?.id)
+        assertNull(HubEntries.hubFor("nonsense"))
+        assertTrue(HubEntries.entries().none { HubEntries.idOf(it) == "panchang" })
+    }
 }

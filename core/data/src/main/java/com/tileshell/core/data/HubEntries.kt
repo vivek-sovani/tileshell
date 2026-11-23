@@ -51,6 +51,15 @@ object HubEntries {
         HubEntry("quicksettings", "quick settings", "brightness", "slate"),
     )
 
+    /**
+     * Hubs that get their own recents card (hub tasks) but are not app-list or quick-search entries: the panchang,
+     * which is a calendar system on the calendar hub's "systems" page and would look odd as an app in most regions.
+     */
+    val TASK_ONLY: List<HubEntry> = listOf(HubEntry("panchang", "panchang", "calsys", "cobalt"))
+
+    /** The hub with [id] for a task's name, icon and colour: an entry or a task-only hub. */
+    fun hubFor(id: String): HubEntry? = ALL.firstOrNull { it.id == id } ?: TASK_ONLY.firstOrNull { it.id == id }
+
     fun entryFor(hub: HubEntry): AppEntry =
         AppEntry(packageName = "", activityName = PREFIX + hub.id, label = hub.label)
 

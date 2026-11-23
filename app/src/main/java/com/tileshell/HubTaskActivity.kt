@@ -76,7 +76,7 @@ class HubTaskActivity : MainActivity() {
 
     private fun openFrom(intent: Intent) {
         val id = intent.getStringExtra(HubTasks.EXTRA_HUB_ID) ?: intent.data?.host ?: return
-        val hub = HubEntries.ALL.firstOrNull { it.id == id } ?: return
+        val hub = HubEntries.hubFor(id) ?: return
         setTaskDescription(taskDescriptionFor(hub.id, hub.label, TileAccents.forId(hub.colorId).toArgb()))
         val page = intent.getStringExtra(HubTasks.EXTRA_HUB_PAGE)
         if (id == "weather") {

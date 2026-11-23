@@ -1578,8 +1578,7 @@ fun StartScreen(
                                 } else if ((tile.packageName.isBlank() && (tile.iconKey == "clockhub" || tile.iconKey == "timerset")) || tile.iconKey == "clock" || tile.iconKey == "alarm") {
                                     viewModel.openClockHub()
                                 } else if (tile.iconKey == "moonphase") {
-                                    // The moon phase widget opens the panchang hub (tithi, moon times).
-                                    viewModel.openPanchang()
+                                    // The moon phase tile only shows the moon: a tap opens nothing.
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "newshub") {
                                     viewModel.openNewsHub()
                                 } else if (tile.packageName.isBlank() && tile.iconKey == "mediaapps") {
@@ -1656,7 +1655,7 @@ fun StartScreen(
                         } else if ((child.packageName.isBlank() && (child.iconKey == "clockhub" || child.iconKey == "timerset")) || child.iconKey == "clock" || child.iconKey == "alarm") {
                             viewModel.openClockHub()
                         } else if (child.iconKey == "moonphase") {
-                            viewModel.openPanchang()
+                            // Only shows the moon: a tap opens nothing.
                         } else if (child.packageName.isBlank() && child.iconKey == "newshub") {
                             viewModel.openNewsHub()
                         } else if (child.packageName.isBlank() && child.iconKey == "mediaapps") {
