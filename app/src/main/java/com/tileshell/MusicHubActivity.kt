@@ -59,6 +59,8 @@ class MusicHubActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // A tile tap records the tile the hub would grow out of; here there is no Start behind the hub, so drop it.
         HubOrigin.take()
+        // A transparent window cannot be snapshotted for recents (the card came out blank): the card is the icon on its colour.
+        if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(false)
         page.value = intent.getStringExtra(HubTasks.EXTRA_PAGE)
         setTaskDescription(taskDescriptionFor(TileAccents.forId("orange").toArgb()))
 

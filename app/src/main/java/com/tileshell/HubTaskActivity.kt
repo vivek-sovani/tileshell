@@ -37,6 +37,9 @@ class HubTaskActivity : MainActivity() {
         // This task shows a copy of Start, so the hub grows out of the tapped tile exactly as in the main window;
         // the recorded tile's clock restarts since this screen took a moment to start.
         noTransition()
+        // This window is transparent (the real Start shows through), and a translucent window cannot be snapshotted
+        // for recents: the card came out blank. So no screenshot: the card is the hub's own icon on its colour.
+        if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(false)
         HubOrigin.refresh()
         // Opened a moment after the first frame, not before it: a hub that is already open when it is first drawn
         // starts fully shown and has nothing to grow.
