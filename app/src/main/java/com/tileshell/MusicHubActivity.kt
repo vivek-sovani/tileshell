@@ -59,8 +59,6 @@ class MusicHubActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // A tile tap records the tile the hub would grow out of; here there is no Start behind the hub, so drop it.
         HubOrigin.take()
-        // A transparent window cannot be snapshotted for recents (the card came out blank): the card is the icon on its colour.
-        if (Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(false)
         page.value = intent.getStringExtra(HubTasks.EXTRA_PAGE)
         setTaskDescription(taskDescriptionFor(TileAccents.forId("orange").toArgb()))
 
@@ -73,7 +71,12 @@ class MusicHubActivity : ComponentActivity() {
             val accentId = rememberHubAccentId(settings)
             // Slides up on open and down on close, as a hub does when it has no tile to grow from.
             var visible by remember { mutableStateOf(false) }
-            LaunchedEffect(Unit) { visible = true }
+            val window = remember { HubWindow(this@MusicHubActivity, lifecycleScope) }
+            LaunchedEffect(Unit) {
+                visible = true
+                // Opaque once it is open, so recents gets a picture of it (see HubWindow).
+                window.makeOpaqueSoon { !closing }
+            }
             LaunchedEffect(visible) {
                 if (!visible && closing) {
                     delay(HUB_CLOSE_MS)
@@ -86,7 +89,13 @@ class MusicHubActivity : ComponentActivity() {
                     visible = visible,
                     dark = dark,
                     accentId = accentId,
-                    onDismiss = { closing = true; visible = false },
+                    onDismiss = {
+                        closing = true
+                        lifecycleScope.launch {
+                            window.makeTranslucent()
+                            visible = false
+                        }
+                    },
                     rightHalf = false,
                     initialPage = page.value,
                     onPinApps = ::pinMediaApps,

@@ -273,7 +273,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeWeatherHub() {
-        _weatherHubTarget.value = null
+        closeHubLayer { _weatherHubTarget.value = null }
     }
 
     /**
@@ -304,6 +304,18 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Counts opening [id] (from a tile, the app list, a widget...) for the app list's "recent" section, when hub entries are on. */
     private fun recordHubOpen(id: String) {
         if (HubEntries.ENABLED) HubEntries.recordOpen(getApplication(), id)
+    }
+
+    /**
+     * Run before a hub layer starts closing (its Back, its own back button): a hub task uses it to turn its window
+     * transparent so the close animation shows the real Start. Null in the main window.
+     */
+    var beforeHubClose: (suspend () -> Unit)? = null
+
+    /** Closes a hub layer through [beforeHubClose]: [setClosed] runs once that has finished. */
+    private fun closeHubLayer(setClosed: () -> Unit) {
+        val before = beforeHubClose
+        if (before == null) setClosed() else viewModelScope.launch { before(); setClosed() }
     }
 
     /** Whether any hub layer is open (a hub task finishes itself when its last one closes). */
@@ -417,7 +429,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeMusicHub() {
-        _musicHubOpen.value = false
+        closeHubLayer { _musicHubOpen.value = false }
     }
 
     /**
@@ -436,7 +448,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeCalendarHub() {
-        _calendarHubOpen.value = false
+        closeHubLayer { _calendarHubOpen.value = false }
     }
 
     /** The people hub full-screen page (Start's people tile → hub). A pinned
@@ -456,7 +468,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closePeopleHub() {
-        _peopleHubOpen.value = false
+        closeHubLayer { _peopleHubOpen.value = false }
     }
 
     /** The battery hub (the battery tile or widget → hub). */
@@ -474,7 +486,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closePanchang() {
-        _panchangOpen.value = false
+        closeHubLayer { _panchangOpen.value = false }
     }
 
     fun openMoneyHub() {
@@ -484,7 +496,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeMoneyHub() {
-        _moneyHubOpen.value = false
+        closeHubLayer { _moneyHubOpen.value = false }
     }
 
     /** Pin the money hub's own tile. */
@@ -607,7 +619,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeShoppingHub() {
-        _shoppingHubOpen.value = false
+        closeHubLayer { _shoppingHubOpen.value = false }
     }
 
     /** Pin the shopping hub's tile. */
@@ -629,7 +641,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeHealthHub() {
-        _healthHubOpen.value = false
+        closeHubLayer { _healthHubOpen.value = false }
     }
 
     /** Pin the health hub's tile. */
@@ -651,7 +663,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeNewsHub() {
-        _newsHubOpen.value = false
+        closeHubLayer { _newsHubOpen.value = false }
     }
 
     /** Pin the news hub's tile. */
@@ -673,7 +685,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeClockHub() {
-        _clockHubOpen.value = false
+        closeHubLayer { _clockHubOpen.value = false }
     }
 
     /** Pin the clock hub's own tile (next alarm / running timer). */
@@ -704,7 +716,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeMarketsHub() {
-        _marketsHubOpen.value = false
+        closeHubLayer { _marketsHubOpen.value = false }
     }
 
     /**
@@ -732,7 +744,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeSportsHub() {
-        _sportsHubOpen.value = false
+        closeHubLayer { _sportsHubOpen.value = false }
     }
 
     /** Pin the sports hub's own tile. */
@@ -771,7 +783,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeBatteryHub() {
-        _batteryHubOpen.value = false
+        closeHubLayer { _batteryHubOpen.value = false }
     }
 
     /** The productivity hub (its Start tile → hub), same shape as the people hub. */
@@ -788,7 +800,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun closeProductivityHub() {
-        _productivityHubOpen.value = false
+        closeHubLayer { _productivityHubOpen.value = false }
     }
 
     /**
@@ -1285,7 +1297,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Close the personalize sheet. Safe when none is open. */
     fun closePersonalize() {
-        _personalizeOpen.value = false
+        closeHubLayer { _personalizeOpen.value = false }
     }
 
     /** Open the about sheet (personalize → about). */
