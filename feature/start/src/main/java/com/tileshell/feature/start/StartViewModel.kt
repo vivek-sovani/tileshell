@@ -549,6 +549,24 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /** The calendar hub's moon phase pin: once only. */
+    fun pinMoonPhase() = pinOnce("moonphase", "moon phase")
+
+    /** The calendar hub's countdown pin: once only (the countdown's date is asked for as the tile is added). */
+    fun pinCountdown() = pinOnce("countdown", "countdown")
+
+    private fun pinOnce(iconKey: String, label: String) {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == iconKey }
+            if (exists) {
+                _pinMessage.tryEmit("already on start")
+            } else {
+                addLiveTile(iconKey, activePageSectionId)
+                _pinMessage.tryEmit(pinOutcomeText(PinResult.PINNED, label))
+            }
+        }
+    }
+
     /** Debug builds only (see MainActivity `debug.calsys`): pin a calendar-systems tile for [systemId] and size it. */
     fun debugPinCalendarSystem(systemId: String, size: TileSize) {
         fun find() = tiles.value.filterIsInstance<TileModel.App>().lastOrNull {

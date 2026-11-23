@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -97,6 +98,8 @@ fun CalendarHubScreen(
     modifier: Modifier = Modifier,
     // The "systems" page: pin a tile for a calendar system (the Hindu panchang goes through its own pin, which
     // asks the language first), the moon phase or a countdown, and open the full panchang.
+    // What is already on Start: "calsys:<id>", "moonphase", "countdown" — those buttons say so instead of pinning again.
+    pinned: Set<String> = emptySet(),
     onPinCalendarSystem: (systemId: String) -> Unit = {},
     onPinMoonPhase: () -> Unit = {},
     onPinCountdown: () -> Unit = {},
@@ -153,7 +156,7 @@ fun CalendarHubScreen(
             ) { page ->
                 if (page == 3) {
                     // Needs no calendar permission: pure date maths on the device.
-                    CalendarSystemsPage(tokens, accent, onPinCalendarSystem, onPinMoonPhase, onPinCountdown, onOpenPanchang)
+                    CalendarSystemsPage(tokens, accent, pinned, onPinCalendarSystem, onPinMoonPhase, onPinCountdown, onOpenPanchang)
                 } else if (!granted) {
                     CalendarPermissionGate(tokens, accent)
                 } else {
@@ -398,6 +401,7 @@ private val CALENDAR_MONTHS_FULL = listOf(
 private fun CalendarSystemsPage(
     tokens: ColorTokens,
     accent: Color,
+    pinned: Set<String>,
     onPinCalendarSystem: (String) -> Unit,
     onPinMoonPhase: () -> Unit,
     onPinCountdown: () -> Unit,
@@ -477,22 +481,56 @@ private fun CalendarSystemsPage(
                 }
             }
             Spacer(Modifier.height(16.dp))
-            HubFilter(
-                label = "pin ${calendarSystemFor(id)?.displayName?.substringBefore(" (")?.lowercase().orEmpty()} to start",
-                selected = false,
+            val systemName = calendarSystemFor(id)?.displayName?.substringBefore(" (")?.lowercase().orEmpty()
+            PinAction(
+                label = "pin $systemName to start",
+                onStart = "$systemName is on start",
+                isOnStart = "calsys:$id" in pinned,
                 tokens = tokens,
                 accent = accent,
                 onClick = { onPinCalendarSystem(id) },
             )
         }
         Spacer(Modifier.height(28.dp))
-        Text("other tiles", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(bottom = 6.dp))
+        Text("tiles you can pin from here", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(bottom = 6.dp))
         androidx.compose.foundation.layout.FlowRow(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            HubFilter(label = "moon phase", selected = false, tokens = tokens, accent = accent, onClick = onPinMoonPhase)
-            HubFilter(label = "countdown", selected = false, tokens = tokens, accent = accent, onClick = onPinCountdown)
+            PinAction("pin moon phase to start", "moon phase is on start", "moonphase" in pinned, tokens, accent, onPinMoonPhase)
+            PinAction("pin countdown to start", "countdown is on start", "countdown" in pinned, tokens, accent, onPinCountdown)
         }
+    }
+}
+
+
+/** A pin button: a pin glyph and "pin … to start", or a check and "… is on start" (dimmed) once it is there. */
+@Composable
+private fun PinAction(
+    label: String,
+    onStart: String,
+    isOnStart: Boolean,
+    tokens: ColorTokens,
+    accent: Color,
+    onClick: () -> Unit,
+) {
+    androidx.compose.foundation.layout.Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+    ) {
+        androidx.compose.material3.Icon(
+            imageVector = com.tileshell.core.design.TileIcons[if (isOnStart) "check" else "pin"],
+            contentDescription = null,
+            tint = if (isOnStart) tokens.fgDim else accent,
+            modifier = Modifier.size(18.dp),
+        )
+        Spacer(Modifier.width(8.dp))
+        Text(
+            text = if (isOnStart) onStart else label,
+            color = if (isOnStart) tokens.fgDim else accent,
+            fontSize = 15.sp,
+        )
     }
 }

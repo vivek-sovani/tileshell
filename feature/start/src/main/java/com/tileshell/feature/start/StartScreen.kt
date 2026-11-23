@@ -9910,14 +9910,6 @@ private fun HubScreensLayer(
         rightHalf = false,
     )
 
-    com.tileshell.feature.livetiles.PanchangSheet(
-        visible = panchangOpen,
-        dark = dark,
-        accentId = accentId,
-        onDismiss = viewModel::closePanchang,
-        rightHalf = false,
-    )
-
     com.tileshell.feature.livetiles.money.MoneyHubScreen(
         visible = moneyHubOpen,
         dark = dark,
@@ -9990,16 +9982,40 @@ private fun HubScreensLayer(
         rightHalf = false,
     )
 
+    // Which of the tiles the calendar hub's "systems" page can pin are already on Start ("calsys:<id>", "moonphase", "countdown").
+    val calendarPinned = remember(tiles) {
+        tiles.flatMap { tile ->
+            when (tile) {
+                is TileModel.App -> listOf(tile)
+                is TileModel.Folder -> emptyList()
+            }
+        }.mapNotNull { t ->
+            when (t.iconKey) {
+                "calsys" -> com.tileshell.core.data.CalendarSystemTile.decode(t.activityName)?.let { "calsys:$it" }
+                "moonphase", "countdown" -> t.iconKey
+                else -> null
+            }
+        }.toSet()
+    }
     CalendarHubScreen(
         visible = calendarHubOpen,
         dark = dark,
         accentId = accentId,
         onDismiss = viewModel::closeCalendarHub,
         rightHalf = false,
+        pinned = calendarPinned,
         onPinCalendarSystem = viewModel::pinCalendarSystem,
-        onPinMoonPhase = { viewModel.addLiveTile("moonphase") },
-        onPinCountdown = { viewModel.addLiveTile("countdown") },
+        onPinMoonPhase = viewModel::pinMoonPhase,
+        onPinCountdown = viewModel::pinCountdown,
         onOpenPanchang = viewModel::openPanchang,
+    )
+
+    com.tileshell.feature.livetiles.PanchangSheet(
+        visible = panchangOpen,
+        dark = dark,
+        accentId = accentId,
+        onDismiss = viewModel::closePanchang,
+        rightHalf = false,
     )
 
     // Debug builds only (debug.gallery): every size of one live tile, for checking text fit.
