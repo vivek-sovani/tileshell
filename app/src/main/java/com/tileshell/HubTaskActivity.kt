@@ -38,7 +38,12 @@ class HubTaskActivity : MainActivity() {
         // the recorded tile's clock restarts since this screen took a moment to start.
         noTransition()
         HubOrigin.refresh()
-        openFrom(intent)
+        // Opened a moment after the first frame, not before it: a hub that is already open when it is first drawn
+        // starts fully shown and has nothing to grow.
+        lifecycleScope.launch {
+            delay(OPEN_AFTER_FIRST_FRAME_MS)
+            openFrom(intent)
+        }
         // Finish once the hub has been closed (Back) and has finished shrinking back into its tile, not before.
         lifecycleScope.launch {
             var seenOpen = false
@@ -133,3 +138,6 @@ class HubTaskActivity : MainActivity() {
 
 /** A hub's close animation is 300 ms; the task waits for it. */
 private const val HUB_CLOSE_MS = 330L
+
+/** Long enough for Start's first frame to be drawn before the hub starts growing. */
+private const val OPEN_AFTER_FIRST_FRAME_MS = 150L
