@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The music + videos hub as an app of its own (experiment).
+     Merged into the debug/release build types only while tileshell.hubTasks=true in gradle.properties;
+     with the switch off none of this is in the manifest and the hub is a layer inside MainActivity.
+     Not exported: it is started only by TileShell itself (the music tile, the glance card, the media
+     notification and its lock-screen control, the app list), never by another app.
+     taskAffinity gives it a task, and so a card in Android's recents, separate from TileShell's home. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <activity
+            android:name=".MusicHubActivity"
+            android:exported="false"
+            android:label="@string/music_hub_label"
+            android:icon="@drawable/ic_hub_music"
+            android:taskAffinity="com.tileshell.musichub"
+            android:launchMode="singleTask"
+            android:stateNotNeeded="true"
+            android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.TileShell" />
+    </application>
+</manifest>

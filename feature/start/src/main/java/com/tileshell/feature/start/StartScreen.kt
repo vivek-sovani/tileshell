@@ -178,6 +178,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppIconCache
 import com.tileshell.core.data.AppLauncher
+import com.tileshell.core.data.HubEntries
 import com.tileshell.core.data.CachedScreenshotPrefs
 import com.tileshell.core.data.CalendarSystemTile
 import com.tileshell.core.data.calendarSystemFor
@@ -1837,6 +1838,7 @@ fun StartScreen(
                     if (block >= 0) settleTo(block.toFloat())
                 },
                 onOpenPersonalize = viewModel::openPersonalize,
+                onOpenHub = viewModel::openHub,
                 onAddWidget = { provider ->
                     if (feedEnabled) {
                         pendingFeedWidget = provider
@@ -2196,13 +2198,14 @@ fun StartScreen(
             visible = searchOpen,
             dark = dark,
             accentId = uiAccentId,
-            apps = apps.filterNot { it.packageName in hiddenPackages },
+            apps = HubEntries.withHubs(apps.filterNot { it.packageName in hiddenPackages }),
             contactsGranted = contactsGranted,
             onRequestContacts = {
                 contactsLauncher.launch(android.Manifest.permission.READ_CONTACTS)
             },
             onPinContact = viewModel::pinContact,
             onDismiss = viewModel::closeSearch,
+            onOpenHub = viewModel::openHub,
         )
 
         // Quick panel (two-finger swipe-up on Start, or its tap affordance):

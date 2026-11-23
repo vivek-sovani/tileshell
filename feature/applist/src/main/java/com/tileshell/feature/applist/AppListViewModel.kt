@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.tileshell.core.data.AppCatalogRepository
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.HiddenApps
+import com.tileshell.core.data.HubEntries
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.RecentApps
@@ -73,7 +74,7 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         initialValue = LauncherSettings(),
     )
 
-    private val apps: StateFlow<List<AppEntry>> = repository.apps.map { it + PERSONALIZE_APP_ENTRY }.stateIn(
+    private val apps: StateFlow<List<AppEntry>> = repository.apps.map { HubEntries.withHubs(it + PERSONALIZE_APP_ENTRY) }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),

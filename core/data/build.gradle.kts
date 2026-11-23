@@ -13,6 +13,11 @@ android {
         // gradle.properties → tileshell.taskReminders; see TaskReminders.ENABLED.
         val taskReminders = providers.gradleProperty("tileshell.taskReminders").orNull?.toBoolean() ?: true
         buildConfigField("boolean", "TASK_REMINDERS", taskReminders.toString())
+        // gradle.properties → tileshell.hubTasks / tileshell.hubEntries; see HubTasks and HubEntries.
+        val hubTasks = providers.gradleProperty("tileshell.hubTasks").orNull?.toBoolean() ?: false
+        val hubEntries = providers.gradleProperty("tileshell.hubEntries").orNull?.toBoolean() ?: false
+        buildConfigField("boolean", "HUB_TASKS", hubTasks.toString())
+        buildConfigField("boolean", "HUB_ENTRIES", hubEntries.toString())
     }
 
     buildTypes {

@@ -1,6 +1,7 @@
 package com.tileshell.feature.applist
 
 import com.tileshell.core.data.AppEntry
+import com.tileshell.core.data.HubEntries
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -125,5 +126,41 @@ class AppListFilterTest {
             notifiedPackages = setOf(recent.packageName),
         )
         assertEquals(listOf("Recent"), top.map { it.label })
+    }
+
+    // ---- hub entries in the "recent" section ----
+
+    private fun hub(id: String) = HubEntries.entryFor(HubEntries.ALL.first { it.id == id })
+
+    @Test
+    fun `a hub opened like a launch leads the recent section like an app`() {
+        val list = apps + hub("music")
+        val shown = AppListFilter.topApps(list, listOf(HubEntries.recentKey("music"), "pkg.maps/.Main"), nowMillis = 0)
+        assertEquals(listOf("music + videos", "Maps"), shown.map { it.label })
+    }
+
+    @Test
+    fun `recent hubs are capped so they cannot push every app out`() {
+        val hubs = listOf("music", "people", "weather", "calendar").map { hub(it) }
+        val keys = hubs.map { it.key } + listOf("pkg.maps/.Main", "pkg.camera/.Main", "pkg.calendar/.Main")
+        val shown = AppListFilter.topApps(apps + hubs, keys, nowMillis = 0)
+        assertEquals(HubEntries.MAX_RECENT_HUBS, shown.count { HubEntries.isHub(it) })
+        // Five slots in all: the two newest hubs and three apps.
+        assertEquals(5, shown.size)
+        assertEquals(listOf("music + videos", "people", "Maps", "Camera", "Calendar"), shown.map { it.label })
+    }
+
+    @Test
+    fun `a recent key of a hub that is not in the catalogue, or an old key, is ignored`() {
+        // Hub entries off: the catalogue has no hubs, so a stored hub key just does not resolve.
+        val shown = AppListFilter.topApps(apps, listOf(HubEntries.recentKey("music"), "gone.app/.Main", "pkg.maps/.Main"), nowMillis = 0)
+        assertEquals(listOf("Maps"), shown.map { it.label })
+    }
+
+    @Test
+    fun `a hub is never listed twice when it is also the newest launch again`() {
+        val m = hub("music")
+        val shown = AppListFilter.topApps(apps + m, listOf(m.key, m.key), nowMillis = 0)
+        assertEquals(1, shown.count { it.key == m.key })
     }
 }

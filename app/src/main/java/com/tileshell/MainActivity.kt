@@ -468,7 +468,7 @@ private fun AccessibilityDisclosureDialog(onConfirm: () -> Unit, onDismiss: () -
  * system might have shown it back (e.g. after a notification).
  */
 @Composable
-private fun StatusBarVisibilityEffect(hide: Boolean) {
+internal fun StatusBarVisibilityEffect(hide: Boolean) {
     val view = LocalView.current
     val scope = rememberCoroutineScope()
     LaunchedEffect(hide) {

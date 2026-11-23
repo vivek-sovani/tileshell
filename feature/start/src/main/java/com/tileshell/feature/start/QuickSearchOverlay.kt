@@ -70,6 +70,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.AppLauncher
+import com.tileshell.core.data.HubEntries
 import com.tileshell.core.data.RecentApps
 import com.tileshell.core.data.RecentSearches
 import com.tileshell.core.design.ColorTokens
@@ -117,6 +118,8 @@ fun QuickSearchOverlay(
     onRequestContacts: () -> Unit,
     onPinContact: (contactId: Long, lookupKey: String, name: String) -> Unit,
     onDismiss: () -> Unit,
+    // A hub entry (tileshell.hubEntries) was chosen: opens that hub.
+    onOpenHub: (hubId: String) -> Unit = {},
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
@@ -178,6 +181,16 @@ fun QuickSearchOverlay(
         }
     }
     BackHandler(enabled = visible) { dismiss() }
+    // An installed app is launched; a hub entry opens its hub and counts as a launch for the app list's "recent".
+    val openEntry: (AppEntry) -> Unit = { app ->
+        val hubId = HubEntries.idOf(app)
+        if (hubId != null) {
+            HubEntries.recordOpen(context, hubId)
+            onOpenHub(hubId)
+        } else {
+            AppLauncher.launch(context, app.packageName, app.activityName)
+        }
+    }
 
     SheetStage(rightHalf = rightHalf, modifier = modifier) {
         Box(
@@ -235,7 +248,7 @@ fun QuickSearchOverlay(
                             items(suggestedApps, key = { "suggested/${it.key}" }) { app ->
                                 AppResultRow(app, tokens) {
                                     haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                                    AppLauncher.launch(context, app.packageName, app.activityName)
+                                    openEntry(app)
                                     dismiss()
                                 }
                             }
@@ -247,7 +260,7 @@ fun QuickSearchOverlay(
                             item { SearchSectionHeader("apps", accent) }
                             items(appMatches, key = { "app/${it.key}" }) { app ->
                                 AppResultRow(app, tokens) {
-                                    act { AppLauncher.launch(context, app.packageName, app.activityName) }
+                                    act { openEntry(app) }
                                 }
                             }
                         }
@@ -383,7 +396,8 @@ private fun AppResultRow(app: AppEntry, tokens: ColorTokens, onTap: () -> Unit) 
             .padding(horizontal = 18.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        val icon = rememberAppIconBitmap(app.packageName)
+        val hubKey = HubEntries.iconKeyOf(app)
+        val icon = if (hubKey != null) null else rememberAppIconBitmap(app.packageName)
         if (icon != null) {
             Image(
                 bitmap = icon,
@@ -392,7 +406,7 @@ private fun AppResultRow(app: AppEntry, tokens: ColorTokens, onTap: () -> Unit) 
                 modifier = Modifier.size(32.dp),
             )
         } else {
-            Icon(TileIcons["app"], null, tint = tokens.fg, modifier = Modifier.size(24.dp))
+            Icon(TileIcons[hubKey ?: "app"], null, tint = tokens.fg, modifier = Modifier.size(24.dp))
         }
         Spacer(Modifier.width(14.dp))
         Text(app.label, color = tokens.fg, fontSize = 16.sp)

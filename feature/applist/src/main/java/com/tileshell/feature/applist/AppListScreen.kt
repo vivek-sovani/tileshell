@@ -85,6 +85,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.AppLauncher
+import com.tileshell.core.data.HubEntries
 import com.tileshell.core.data.PinResult
 import com.tileshell.core.data.settings.AppListStyle
 import com.tileshell.core.data.settings.HomeStyle
@@ -128,6 +129,9 @@ fun AppListScreen(
     // (null = main), so "already on start" never leaves the tile unfindable.
     onAlreadyOnStart: (pageSectionId: String?) -> Unit = {},
     onOpenPersonalize: () -> Unit = {},
+    // A hub entry (HubEntries, behind the tileshell.hubEntries switch) was tapped: opens that hub. Passed in,
+    // since :feature:applist cannot reach the hubs (the module graph runs the other way).
+    onOpenHub: (hubId: String) -> Unit = {},
     onAddWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit = {},
     // Whichever section tab is currently active on Start (null =
     // unsectioned, or sections are off) — a plain "pin to start" and a
@@ -238,10 +242,15 @@ fun AppListScreen(
                                 app = app,
                                 onTap = {
                                     viewModel.resetQuery()
+                                    val hubId = HubEntries.idOf(app)
+                                    // A hub entry opens that hub and counts as a launch for "recent".
+                                    if (hubId != null) {
+                                        HubEntries.recordOpen(context, hubId)
+                                        onOpenHub(hubId)
                                     // A pending notification takes tap priority — opens it inside
                                     // the app (and clears it), matching Start tile taps. Falls
                                     // back to a plain launch when nothing is pending.
-                                    if (!NotificationCenter.openAndClear(context, app.packageName)) {
+                                    } else if (!NotificationCenter.openAndClear(context, app.packageName)) {
                                         run {
                                         NotificationCenter.clearPackage(app.packageName)
                                         AppLauncher.launch(context, app.packageName, app.activityName)
@@ -276,9 +285,14 @@ fun AppListScreen(
                             app = app,
                             onTap = {
                                 viewModel.resetQuery()
+                                val hubId = HubEntries.idOf(app)
+                                // A hub entry opens that hub and counts as a launch for "recent".
+                                if (hubId != null) {
+                                    HubEntries.recordOpen(context, hubId)
+                                    onOpenHub(hubId)
                                 // The synthetic "personalize" entry has no real package to
                                 // launch — opens this app's own Personalize sheet instead.
-                                if (app.packageName.isBlank()) {
+                                } else if (app.packageName.isBlank()) {
                                     onOpenPersonalize()
                                 } else {
                                     run {
@@ -477,6 +491,8 @@ private fun AppRow(
     // start" (in case the user accidentally removed the real tile and wants it
     // back) — hide/uninstall don't map onto a non-installed entry.
     val isPseudo = app.packageName.isBlank()
+    // A hub entry has no menu at all (pin / hide / uninstall do not apply; hubs are pinned from "add live tiles").
+    val isHub = HubEntries.isHub(app)
     var menuOpen by remember { mutableStateOf(false) }
     var siblingsMenuOpen by remember { mutableStateOf(false) }
     var widgetsMenuOpen by remember { mutableStateOf(false) }
@@ -514,11 +530,13 @@ private fun AppRow(
                 .tapOrLongPress(
                     onTap = launchTap,
                     onLongPress = {
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        menuOpen = true
-                        if (!isPseudo) {
-                            scope.launch { shortcuts = loadShortcuts(app.packageName) }
-                            scope.launch { widgets = loadWidgets(app.packageName) }
+                        if (!isHub) {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            menuOpen = true
+                            if (!isPseudo) {
+                                scope.launch { shortcuts = loadShortcuts(app.packageName) }
+                                scope.launch { widgets = loadWidgets(app.packageName) }
+                            }
                         }
                     },
                 )
@@ -533,7 +551,9 @@ private fun AppRow(
                     }
                     role = Role.Button
                     onClick(label = "launch") { launchTap(); true }
-                    customActions = if (isPseudo) {
+                    customActions = if (isHub) {
+                        emptyList()
+                    } else if (isPseudo) {
                         listOf(CustomAccessibilityAction("pin to start") { onPin(); true })
                     } else {
                         listOf(
@@ -553,7 +573,7 @@ private fun AppRow(
                 val icon = if (isPseudo) null else rememberMaskableAppIcon(app.packageName, app.activityName)
                 if (isPseudo) {
                     Icon(
-                        TileIcons["settings"], null,
+                        TileIcons[HubEntries.iconKeyOf(app) ?: "settings"], null,
                         tint = LocalColorTokens.current.fg,
                         modifier = Modifier.size(28.dp),
                     )

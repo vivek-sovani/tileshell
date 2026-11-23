@@ -1,5 +1,6 @@
 package com.tileshell.feature.livetiles
 
+import com.tileshell.core.data.HubTasks
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -238,7 +239,9 @@ class LocalMusicPlaybackService : Service() {
         mediaSession: MediaSessionCompat,
         art: Bitmap?,
     ): Notification {
-        val contentIntent = packageManager.getLaunchIntentForPackage(packageName)?.let { launchIntent ->
+        // With tileshell.hubTasks the notification (and the lock-screen control, which uses it) opens the hub's
+        // own task on now playing; otherwise TileShell's home, as before.
+        val contentIntent = (HubTasks.musicIntent(this, "now playing") ?: packageManager.getLaunchIntentForPackage(packageName))?.let { launchIntent ->
             PendingIntent.getActivity(
                 this,
                 0,

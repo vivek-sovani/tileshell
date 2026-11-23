@@ -19,6 +19,8 @@ import com.tileshell.core.data.AppCatalogRepository
 import com.tileshell.core.data.AppIconCache
 import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppEntry
+import com.tileshell.core.data.HubEntries
+import com.tileshell.core.data.HubTasks
 import com.tileshell.core.data.BackupFeedSource
 import com.tileshell.core.data.AutoExportPrefs
 import com.tileshell.core.data.AutoExportState
@@ -285,8 +287,31 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val musicHubInitialPage: StateFlow<String?> = _musicHubInitialPage.asStateFlow()
 
     fun openMusicHub(page: String? = null) {
+        // With tileshell.hubTasks on the hub is an activity of its own, in its own task (so it has its own
+        // card in Android's recents); the layer below stays as the fallback and as today's behaviour.
+        if (HubTasks.openMusic(getApplication(), page)) return
         _musicHubInitialPage.value = page
         _musicHubOpen.value = true
+    }
+
+    /** Opens the hub with [id] (a [HubEntries] id), as chosen from the app list or quick search. */
+    fun openHub(id: String) {
+        when (id) {
+            "music" -> openMusicHub()
+            "people" -> openPeopleHub()
+            "weather" -> openWeatherHub(null)
+            "calendar" -> openCalendarHub()
+            "productivity" -> openProductivityHub()
+            "clock" -> openClockHub()
+            "battery" -> openBatteryHub()
+            "money" -> openMoneyHub()
+            "markets" -> openMarketsHub()
+            "sports" -> openSportsHub()
+            "news" -> openNewsHub()
+            "shopping" -> openShoppingHub()
+            "health" -> openHealthHub()
+            "panchang" -> openPanchang()
+        }
     }
 
     fun closeMusicHub() {

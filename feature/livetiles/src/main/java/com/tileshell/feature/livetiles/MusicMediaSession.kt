@@ -1,5 +1,6 @@
 package com.tileshell.feature.livetiles
 
+import com.tileshell.core.data.HubTasks
 import android.content.Context
 import android.os.Bundle
 import android.support.v4.media.session.MediaSessionCompat
@@ -167,6 +168,15 @@ object MusicMediaSession {
                     if (action == ACTION_TOGGLE_FAVORITE) scope.launch { toggleFavorite(context) }
                 }
             })
+            // With tileshell.hubTasks the lock screen's and the car's "open the app" lands in the hub's own task.
+            HubTasks.musicIntent(context, "now playing")?.let { intent ->
+                setSessionActivity(
+                    android.app.PendingIntent.getActivity(
+                        context, 1, intent,
+                        android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE,
+                    ),
+                )
+            }
             setPlaybackState(idleState())
         }
 }

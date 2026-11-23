@@ -688,6 +688,14 @@ android {
         }
     }
 
+    // Hubs as their own tasks switch (gradle.properties → tileshell.hubTasks, default off): the
+    // MusicHubActivity declaration lives in its own manifest, merged only while the switch is on.
+    if (providers.gradleProperty("tileshell.hubTasks").orNull?.toBoolean() == true) {
+        listOf("debug", "release").forEach { type ->
+            sourceSets.getByName(type).manifest.srcFile("src/hubTasks/AndroidManifest.xml")
+        }
+    }
+
     if (keystoreFile.exists()) {
         signingConfigs {
             create("release") {

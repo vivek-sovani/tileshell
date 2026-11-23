@@ -1,6 +1,7 @@
 package com.tileshell.feature.applist
 
 import com.tileshell.core.data.AppEntry
+import com.tileshell.core.data.HubEntries
 
 /**
  * Pure app-list query logic (FR-5), kept framework-free for unit testing.
@@ -43,7 +44,12 @@ object AppListFilter {
         notifiedPackages: Set<String> = emptySet(),
     ): List<AppEntry> {
         val byKey = apps.associateBy { it.key }
-        val recent = recentKeys.mapNotNull { byKey[it] }.take(MAX_RECENT)
+        // Hubs share the recent slots with apps but at most MAX_RECENT_HUBS of them, so opening
+        // hubs a lot cannot push every app out of the section.
+        var hubs = 0
+        val recent = recentKeys.distinct().mapNotNull { byKey[it] }
+            .filter { app -> !HubEntries.isHub(app) || ++hubs <= HubEntries.MAX_RECENT_HUBS }
+            .take(MAX_RECENT)
         val recentKeySet = recent.mapTo(mutableSetOf()) { it.key }
         val newlyInstalled = apps
             .filter { it.firstInstallTime > 0 && nowMillis - it.firstInstallTime <= NEW_WINDOW_MS }
