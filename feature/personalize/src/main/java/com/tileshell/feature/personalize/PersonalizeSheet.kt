@@ -239,6 +239,8 @@ fun PersonalizeSheet(
     onResetTileStyle: () -> Unit,
     photoUris: List<String>,
     onPickPhotos: () -> Unit,
+    /** "pin a photos tile": the slideshow of these photos as a Start tile. */
+    onPinPhotosTile: () -> Unit = {},
     isDefaultLauncher: Boolean,
     onSetDefaultLauncher: () -> Unit,
     cornerRadius: Float,
@@ -1448,6 +1450,13 @@ fun PersonalizeSheet(
                                 onAdd = onPickPhotos,
                                 onRemove = onRemovePhoto,
                                 onRemoveAll = onClearPhotos,
+                            )
+                            Spacer(Modifier.height(10.dp))
+                            Text(
+                                "pin a photos tile to start ›",
+                                color = accent,
+                                fontSize = 14.sp,
+                                modifier = Modifier.clickable(onClick = onPinPhotosTile).padding(vertical = 6.dp),
                             )
                         }
                         }

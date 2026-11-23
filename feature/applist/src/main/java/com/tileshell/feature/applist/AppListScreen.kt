@@ -83,6 +83,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.AppLauncher
 import com.tileshell.core.data.HubEntries
@@ -134,6 +135,8 @@ fun AppListScreen(
     onOpenHub: (hubId: String) -> Unit = {},
     // "pin to start" on a hub entry: pins that hub's own tile.
     onPinHub: (hubId: String) -> Unit = {},
+    // "pin photo slideshow" on the gallery app's menu: the photos live tile (the photos themselves are chosen in personalize).
+    onPinPhotos: () -> Unit = {},
     onAddWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit = {},
     // Whichever section tab is currently active on Start (null =
     // unsectioned, or sections are off) — a plain "pin to start" and a
@@ -277,6 +280,7 @@ fun AppListScreen(
                                 loadShortcuts = viewModel::shortcutsFor,
                                 loadWidgets = viewModel::widgetsFor,
                                 onPinWidget = onAddWidget,
+                                onPinSlideshow = if (app.role == AppCategories.ROLE_GALLERY) onPinPhotos else null,
                             )
                         }
                     }
@@ -331,6 +335,7 @@ fun AppListScreen(
                             loadShortcuts = viewModel::shortcutsFor,
                             loadWidgets = viewModel::widgetsFor,
                             onPinWidget = onAddWidget,
+                            onPinSlideshow = if (app.role == AppCategories.ROLE_GALLERY) onPinPhotos else null,
                         )
                     }
                 }
@@ -492,6 +497,8 @@ private fun AppRow(
     loadShortcuts: suspend (String) -> List<AppEntry> = { emptyList() },
     loadWidgets: suspend (String) -> List<android.appwidget.AppWidgetProviderInfo> = { emptyList() },
     onPinWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit = {},
+    // The gallery app's own menu offers the photo slideshow tile too (null = not offered).
+    onPinSlideshow: (() -> Unit)? = null,
 ) {
     // Long-press opens a WP-style context menu: pin the app to Start, hide it
     // from the list, or uninstall it (the system uninstall dialog). A quick tap
@@ -649,6 +656,12 @@ private fun AppRow(
                 text = { Text("pin to start") },
                 onClick = { menuOpen = false; onPin() },
             )
+            if (onPinSlideshow != null) {
+                DropdownMenuItem(
+                    text = { Text("pin photo slideshow") },
+                    onClick = { menuOpen = false; onPinSlideshow() },
+                )
+            }
             if (hasSiblings) {
                 DropdownMenuItem(
                     text = { Text("more from this app") },

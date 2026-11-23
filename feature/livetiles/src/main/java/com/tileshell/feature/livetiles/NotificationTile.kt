@@ -3,6 +3,8 @@ package com.tileshell.feature.livetiles
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.Alignment
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
@@ -87,12 +89,15 @@ internal fun MessageSlide(index: Int, content: @Composable (Int) -> Unit) {
     ) { i -> content(i) }
 }
 
+/** The word after the count on a pinned app's front: "unread" for a mail app, "new" for anything else. */
+internal fun genericCountWord(category: PeopleCategory?): String = if (category == PeopleCategory.MAIL) "unread" else "new"
+
 /**
  * The generic notification live tile (FR-2.3 — "live tiles for all other apps").
  * Any pinned app tile without a dedicated live face becomes live the moment its
  * package has an active notification.
  *
- * Front face: the tile's own static face (app glyph and name) — the count is the badge.
+ * Front face: the count in words ("3 unread" for a mail app, "3 new" otherwise) and the app's icon.
  * Back face: each pending notification in turn (newest first, one every 2.6 s, sliding up
  * from one to the next) so every message gets its moment. With a single notification the back
  * face shows it without cycling.
@@ -136,9 +141,18 @@ fun NotificationTileFace(
         FlipTile(
             flipped = flipper.flipped,
             modifier = Modifier.fillMaxSize(),
-            // The tile's own face (app glyph + name), as on a Windows Phone flip tile; the
-            // pending count is the badge, and the back shows the notifications.
-            front = { fallback() },
+            // The count in words ("3 unread" for mail apps, "3 new" otherwise), like the mail and messages tiles
+            // used to have, with the app's icon in the corner; the back shows the notifications.
+            front = {
+                ConversationCountFace(preview.count, genericCountWord(peopleCategoryFor(packageName)), size)
+                AppIconCorner(
+                    packageName = packageName,
+                    homeStyle = homeStyle,
+                    iconShape = iconShape,
+                    themedIcons = themedIcons,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                )
+            },
             back = {
                 MessageSlide(flipper.index) { slot ->
                     val item = preview.items.getOrElse(slot) { current }

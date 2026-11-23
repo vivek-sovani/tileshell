@@ -1840,6 +1840,7 @@ fun StartScreen(
                 onOpenPersonalize = viewModel::openPersonalize,
                 onOpenHub = viewModel::openHub,
                 onPinHub = viewModel::pinHub,
+                onPinPhotos = { viewModel.addLiveTile("photos", activeSectionId); Toast.makeText(context, "pinned photo slideshow", Toast.LENGTH_SHORT).show() },
                 onAddWidget = { provider ->
                     if (feedEnabled) {
                         pendingFeedWidget = provider
@@ -6643,7 +6644,9 @@ private fun EditBar(
     ) {
         // Four equal cells: fixed gaps between content-sized buttons pushed "done" off a narrow screen.
         EditBarButton("plus", "add", enabled = true, onClick = onAdd, modifier = Modifier.weight(1f))
-        EditBarButton("widgets", "add live tiles", enabled = true, onClick = onAddWidgets, modifier = Modifier.weight(1f))
+        // With hub entries on, everything this sheet offered is pinned from where it belongs (the app list, the calendar hub,
+        // the quick panel, personalize), so the second "add" button goes.
+        if (!HubEntries.ENABLED) EditBarButton("widgets", "add live tiles", enabled = true, onClick = onAddWidgets, modifier = Modifier.weight(1f))
         EditBarButton("settings", "home settings", enabled = true, onClick = onPersonalize, modifier = Modifier.weight(1f))
         EditBarButton("check", "done", enabled = true, onClick = onDone, modifier = Modifier.weight(1f))
     }
@@ -10161,6 +10164,10 @@ private fun PersonalizeSheetLayer(
             Toast.makeText(context, "tile style reset", Toast.LENGTH_SHORT).show()
         },
         photoUris = photoUris,
+        onPinPhotosTile = {
+            viewModel.closePersonalize()
+            viewModel.addLiveTile("photos")
+        },
         onPickPhotos = {
             photosPicker.launch(
                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
