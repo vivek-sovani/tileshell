@@ -333,7 +333,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             "personalize" -> viewModelScope.launch(writeContext) {
                 val exists = tiles.value.hasPersonalizeTile()
                 val result = if (!exists && repository.addDefaultTile("personalize", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
-                _pinMessage.tryEmit(pinOutcomeText(result, "personalize"))
+                _pinMessage.tryEmit(pinOutcomeText(result, "home settings"))
             }
             // The panel itself has no tile: its toggles are pinned one by one from its edit mode.
             "quicksettings" -> _pinMessage.tryEmit("pin a toggle from the quick panel's edit mode")

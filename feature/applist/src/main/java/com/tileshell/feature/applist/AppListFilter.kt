@@ -15,7 +15,7 @@ object AppListFilter {
      */
     fun filter(apps: List<AppEntry>, query: String): List<AppEntry> {
         val q = query.trim()
-        return if (q.isEmpty()) apps else apps.filter { it.label.contains(q, ignoreCase = true) }
+        return if (q.isEmpty()) apps else apps.filter { it.label.contains(q, ignoreCase = true) || HubEntries.matchesKeyword(it, q) }
     }
 
     /** Section letters present in [apps] (uppercase A–Z, or "#"). */

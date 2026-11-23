@@ -163,4 +163,13 @@ class AppListFilterTest {
         val shown = AppListFilter.topApps(apps + m, listOf(m.key, m.key), nowMillis = 0)
         assertEquals(1, shown.count { it.key == m.key })
     }
+
+    @Test
+    fun `home settings is found by its name and by personalize or personalise`() {
+        val entry = HubEntries.entryFor(HubEntries.ALL.first { it.id == "personalize" })
+        val list = apps + entry
+        assertEquals(listOf("home settings"), AppListFilter.filter(list, "home").map { it.label })
+        assertEquals(listOf("home settings"), AppListFilter.filter(list, "personalis").map { it.label })
+        assertEquals(listOf("home settings"), AppListFilter.filter(list, "Personalize").map { it.label })
+    }
 }

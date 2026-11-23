@@ -85,6 +85,9 @@ class HubEntriesTest {
         val ids = HubEntries.ALL.map { it.id }
         assertTrue("personalize" in ids && "quicksettings" in ids)
         assertEquals("quick settings", HubEntries.ALL.first { it.id == "quicksettings" }.label)
-        assertEquals("personalize", HubEntries.ALL.first { it.id == "personalize" }.label)
+        assertEquals("home settings", HubEntries.ALL.first { it.id == "personalize" }.label)
+        val entry = HubEntries.entryFor(HubEntries.ALL.first { it.id == "personalize" })
+        assertTrue(HubEntries.matchesKeyword(entry, "personali"))
+        assertTrue(!HubEntries.matchesKeyword(app("Maps"), "personali"))
     }
 }

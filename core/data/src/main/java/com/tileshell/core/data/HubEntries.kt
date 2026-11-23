@@ -3,7 +3,14 @@ package com.tileshell.core.data
 import android.content.Context
 
 /** A hub as it appears in the app list and quick search. [id] is stable (it is stored in the recent list). */
-data class HubEntry(val id: String, val label: String, val iconKey: String, val colorId: String)
+data class HubEntry(
+    val id: String,
+    val label: String,
+    val iconKey: String,
+    val colorId: String,
+    /** Other words that find the entry in a search besides its label ("personalize" finds "home settings"). */
+    val keywords: List<String> = emptyList(),
+)
 
 /**
  * The hubs as searchable, launchable entries (experiment, switch
@@ -40,7 +47,7 @@ object HubEntries {
         HubEntry("shopping", "shopping", "shophub", "magenta"),
         HubEntry("health", "health", "healthhub", "lime"),
         // Not hubs, but opened from the same list: the personalize sheet and the quick panel.
-        HubEntry("personalize", "personalize", "settings", "steel"),
+        HubEntry("personalize", "home settings", "settings", "steel", keywords = listOf("personalize", "personalise", "customize", "customise")),
         HubEntry("quicksettings", "quick settings", "brightness", "slate"),
     )
 
@@ -67,6 +74,12 @@ object HubEntries {
 
     /** The tile colour (`TileAccents` id) of a hub entry: the colour its Start tile has, so the row matches it. */
     fun colorIdOf(app: AppEntry): String? = idOf(app)?.let { id -> ALL.firstOrNull { it.id == id }?.colorId }
+
+    /** Whether [query] (already trimmed, any case) matches the entry through one of its extra keywords. */
+    fun matchesKeyword(app: AppEntry, query: String): Boolean {
+        val hub = idOf(app)?.let { id -> ALL.firstOrNull { it.id == id } } ?: return false
+        return query.isNotEmpty() && hub.keywords.any { it.contains(query, ignoreCase = true) }
+    }
 
     /** The recent-list key a launch of hub [id] is stored under (same shape as [AppEntry.key]). */
     fun recentKey(id: String): String = "/$PREFIX$id"
