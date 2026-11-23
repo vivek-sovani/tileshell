@@ -132,6 +132,8 @@ fun AppListScreen(
     // A hub entry (HubEntries, behind the tileshell.hubEntries switch) was tapped: opens that hub. Passed in,
     // since :feature:applist cannot reach the hubs (the module graph runs the other way).
     onOpenHub: (hubId: String) -> Unit = {},
+    // "pin to start" on a hub entry: pins that hub's own tile.
+    onPinHub: (hubId: String) -> Unit = {},
     onAddWidget: (android.appwidget.AppWidgetProviderInfo) -> Unit = {},
     // Whichever section tab is currently active on Start (null =
     // unsectioned, or sections are off) — a plain "pin to start" and a
@@ -257,7 +259,10 @@ fun AppListScreen(
                                     }
                                     }
                                 },
-                                onPin = { viewModel.pin(app, activeSectionId) },
+                                onPin = {
+                                    val hubId = HubEntries.idOf(app)
+                                    if (hubId != null) onPinHub(hubId) else viewModel.pin(app, activeSectionId)
+                                },
                                 onUninstall = { uninstallApp(context, app.packageName) },
                                 onHide = { viewModel.hide(app) },
                                 badgeCount = notifications.badgeFor(app.packageName),
@@ -302,9 +307,12 @@ fun AppListScreen(
                                 }
                             },
                             onPin = {
+                                val hubId = HubEntries.idOf(app)
                                 // The synthetic "personalize" entry can't go through the
                                 // generic pin flow — see pinPersonalize's own doc comment.
-                                if (app.packageName.isBlank()) {
+                                if (hubId != null) {
+                                    onPinHub(hubId)
+                                } else if (app.packageName.isBlank()) {
                                     viewModel.pinPersonalize()
                                 } else {
                                     viewModel.pin(app, activeSectionId)
@@ -491,8 +499,6 @@ private fun AppRow(
     // start" (in case the user accidentally removed the real tile and wants it
     // back) — hide/uninstall don't map onto a non-installed entry.
     val isPseudo = app.packageName.isBlank()
-    // A hub entry has no menu at all (pin / hide / uninstall do not apply; hubs are pinned from "add live tiles").
-    val isHub = HubEntries.isHub(app)
     var menuOpen by remember { mutableStateOf(false) }
     var siblingsMenuOpen by remember { mutableStateOf(false) }
     var widgetsMenuOpen by remember { mutableStateOf(false) }
@@ -530,13 +536,11 @@ private fun AppRow(
                 .tapOrLongPress(
                     onTap = launchTap,
                     onLongPress = {
-                        if (!isHub) {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            menuOpen = true
-                            if (!isPseudo) {
-                                scope.launch { shortcuts = loadShortcuts(app.packageName) }
-                                scope.launch { widgets = loadWidgets(app.packageName) }
-                            }
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        menuOpen = true
+                        if (!isPseudo) {
+                            scope.launch { shortcuts = loadShortcuts(app.packageName) }
+                            scope.launch { widgets = loadWidgets(app.packageName) }
                         }
                     },
                 )
@@ -551,9 +555,7 @@ private fun AppRow(
                     }
                     role = Role.Button
                     onClick(label = "launch") { launchTap(); true }
-                    customActions = if (isHub) {
-                        emptyList()
-                    } else if (isPseudo) {
+                    customActions = if (isPseudo) {
                         listOf(CustomAccessibilityAction("pin to start") { onPin(); true })
                     } else {
                         listOf(

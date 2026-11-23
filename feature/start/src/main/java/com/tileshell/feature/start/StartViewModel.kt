@@ -294,6 +294,32 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         _musicHubOpen.value = true
     }
 
+    /** "pin to start" on a hub's entry in the app list: that hub's own tile, once (the same tiles "add live tiles" adds). */
+    fun pinHub(id: String) {
+        when (id) {
+            "money" -> pinMoneyHub()
+            "shopping" -> pinShoppingHub()
+            "health" -> pinHealthHub()
+            "news" -> pinNewsHub()
+            "clock" -> pinClockHub()
+            "sports" -> pinSportsHub()
+            "productivity" -> pinProductivityHub()
+            "markets" -> pinMarketsTile(MarketsTile.INDICES)
+            "panchang" -> pinPanchangTile(activePageSectionId)
+            "music", "people", "weather", "calendar", "battery" -> {
+                val label = HubEntries.ALL.firstOrNull { it.id == id }?.label ?: id
+                viewModelScope.launch(writeContext) {
+                    // A people tile pinned to one of its pages ("what's new", favourites) is not the hub tile.
+                    val exists = tiles.value.any {
+                        it is TileModel.App && it.iconKey == id && it.activityName?.contains("hub:") != true
+                    }
+                    val result = if (!exists && repository.addDefaultTile(id, activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
+                    _pinMessage.tryEmit(pinOutcomeText(result, label))
+                }
+            }
+        }
+    }
+
     /** Opens the hub with [id] (a [HubEntries] id), as chosen from the app list or quick search. */
     fun openHub(id: String) {
         when (id) {

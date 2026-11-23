@@ -1839,6 +1839,7 @@ fun StartScreen(
                 },
                 onOpenPersonalize = viewModel::openPersonalize,
                 onOpenHub = viewModel::openHub,
+                onPinHub = viewModel::pinHub,
                 onAddWidget = { provider ->
                     if (feedEnabled) {
                         pendingFeedWidget = provider
