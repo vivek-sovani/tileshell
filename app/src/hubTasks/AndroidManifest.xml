@@ -32,5 +32,87 @@
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.TileShell" />
+
+        <!-- One alias per hub: the recents card (Samsung's most of all) shows the manifest icon and label of the
+             component that was started, so each hub is started through an alias with its own, and all of
+             them run HubTaskActivity. -->
+        <activity-alias
+            android:name=".HubTask_people"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="people"
+            android:icon="@drawable/ic_hub_people" />
+        <activity-alias
+            android:name=".HubTask_weather"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="weather"
+            android:icon="@drawable/ic_hub_weather" />
+        <activity-alias
+            android:name=".HubTask_calendar"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="calendar"
+            android:icon="@drawable/ic_hub_calendar" />
+        <activity-alias
+            android:name=".HubTask_productivity"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="productivity"
+            android:icon="@drawable/ic_hub_productivity" />
+        <activity-alias
+            android:name=".HubTask_clock"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="clock"
+            android:icon="@drawable/ic_hub_clock" />
+        <activity-alias
+            android:name=".HubTask_battery"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="battery"
+            android:icon="@drawable/ic_hub_battery" />
+        <activity-alias
+            android:name=".HubTask_money"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="money"
+            android:icon="@drawable/ic_hub_money" />
+        <activity-alias
+            android:name=".HubTask_markets"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="markets"
+            android:icon="@drawable/ic_hub_markets" />
+        <activity-alias
+            android:name=".HubTask_sports"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="sports"
+            android:icon="@drawable/ic_hub_sports" />
+        <activity-alias
+            android:name=".HubTask_news"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="news"
+            android:icon="@drawable/ic_hub_news" />
+        <activity-alias
+            android:name=".HubTask_shopping"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="shopping"
+            android:icon="@drawable/ic_hub_shopping" />
+        <activity-alias
+            android:name=".HubTask_health"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="health"
+            android:icon="@drawable/ic_hub_health" />
+        <activity-alias
+            android:name=".HubTask_panchang"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="panchang"
+            android:icon="@drawable/ic_hub_panchang" />
     </application>
 </manifest>

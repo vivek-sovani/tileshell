@@ -70,13 +70,14 @@ object HubTasks {
      */
     fun hubIntent(context: Context, id: String, page: String? = null, location: WeatherTile.Location? = null): Intent? {
         if (!ENABLED || HubEntries.ALL.none { it.id == id }) return null
-        val component = ComponentName(context.packageName, HUB_ACTIVITY)
+        // Each hub has its own manifest alias (its own icon and label in recents) onto HubTaskActivity.
+        val component = ComponentName(context.packageName, "com.tileshell.HubTask_$id")
         val declared = runCatching { context.packageManager.getActivityInfo(component, PackageManager.MATCH_DEFAULT_ONLY) }.isSuccess
         if (!declared) return null
         return Intent(Intent.ACTION_MAIN)
             .setComponent(component)
             .setData(android.net.Uri.parse("tileshell-hub://$id"))
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NEW_DOCUMENT)
             .putExtra(EXTRA_HUB_ID, id)
             .apply {
                 if (page != null) putExtra(EXTRA_HUB_PAGE, page)
