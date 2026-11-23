@@ -64,9 +64,18 @@ import kotlinx.coroutines.launch
 private const val PRIVACY_POLICY_URL = "https://vivek-sovani.github.io/tileshell/"
 private const val FEEDBACK_EMAIL = "vivek.sovani@kimayainfotech.com"
 
-class MainActivity : ComponentActivity() {
+open class MainActivity : ComponentActivity() {
 
-    private val startViewModel: StartViewModel by viewModels()
+    protected val startViewModel: StartViewModel by viewModels()
+
+    /**
+     * True in [HubTaskActivity], the same screen hosted as one hub's own Android task (experiment, switch
+     * `tileshell.hubTasks`): no home-screen prompts, and a new intent re-opens that hub instead of going home.
+     */
+    protected open val isHubTask: Boolean = false
+
+    /** A hub task was started again (from its tile or the app list): see [HubTaskActivity]. */
+    protected open fun onHubTaskIntent(intent: Intent) {}
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -86,14 +95,18 @@ class MainActivity : ComponentActivity() {
             },
         )
 
+        // Before the UI starts, so a hub opened from here is a layer of this task, not another task.
+        if (isHubTask) startViewModel.inHubTask = true
         handleWallpaperTargetIntent(intent)
-        handleOpenHubIntent(intent)
+        if (!isHubTask) handleOpenHubIntent(intent)
         com.tileshell.feature.livetiles.BatteryLog.ensureStarted(this)
 
         setContent {
-            DefaultLauncherPrompt()
-            RequestRuntimePermissionsOnStart()
-            RatingPromptHost()
+            if (!isHubTask) {
+                DefaultLauncherPrompt()
+                RequestRuntimePermissionsOnStart()
+                RatingPromptHost()
+            }
             val settings by startViewModel.settings.collectAsStateWithLifecycle()
             StatusBarVisibilityEffect(hide = settings.hideStatusBar)
             val ctx = LocalContext.current
@@ -188,6 +201,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (isHubTask) {
+            onHubTaskIntent(intent)
+            return
+        }
         if (handleWallpaperTargetIntent(intent)) return
         // Home pressed while TileShell is already on screen goes back to the first Start page
         // (and closes everything). Coming back from an app (TileShell not visible when the

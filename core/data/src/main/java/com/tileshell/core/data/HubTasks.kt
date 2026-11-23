@@ -53,4 +53,48 @@ object HubTasks {
         if (started) LaunchOrigin.notifyLaunched(origin, context.packageName)
         return started
     }
+
+    /** Class name of the activity in `:app` that hosts every other hub, one task (recents card) per hub. */
+    const val HUB_ACTIVITY = "com.tileshell.HubTaskActivity"
+
+    const val EXTRA_HUB_ID = "com.tileshell.extra.HUB_ID"
+    const val EXTRA_HUB_PAGE = "com.tileshell.extra.HUB_PAGE"
+    const val EXTRA_WEATHER_LAT = "com.tileshell.extra.WEATHER_LAT"
+    const val EXTRA_WEATHER_LON = "com.tileshell.extra.WEATHER_LON"
+    const val EXTRA_WEATHER_NAME = "com.tileshell.extra.WEATHER_NAME"
+
+    /**
+     * The intent that opens hub [id] (a [HubEntries] id, not music) in its own task, or null when hub tasks are
+     * off. Every hub has its own data URI and the activity is a "document" (`documentLaunchMode=intoExisting`),
+     * so each hub gets its own recents card and opening the same hub again brings that card back.
+     */
+    fun hubIntent(context: Context, id: String, page: String? = null, location: WeatherTile.Location? = null): Intent? {
+        if (!ENABLED || HubEntries.ALL.none { it.id == id }) return null
+        val component = ComponentName(context.packageName, HUB_ACTIVITY)
+        val declared = runCatching { context.packageManager.getActivityInfo(component, PackageManager.MATCH_DEFAULT_ONLY) }.isSuccess
+        if (!declared) return null
+        return Intent(Intent.ACTION_MAIN)
+            .setComponent(component)
+            .setData(android.net.Uri.parse("tileshell-hub://$id"))
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            .putExtra(EXTRA_HUB_ID, id)
+            .apply {
+                if (page != null) putExtra(EXTRA_HUB_PAGE, page)
+                if (location is WeatherTile.Location.Fixed) {
+                    putExtra(EXTRA_WEATHER_LAT, location.lat)
+                    putExtra(EXTRA_WEATHER_LON, location.lon)
+                    putExtra(EXTRA_WEATHER_NAME, location.name)
+                }
+            }
+    }
+
+    /** Opens hub [id] in its own task (the music hub in its own activity). False = not available, open the layer. */
+    fun openHub(context: Context, id: String, page: String? = null, location: WeatherTile.Location? = null): Boolean {
+        if (id == "music") return openMusic(context, page)
+        val intent = hubIntent(context, id, page, location) ?: return false
+        val origin = LaunchOrigin.take()
+        val started = runCatching { context.startActivity(intent, LaunchOrigin.optionsFor(context, origin?.bounds)) }.isSuccess
+        if (started) LaunchOrigin.notifyLaunched(origin, context.packageName)
+        return started
+    }
 }

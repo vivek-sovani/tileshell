@@ -85,6 +85,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChangedBy
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -264,6 +265,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val weatherHubTarget: StateFlow<WeatherHubTarget?> = _weatherHubTarget.asStateFlow()
 
     fun openWeatherHub(location: WeatherTile.Location?) {
+        if (routeToTask("weather", location = location)) return
         _weatherHubTarget.value = WeatherHubTarget(location)
     }
 
@@ -285,6 +287,28 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val musicHubOpen: StateFlow<Boolean> = _musicHubOpen.asStateFlow()
     private val _musicHubInitialPage = MutableStateFlow<String?>(null)
     val musicHubInitialPage: StateFlow<String?> = _musicHubInitialPage.asStateFlow()
+
+    /**
+     * True in the activity that hosts one hub as its own Android task (`HubTaskActivity`, switch
+     * `tileshell.hubTasks`): hubs open as layers there, since the task already is that hub. Set before the UI starts.
+     */
+    var inHubTask = false
+
+    /** Opens hub [id] in its own task when the switch is on (and this is not already a hub task); false = open the layer. */
+    private fun routeToTask(id: String, page: String? = null, location: WeatherTile.Location? = null): Boolean =
+        !inHubTask && HubTasks.openHub(getApplication(), id, page, location)
+
+    /** Whether any hub layer is open (a hub task finishes itself when its last one closes). */
+    val anyHubOpen: StateFlow<Boolean> by lazy {
+        combine(
+            listOf(
+                _musicHubOpen, _calendarHubOpen, _peopleHubOpen, _productivityHubOpen, _batteryHubOpen,
+                _moneyHubOpen, _marketsHubOpen, _sportsHubOpen, _clockHubOpen, _newsHubOpen,
+                _shoppingHubOpen, _healthHubOpen, _panchangOpen, _weatherHubTarget.map { it != null },
+            ),
+        ) { flags -> flags.any { it } }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    }
 
     fun openMusicHub(page: String? = null) {
         // With tileshell.hubTasks on the hub is an activity of its own, in its own task (so it has its own
@@ -321,13 +345,13 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Opens the hub with [id] (a [HubEntries] id), as chosen from the app list or quick search. */
-    fun openHub(id: String) {
+    fun openHub(id: String, page: String? = null) {
         when (id) {
-            "music" -> openMusicHub()
-            "people" -> openPeopleHub()
+            "music" -> openMusicHub(page)
+            "people" -> openPeopleHub(page)
             "weather" -> openWeatherHub(null)
             "calendar" -> openCalendarHub()
-            "productivity" -> openProductivityHub()
+            "productivity" -> openProductivityHub(page)
             "clock" -> openClockHub()
             "battery" -> openBatteryHub()
             "money" -> openMoneyHub()
@@ -354,6 +378,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val calendarHubOpen: StateFlow<Boolean> = _calendarHubOpen.asStateFlow()
 
     fun openCalendarHub() {
+        if (routeToTask("calendar")) return
         _calendarHubOpen.value = true
     }
 
@@ -371,6 +396,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val peopleHubInitialPage: StateFlow<String?> = _peopleHubInitialPage.asStateFlow()
 
     fun openPeopleHub(page: String? = null) {
+        if (routeToTask("people", page)) return
         _peopleHubInitialPage.value = page
         _peopleHubOpen.value = true
     }
@@ -389,6 +415,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val panchangOpen: StateFlow<Boolean> = _panchangOpen.asStateFlow()
 
     fun openPanchang() {
+        if (routeToTask("panchang")) return
         _panchangOpen.value = true
     }
 
@@ -397,6 +424,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openMoneyHub() {
+        if (routeToTask("money")) return
         _moneyHubOpen.value = true
     }
 
@@ -468,6 +496,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val shoppingHubOpen: StateFlow<Boolean> = _shoppingHubOpen.asStateFlow()
 
     fun openShoppingHub() {
+        if (routeToTask("shopping")) return
         _shoppingHubOpen.value = true
     }
 
@@ -488,6 +517,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val healthHubOpen: StateFlow<Boolean> = _healthHubOpen.asStateFlow()
 
     fun openHealthHub() {
+        if (routeToTask("health")) return
         _healthHubOpen.value = true
     }
 
@@ -508,6 +538,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val newsHubOpen: StateFlow<Boolean> = _newsHubOpen.asStateFlow()
 
     fun openNewsHub() {
+        if (routeToTask("news")) return
         _newsHubOpen.value = true
     }
 
@@ -528,6 +559,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val clockHubOpen: StateFlow<Boolean> = _clockHubOpen.asStateFlow()
 
     fun openClockHub() {
+        if (routeToTask("clock")) return
         _clockHubOpen.value = true
     }
 
@@ -557,6 +589,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val marketsHubOpen: StateFlow<Boolean> = _marketsHubOpen.asStateFlow()
 
     fun openMarketsHub() {
+        if (routeToTask("markets")) return
         _marketsHubOpen.value = true
     }
 
@@ -583,6 +616,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val sportsHubOpen: StateFlow<Boolean> = _sportsHubOpen.asStateFlow()
 
     fun openSportsHub() {
+        if (routeToTask("sports")) return
         _sportsHubOpen.value = true
     }
 
@@ -620,6 +654,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val batteryHubOpen: StateFlow<Boolean> = _batteryHubOpen.asStateFlow()
 
     fun openBatteryHub() {
+        if (routeToTask("battery")) return
         _batteryHubOpen.value = true
     }
 
@@ -634,6 +669,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val productivityHubInitialPage: StateFlow<String?> = _productivityHubInitialPage.asStateFlow()
 
     fun openProductivityHub(page: String? = null) {
+        if (routeToTask("productivity", page)) return
         _productivityHubInitialPage.value = page
         _productivityHubOpen.value = true
     }

@@ -2281,7 +2281,8 @@ fun StartScreen(
         HubScreensLayer(viewModel, tiles, accentId = uiAccentId, dark = dark, isLandscape = isLandscape)
         // A launched app starts over a full-screen plate (wallpaper-coloured when a wallpaper is set, else the
         // tile's colour) that shrinks into its tile on return; drawn above the hubs, takes no touches.
-        LaunchRevealLayer(if (noWallpaper) Color.Unspecified else wallpaperAccentColor, customWallpaperBitmap)
+        // A hub task's hidden Start must not take over the launch plate from the Start under it.
+        if (!viewModel.inHubTask) LaunchRevealLayer(if (noWallpaper) Color.Unspecified else wallpaperAccentColor, customWallpaperBitmap)
 
         // Long-press quick actions on a tile. Its own composable, like the hubs: this lambda is near the register limit.
         TileQuickMenuLayer(viewModel, tiles, accentId = uiAccentId, dark = dark, lockLayout = settings.lockLayout)
