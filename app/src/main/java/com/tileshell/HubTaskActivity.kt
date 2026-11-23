@@ -90,6 +90,7 @@ class HubTaskActivity : MainActivity() {
             "shopping" -> R.drawable.ic_hub_shopping
             "health" -> R.drawable.ic_hub_health
             "panchang" -> R.drawable.ic_hub_panchang
+            "personalize" -> R.drawable.ic_hub_personalize
             else -> R.mipmap.ic_launcher
         }
         if (Build.VERSION.SDK_INT >= 28) {

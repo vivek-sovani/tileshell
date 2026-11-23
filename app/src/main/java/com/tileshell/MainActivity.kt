@@ -240,6 +240,11 @@ open class MainActivity : ComponentActivity() {
     /** A widget asking TileShell to open one of its hubs (the battery widget's tap). */
     private fun handleOpenHubIntent(intent: Intent) {
         handleDebugPressIntent(intent)
+        // Home settings' own task asking for edit mode on the main Start.
+        if (intent.getBooleanExtra(com.tileshell.feature.start.EXTRA_ENTER_EDIT, false)) {
+            startViewModel.enterEdit(null)
+            intent.removeExtra(com.tileshell.feature.start.EXTRA_ENTER_EDIT)
+        }
         // A task reminder's notification / "open" → that task's list.
         intent.getStringExtra(com.tileshell.core.data.reminders.TaskReminders.EXTRA_OPEN_TASK_LIST)?.let { listId ->
             startViewModel.openTasks(listId)

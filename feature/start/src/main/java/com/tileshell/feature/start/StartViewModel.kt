@@ -312,7 +312,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             listOf(
                 _musicHubOpen, _calendarHubOpen, _peopleHubOpen, _productivityHubOpen, _batteryHubOpen,
                 _moneyHubOpen, _marketsHubOpen, _sportsHubOpen, _clockHubOpen, _newsHubOpen,
-                _shoppingHubOpen, _healthHubOpen, _panchangOpen, _weatherHubTarget.map { it != null },
+                _shoppingHubOpen, _healthHubOpen, _panchangOpen, _personalizeOpen, _weatherHubTarget.map { it != null },
             ),
         ) { flags -> flags.any { it } }
             .stateIn(viewModelScope, SharingStarted.Eagerly, false)
@@ -375,6 +375,22 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                 repository.addDefaultTile(QuickToggleTile.ICON_KEY, activePageSectionId, QuickToggleTile.encode(id))
             }
             _pinMessage.tryEmit(pinOutcomeText(if (added) PinResult.PINNED else PinResult.ALREADY_ON_START, label))
+        }
+    }
+
+    /**
+     * Personalize's "edit start": edit mode belongs to the main Start screen, so from home settings' own task it
+     * brings TileShell's home forward with a request to start editing, instead of editing a hidden copy.
+     */
+    fun editStartFromPersonalize() {
+        closePersonalize()
+        if (!inHubTask) {
+            enterEdit(null)
+            return
+        }
+        val app = getApplication<Application>()
+        app.packageManager.getLaunchIntentForPackage(app.packageName)?.let {
+            runCatching { app.startActivity(it.putExtra(EXTRA_ENTER_EDIT, true).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
         }
     }
 
@@ -1262,6 +1278,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     /** Open the personalize sheet (FR-7). Reachable from the edit bar. */
     fun openPersonalize() {
         recordHubOpen("personalize")
+        // Its own card in Android's recents, like the hubs (tileshell.hubTasks).
+        if (routeToTask("personalize")) return
         _personalizeOpen.value = true
     }
 
@@ -3403,3 +3421,6 @@ data class TilePickerRequest(val tileId: String, val kind: TilePickerKind)
 
 /** A long-press drag waiting to be taken over: the tile, and where the finger first pressed it (px, from its top-left). */
 data class ArmedDrag(val tileId: String, val grabX: Float, val grabY: Float)
+
+/** Intent extra: TileShell's home should enter edit mode (sent from home settings' own task). */
+const val EXTRA_ENTER_EDIT = "com.tileshell.extra.ENTER_EDIT"

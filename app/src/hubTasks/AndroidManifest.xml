@@ -114,5 +114,11 @@
             android:exported="false"
             android:label="panchang"
             android:icon="@drawable/ic_hub_panchang" />
+        <activity-alias
+            android:name=".HubTask_personalize"
+            android:targetActivity=".HubTaskActivity"
+            android:exported="false"
+            android:label="home settings"
+            android:icon="@drawable/ic_hub_personalize" />
     </application>
 </manifest>

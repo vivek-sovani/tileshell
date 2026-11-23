@@ -10230,10 +10230,7 @@ private fun PersonalizeSheetLayer(
         onAppListStyleChange = viewModel::setAppListStyle,
         lockLayout = settings.lockLayout,
         onLockLayoutChange = viewModel::setLockLayout,
-        onEditStart = {
-            viewModel.closePersonalize()
-            viewModel.enterEdit(null)
-        },
+        onEditStart = viewModel::editStartFromPersonalize,
         hideStatusBar = settings.hideStatusBar,
         onHideStatusBarChange = viewModel::setHideStatusBar,
         doubleTapLock = settings.doubleTapLock,
