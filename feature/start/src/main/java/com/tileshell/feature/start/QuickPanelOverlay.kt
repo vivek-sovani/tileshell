@@ -14,6 +14,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -1178,6 +1179,7 @@ internal fun nextThemeChoice(current: ThemeChoice): ThemeChoice = when (current)
  * ([borderless]) the neutral off surface is a translucent card instead of
  * the opaque chip; an on tile is still accent-filled either way.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 private fun QuickPanelTile(
     tile: QuickPanelTileSpec,
@@ -1256,6 +1258,7 @@ private fun QuickPanelTile(
     }
     val haptics = LocalHapticFeedback.current
     val resizing = resizeScaleX != 1f
+    var pinMenuOpen by remember { mutableStateOf(false) }
     Box(
         modifier = modifier
             .graphicsLayer {
@@ -1285,10 +1288,17 @@ private fun QuickPanelTile(
             )
             .then(
                 if (editMode) Modifier
-                else Modifier.clickable(onClick = {
-                    haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                    tile.onClick()
-                })
+                else Modifier.combinedClickable(
+                    onClick = {
+                        haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                        tile.onClick()
+                    },
+                    // Hold a toggle for "pin to start", without entering the panel's edit mode.
+                    onLongClick = if (onPin != null) ({
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        pinMenuOpen = true
+                    }) else null,
+                )
             ),
     ) {
         Column(
@@ -1314,6 +1324,12 @@ private fun QuickPanelTile(
                 maxLines = 2,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        androidx.compose.material3.DropdownMenu(expanded = pinMenuOpen, onDismissRequest = { pinMenuOpen = false }) {
+            androidx.compose.material3.DropdownMenuItem(
+                text = { Text("pin to start") },
+                onClick = { pinMenuOpen = false; onPin?.invoke() },
             )
         }
         if (editMode) {
