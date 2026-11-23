@@ -29,7 +29,7 @@ object HubEntries {
 
     private const val PREFIX = "hub:"
 
-    /** The most hubs the app list's "recent" section shows, so hubs cannot crowd the apps out of it. */
+    /** The most hubs (not home settings or quick settings) the app list's "recent" section shows, so hubs cannot crowd the apps out of it. */
     const val MAX_RECENT_HUBS = 2
 
     val ALL: List<HubEntry> = listOf(
@@ -68,6 +68,12 @@ object HubEntries {
     fun idOf(app: AppEntry): String? = idOf(app.packageName, app.activityName)
 
     fun isHub(app: AppEntry): Boolean = idOf(app) != null
+
+    /** Entries that open something that is not a hub (home settings, quick settings): they behave like apps in "recent". */
+    private val SYSTEM_IDS = setOf("personalize", "quicksettings")
+
+    /** Whether [app] is a real hub, so counts towards [MAX_RECENT_HUBS] in the "recent" section. */
+    fun countsTowardHubCap(app: AppEntry): Boolean = idOf(app)?.let { it !in SYSTEM_IDS } == true
 
     /** The glyph (`TileIcons` key) for a hub entry. */
     fun iconKeyOf(app: AppEntry): String? = idOf(app)?.let { id -> ALL.firstOrNull { it.id == id }?.iconKey }

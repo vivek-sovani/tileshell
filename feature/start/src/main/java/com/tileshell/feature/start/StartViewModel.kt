@@ -267,6 +267,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val weatherHubTarget: StateFlow<WeatherHubTarget?> = _weatherHubTarget.asStateFlow()
 
     fun openWeatherHub(location: WeatherTile.Location?) {
+        recordHubOpen("weather")
         if (routeToTask("weather", location = location)) return
         _weatherHubTarget.value = WeatherHubTarget(location)
     }
@@ -300,6 +301,11 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     private fun routeToTask(id: String, page: String? = null, location: WeatherTile.Location? = null): Boolean =
         !inHubTask && HubTasks.openHub(getApplication(), id, page, location)
 
+    /** Counts opening [id] (from a tile, the app list, a widget...) for the app list's "recent" section, when hub entries are on. */
+    private fun recordHubOpen(id: String) {
+        if (HubEntries.ENABLED) HubEntries.recordOpen(getApplication(), id)
+    }
+
     /** Whether any hub layer is open (a hub task finishes itself when its last one closes). */
     val anyHubOpen: StateFlow<Boolean> by lazy {
         combine(
@@ -313,6 +319,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openMusicHub(page: String? = null) {
+        recordHubOpen("music")
         // With tileshell.hubTasks on the hub is an activity of its own, in its own task (so it has its own
         // card in Android's recents); the layer below stays as the fallback and as today's behaviour.
         if (HubTasks.openMusic(getApplication(), page)) return
@@ -405,6 +412,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val calendarHubOpen: StateFlow<Boolean> = _calendarHubOpen.asStateFlow()
 
     fun openCalendarHub() {
+        recordHubOpen("calendar")
         if (routeToTask("calendar")) return
         _calendarHubOpen.value = true
     }
@@ -423,6 +431,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val peopleHubInitialPage: StateFlow<String?> = _peopleHubInitialPage.asStateFlow()
 
     fun openPeopleHub(page: String? = null) {
+        recordHubOpen("people")
         if (routeToTask("people", page)) return
         _peopleHubInitialPage.value = page
         _peopleHubOpen.value = true
@@ -451,6 +460,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun openMoneyHub() {
+        recordHubOpen("money")
         if (routeToTask("money")) return
         _moneyHubOpen.value = true
     }
@@ -555,6 +565,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val shoppingHubOpen: StateFlow<Boolean> = _shoppingHubOpen.asStateFlow()
 
     fun openShoppingHub() {
+        recordHubOpen("shopping")
         if (routeToTask("shopping")) return
         _shoppingHubOpen.value = true
     }
@@ -576,6 +587,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val healthHubOpen: StateFlow<Boolean> = _healthHubOpen.asStateFlow()
 
     fun openHealthHub() {
+        recordHubOpen("health")
         if (routeToTask("health")) return
         _healthHubOpen.value = true
     }
@@ -597,6 +609,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val newsHubOpen: StateFlow<Boolean> = _newsHubOpen.asStateFlow()
 
     fun openNewsHub() {
+        recordHubOpen("news")
         if (routeToTask("news")) return
         _newsHubOpen.value = true
     }
@@ -618,6 +631,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val clockHubOpen: StateFlow<Boolean> = _clockHubOpen.asStateFlow()
 
     fun openClockHub() {
+        recordHubOpen("clock")
         if (routeToTask("clock")) return
         _clockHubOpen.value = true
     }
@@ -648,6 +662,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val marketsHubOpen: StateFlow<Boolean> = _marketsHubOpen.asStateFlow()
 
     fun openMarketsHub() {
+        recordHubOpen("markets")
         if (routeToTask("markets")) return
         _marketsHubOpen.value = true
     }
@@ -675,6 +690,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val sportsHubOpen: StateFlow<Boolean> = _sportsHubOpen.asStateFlow()
 
     fun openSportsHub() {
+        recordHubOpen("sports")
         if (routeToTask("sports")) return
         _sportsHubOpen.value = true
     }
@@ -713,6 +729,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val batteryHubOpen: StateFlow<Boolean> = _batteryHubOpen.asStateFlow()
 
     fun openBatteryHub() {
+        recordHubOpen("battery")
         if (routeToTask("battery")) return
         _batteryHubOpen.value = true
     }
@@ -728,6 +745,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     val productivityHubInitialPage: StateFlow<String?> = _productivityHubInitialPage.asStateFlow()
 
     fun openProductivityHub(page: String? = null) {
+        recordHubOpen("productivity")
         if (routeToTask("productivity", page)) return
         _productivityHubInitialPage.value = page
         _productivityHubOpen.value = true
@@ -1223,6 +1241,7 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Open the personalize sheet (FR-7). Reachable from the edit bar. */
     fun openPersonalize() {
+        recordHubOpen("personalize")
         _personalizeOpen.value = true
     }
 
@@ -1561,7 +1580,10 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** Open the quick panel (two-finger swipe-up on Start). Doesn't touch the pager swipe — mirrors openBackup/openPersonalize, not openSearch. */
-    fun openQuickPanel() { _quickPanelOpen.value = true }
+    fun openQuickPanel() {
+        recordHubOpen("quicksettings")
+        _quickPanelOpen.value = true
+    }
 
     /** Close the quick panel. Safe when not open. */
     fun closeQuickPanel() { _quickPanelOpen.value = false }

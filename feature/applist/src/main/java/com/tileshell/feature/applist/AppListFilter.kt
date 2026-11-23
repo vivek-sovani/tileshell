@@ -48,7 +48,7 @@ object AppListFilter {
         // hubs a lot cannot push every app out of the section.
         var hubs = 0
         val recent = recentKeys.distinct().mapNotNull { byKey[it] }
-            .filter { app -> !HubEntries.isHub(app) || ++hubs <= HubEntries.MAX_RECENT_HUBS }
+            .filter { app -> !HubEntries.countsTowardHubCap(app) || ++hubs <= HubEntries.MAX_RECENT_HUBS }
             .take(MAX_RECENT)
         val recentKeySet = recent.mapTo(mutableSetOf()) { it.key }
         val newlyInstalled = apps

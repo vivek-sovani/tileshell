@@ -172,4 +172,13 @@ class AppListFilterTest {
         assertEquals(listOf("home settings"), AppListFilter.filter(list, "personalis").map { it.label })
         assertEquals(listOf("home settings"), AppListFilter.filter(list, "Personalize").map { it.label })
     }
+
+    @Test
+    fun `home settings is not counted against the hub cap`() {
+        val home = HubEntries.entryFor(HubEntries.ALL.first { it.id == "personalize" })
+        val hubs = listOf("music", "people", "weather").map { hub(it) }
+        val keys = hubs.map { it.key } + home.key
+        val shown = AppListFilter.topApps(apps + hubs + home, keys, nowMillis = 0)
+        assertEquals(listOf("music + videos", "people", "home settings"), shown.map { it.label })
+    }
 }
