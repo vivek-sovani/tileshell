@@ -17,7 +17,7 @@
             android:stateNotNeeded="true"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.TileShell" />
+            android:theme="@style/Theme.TileShell.HubTask" />
 
         <!-- Every other hub as its own task. One "document" activity: each hub has its own data URI
              (tileshell-hub://<id>), so each gets its own recents card, and opening a hub again brings its
@@ -31,7 +31,7 @@
             android:stateNotNeeded="true"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenLayout|screenSize|smallestScreenSize|uiMode"
             android:windowSoftInputMode="adjustResize"
-            android:theme="@style/Theme.TileShell" />
+            android:theme="@style/Theme.TileShell.HubTask" />
 
         <!-- One alias per hub: the recents card (Samsung's most of all) shows the manifest icon and label of the
              component that was started, so each hub is started through an alias with its own, and all of

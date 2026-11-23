@@ -1281,7 +1281,9 @@ fun StartScreen(
         // tiles" mode the screen instead goes flat dark — the wallpaper shows only
         // through the tiles, keeping every gap/border dark. "none" skips the image
         // layer entirely and the theme bg colour shows through.
-        if (tiledWallpaper) {
+        if (viewModel.inHubTask) {
+            // A hub task is a transparent window over the real Start in the main task: it draws only its hub.
+        } else if (tiledWallpaper) {
             Box(modifier = Modifier.fillMaxSize().background(tokens.bg))
         } else if (noWallpaper) {
             Box(modifier = Modifier.fillMaxSize().background(tokens.bg))
@@ -1914,7 +1916,7 @@ fun StartScreen(
                     .background(LocalColorTokens.current.bg),
             ) { renderAppList() }
         }
-        Box(modifier = Modifier.fillMaxSize()) {
+        if (!viewModel.inHubTask) Box(modifier = Modifier.fillMaxSize()) {
             when {
                 // A horizontal hinge (Duo held like a laptop, a Fold half open in
                 // tabletop posture): the glance page on the top screen, Start on
@@ -2054,7 +2056,7 @@ fun StartScreen(
         // out to mean the fixed "more" icon button further down (a literal
         // 3-dot glyph, see TileIcons["more"]), not this indicator — this one
         // was still needed ("multipage indicator was needed").
-        if (blockCount > 1 && !editMode && !appListShown && !feedShown) {
+        if (!viewModel.inHubTask && blockCount > 1 && !editMode && !appListShown && !feedShown) {
             val dotsBottomOffset by animateDpAsState(
                 targetValue = if (edgeStripVisible) STRIP_THICK + 8.dp else 14.dp,
                 animationSpec = spring(dampingRatio = 0.9f, stiffness = Spring.StiffnessMediumLow),
@@ -2074,7 +2076,7 @@ fun StartScreen(
         // Edge-strip overlay: shown only when enabled and no overlay is on top. Quick
         // search stays out of the mount condition — the strip stays composed and just
         // slides fully away (suppressed) so its expanded/collapsed state isn't lost.
-        if (settings.edgeStripEnabled && settings.edgeStripApps.isNotEmpty() &&
+        if (!viewModel.inHubTask && settings.edgeStripEnabled && settings.edgeStripApps.isNotEmpty() &&
             !editMode && expandedFolderId == null && !personalizeOpen
         ) {
             EdgeStrip(

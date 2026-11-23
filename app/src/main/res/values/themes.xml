@@ -15,4 +15,15 @@
         <item name="android:windowLayoutInDisplayCutoutMode">always</item>
         <item name="android:windowShowWallpaper">true</item>
     </style>
+
+    <!--
+        A hub in its own task (HubTaskActivity, tileshell.hubTasks): a transparent window, so the real Start in
+        TileShell's own task stays visible behind the hub and the hub grows out of, and shrinks back into, the very
+        tile that was tapped. No second Start is drawn there, so nothing swaps when the task closes.
+    -->
+    <style name="Theme.TileShell.HubTask" parent="Theme.TileShell">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowShowWallpaper">false</item>
+    </style>
 </resources>
