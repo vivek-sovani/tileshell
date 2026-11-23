@@ -431,3 +431,24 @@ fun screenTimeoutLabel(ms: Long): String = when {
     ms < 3_600_000L -> "${ms / 60_000L}m"
     else -> "${ms / 3_600_000L}h"
 }
+
+fun openWifiSettings(context: Context) {
+    val panel = runCatching { context.startActivity(Intent("android.settings.panel.action.WIFI")) }
+    if (panel.isFailure) deepLink(context, Settings.ACTION_WIFI_SETTINGS)
+}
+
+/**
+ * The general "Do Not Disturb" settings screen — not part of the public SDK
+ * (there's no `Settings.ACTION_ZEN_MODE_SETTINGS` constant), but the action
+ * string itself is a stable AOSP intent-filter present since Marshmallow.
+ * Falls back to the access-grant screen (which also lets the user turn DND on
+ * from there) if a device's Settings app doesn't expose it.
+ */
+fun openDndSettings(context: Context) {
+    val general = runCatching { context.startActivity(Intent("android.settings.ZEN_MODE_SETTINGS")) }
+    if (general.isFailure) deepLink(context, Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
+}
+
+fun deepLink(context: Context, action: String) {
+    runCatching { context.startActivity(Intent(action)) }
+}

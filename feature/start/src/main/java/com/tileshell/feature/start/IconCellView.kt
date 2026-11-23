@@ -218,6 +218,13 @@ internal fun IconCellView(
             "flashlight" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 FlashlightSmallFace(interactive = !editMode, modifier = Modifier.fillMaxSize())
             }
+            "qtoggle" -> LiveIconTile(accent, badgeCount, darkTheme) {
+                com.tileshell.feature.livetiles.QuickToggleSmallFace(
+                    id = com.tileshell.feature.livetiles.QuickToggleTile.decode(tile.activityName),
+                    interactive = !editMode,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
             "countdown" -> LiveIconTile(accent, badgeCount, darkTheme) {
                 val (isoDate, _) = CountdownTile.decode(tile.activityName) ?: ("" to "")
                 CountdownSmallFace(targetIsoDate = isoDate, modifier = Modifier.fillMaxSize())

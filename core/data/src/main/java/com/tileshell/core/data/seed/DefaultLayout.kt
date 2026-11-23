@@ -191,6 +191,8 @@ object DefaultLayout {
         DefaultTile("t-notepad", TileSize.MEDIUM, "amber", app = "notepad", liveOnly = true),
         DefaultTile("t-stickynote", TileSize.MEDIUM, "amber", app = "stickynote", liveOnly = true),
         DefaultTile("t-flashlight", TileSize.MEDIUM, "steel", app = "flashlight", liveOnly = true),
+        // A quick panel toggle pinned from the panel's edit mode; which one is in the tile's activityName (qt:<id>).
+        DefaultTile("t-qtoggle", TileSize.MEDIUM, "steel", app = "qtoggle", liveOnly = true),
         DefaultTile("t-countdown", TileSize.MEDIUM, "magenta", app = "countdown", liveOnly = true),
         DefaultTile("t-healthhub", TileSize.MEDIUM, "lime", app = "healthhub", liveOnly = true),
         DefaultTile("t-sports", TileSize.MEDIUM, "red", app = "sports", liveOnly = true),

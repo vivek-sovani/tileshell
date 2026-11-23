@@ -74,7 +74,7 @@ class AppListViewModel(application: Application) : AndroidViewModel(application)
         initialValue = LauncherSettings(),
     )
 
-    private val apps: StateFlow<List<AppEntry>> = repository.apps.map { HubEntries.withHubs(it + PERSONALIZE_APP_ENTRY) }.stateIn(
+    private val apps: StateFlow<List<AppEntry>> = repository.apps.map { if (HubEntries.ENABLED) HubEntries.withHubs(it) else it + PERSONALIZE_APP_ENTRY }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = emptyList(),

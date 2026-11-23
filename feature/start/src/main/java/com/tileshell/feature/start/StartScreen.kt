@@ -2227,6 +2227,7 @@ fun StartScreen(
                 }
             },
             onLockScreen = onLockScreen,
+            onPinTile = viewModel::pinQuickToggle,
             onThemeChange = viewModel::setTheme,
             onFollowSystemThemeChange = viewModel::setFollowSystemTheme,
             wallpaper = wallpaper,
@@ -7958,6 +7959,7 @@ private fun AppTileContent(
             "healthhub" -> { com.tileshell.feature.livetiles.health.HealthTileFace(size = tile.size, active = liveActive, modifier = Modifier.fillMaxSize()); return }
             "battery" -> { BatterySmallFace(modifier = Modifier.fillMaxSize()); return }
             "flashlight" -> { FlashlightSmallFace(interactive = interactive, modifier = Modifier.fillMaxSize()); return }
+            "qtoggle" -> { com.tileshell.feature.livetiles.QuickToggleSmallFace(id = com.tileshell.feature.livetiles.QuickToggleTile.decode(tile.activityName), interactive = interactive, modifier = Modifier.fillMaxSize()); return }
             "timerset" -> {
                 com.tileshell.feature.livetiles.TimerSetTileFace(size = tile.size, active = liveActive, interactive = interactive, setId = com.tileshell.core.data.clock.TimerSetTile.decode(tile.activityName), modifier = Modifier.fillMaxSize())
                 return
@@ -8163,6 +8165,15 @@ private fun AppTileContent(
         }
         LiveFace.FLASHLIGHT -> {
             FlashlightTileFace(size = tile.size, interactive = interactive, modifier = Modifier.fillMaxSize())
+            return
+        }
+        LiveFace.QUICKTOGGLE -> {
+            com.tileshell.feature.livetiles.QuickToggleTileFace(
+                id = com.tileshell.feature.livetiles.QuickToggleTile.decode(tile.activityName),
+                size = tile.size,
+                interactive = interactive,
+                modifier = Modifier.fillMaxSize(),
+            )
             return
         }
         LiveFace.COUNTDOWN -> {
@@ -9982,6 +9993,10 @@ private fun HubScreensLayer(
         accentId = accentId,
         onDismiss = viewModel::closeCalendarHub,
         rightHalf = false,
+        onPinCalendarSystem = viewModel::pinCalendarSystem,
+        onPinMoonPhase = { viewModel.addLiveTile("moonphase") },
+        onPinCountdown = { viewModel.addLiveTile("countdown") },
+        onOpenPanchang = viewModel::openPanchang,
     )
 
     // Debug builds only (debug.gallery): every size of one live tile, for checking text fit.

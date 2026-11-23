@@ -79,4 +79,12 @@ class HubEntriesTest {
         assertEquals("orange", HubEntries.colorIdOf(HubEntries.entryFor(HubEntries.ALL.first { it.id == "music" })))
         assertNull(HubEntries.colorIdOf(app("Maps")))
     }
+
+    @Test
+    fun `personalize and quick settings are entries too`() {
+        val ids = HubEntries.ALL.map { it.id }
+        assertTrue("personalize" in ids && "quicksettings" in ids)
+        assertEquals("quick settings", HubEntries.ALL.first { it.id == "quicksettings" }.label)
+        assertEquals("personalize", HubEntries.ALL.first { it.id == "personalize" }.label)
+    }
 }

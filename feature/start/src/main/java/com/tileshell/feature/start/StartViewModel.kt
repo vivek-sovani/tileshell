@@ -21,6 +21,7 @@ import com.tileshell.core.data.AppCategories
 import com.tileshell.core.data.AppEntry
 import com.tileshell.core.data.HubEntries
 import com.tileshell.core.data.HubTasks
+import com.tileshell.feature.livetiles.QuickToggleTile
 import com.tileshell.core.data.BackupFeedSource
 import com.tileshell.core.data.AutoExportPrefs
 import com.tileshell.core.data.AutoExportState
@@ -34,6 +35,7 @@ import com.tileshell.core.data.LayoutHistoryRepository
 import com.tileshell.core.data.LayoutRepository
 import com.tileshell.core.data.LayoutSnapshot
 import com.tileshell.core.data.PinResult
+import com.tileshell.core.data.hasPersonalizeTile
 import com.tileshell.core.data.Section
 import com.tileshell.core.data.SettingsAppMigration
 import com.tileshell.core.data.CalendarSystemTile
@@ -328,8 +330,14 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             "clock" -> pinClockHub()
             "sports" -> pinSportsHub()
             "productivity" -> pinProductivityHub()
+            "personalize" -> viewModelScope.launch(writeContext) {
+                val exists = tiles.value.hasPersonalizeTile()
+                val result = if (!exists && repository.addDefaultTile("personalize", activePageSectionId)) PinResult.PINNED else PinResult.ALREADY_ON_START
+                _pinMessage.tryEmit(pinOutcomeText(result, "personalize"))
+            }
+            // The panel itself has no tile: its toggles are pinned one by one from its edit mode.
+            "quicksettings" -> _pinMessage.tryEmit("pin a toggle from the quick panel's edit mode")
             "markets" -> pinMarketsTile(MarketsTile.INDICES)
-            "panchang" -> pinPanchangTile(activePageSectionId)
             "music", "people", "weather", "calendar", "battery" -> {
                 val label = HubEntries.ALL.firstOrNull { it.id == id }?.label ?: id
                 viewModelScope.launch(writeContext) {
@@ -341,6 +349,25 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
                     _pinMessage.tryEmit(pinOutcomeText(result, label))
                 }
             }
+        }
+    }
+
+    /**
+     * Pins one quick panel toggle to Start (from the panel's edit mode): a [QuickToggleTile] per toggle, or the
+     * existing flashlight tile. One of each.
+     */
+    fun pinQuickToggle(id: String) {
+        viewModelScope.launch(writeContext) {
+            val label = if (id == "flashlight") "flashlight" else QuickToggleTile.defFor(id)?.label ?: return@launch
+            val exists = tiles.value.any {
+                it is TileModel.App && if (id == "flashlight") it.iconKey == "flashlight" else QuickToggleTile.decode(it.activityName) == id
+            }
+            val added = !exists && if (id == "flashlight") {
+                repository.addDefaultTile("flashlight", activePageSectionId)
+            } else {
+                repository.addDefaultTile(QuickToggleTile.ICON_KEY, activePageSectionId, QuickToggleTile.encode(id))
+            }
+            _pinMessage.tryEmit(pinOutcomeText(if (added) PinResult.PINNED else PinResult.ALREADY_ON_START, label))
         }
     }
 
@@ -475,6 +502,22 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             }
             val result = if (!exists && repository.addDefaultTile("calsys", sectionId, com.tileshell.core.data.CalendarSystemTile.encode(com.tileshell.core.data.HINDU_PANCHANG_ID))) PinResult.PINNED else PinResult.ALREADY_ON_START
             _pinMessage.tryEmit(pinOutcomeText(result, "panchang"))
+        }
+    }
+
+    /** The calendar hub's "systems" page: a calendar-systems tile for [systemId] (the Hindu one asks its language first). */
+    fun pinCalendarSystem(systemId: String) {
+        if (systemId == com.tileshell.core.data.HINDU_PANCHANG_ID) {
+            pinPanchangTile(activePageSectionId)
+            return
+        }
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any {
+                it is TileModel.App && it.iconKey == "calsys" && com.tileshell.core.data.CalendarSystemTile.decode(it.activityName) == systemId
+            }
+            val label = com.tileshell.core.data.calendarSystemFor(systemId)?.displayName?.lowercase() ?: systemId
+            val result = if (!exists && repository.addDefaultTile("calsys", activePageSectionId, com.tileshell.core.data.CalendarSystemTile.encode(systemId))) PinResult.PINNED else PinResult.ALREADY_ON_START
+            _pinMessage.tryEmit(pinOutcomeText(result, label))
         }
     }
 

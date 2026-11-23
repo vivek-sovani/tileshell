@@ -54,7 +54,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tileshell.core.data.CALENDAR_SYSTEMS
+import com.tileshell.core.data.HINDU_PANCHANG_ID
+import com.tileshell.core.data.calendarSystemFor
+import com.tileshell.core.data.daysAwayText
 import com.tileshell.core.design.ColorTokens
+import com.tileshell.core.design.HubFilter
 import com.tileshell.core.design.SheetStage
 import com.tileshell.core.design.hubReveal
 import com.tileshell.core.design.rememberHubOrigin
@@ -65,7 +70,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 
-private val HUB_PIVOTS = listOf("this week", "next", "month")
+private val HUB_PIVOTS = listOf("this week", "next", "month", "systems")
 
 /**
  * Full-screen calendar hub — real WP Panorama/Pivot shape, matching the
@@ -90,6 +95,12 @@ fun CalendarHubScreen(
     onDismiss: () -> Unit,
     rightHalf: Boolean = false,
     modifier: Modifier = Modifier,
+    // The "systems" page: pin a tile for a calendar system (the Hindu panchang goes through its own pin, which
+    // asks the language first), the moon phase or a countdown, and open the full panchang.
+    onPinCalendarSystem: (systemId: String) -> Unit = {},
+    onPinMoonPhase: () -> Unit = {},
+    onPinCountdown: () -> Unit = {},
+    onOpenPanchang: () -> Unit = {},
 ) {
     val progress by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -140,7 +151,10 @@ fun CalendarHubScreen(
                 tokens = tokens,
                 modifier = Modifier.weight(1f),
             ) { page ->
-                if (!granted) {
+                if (page == 3) {
+                    // Needs no calendar permission: pure date maths on the device.
+                    CalendarSystemsPage(tokens, accent, onPinCalendarSystem, onPinMoonPhase, onPinCountdown, onOpenPanchang)
+                } else if (!granted) {
                     CalendarPermissionGate(tokens, accent)
                 } else {
                     Column(
@@ -372,3 +386,113 @@ private val CALENDAR_MONTHS_FULL = listOf(
     "january", "february", "march", "april", "may", "june",
     "july", "august", "september", "october", "november", "december",
 )
+
+
+/**
+ * The "systems" page: chips to choose the calendar system (Hindu panchang, Islamic, Hebrew, Chinese, Persian,
+ * Buddhist, Coptic, Ethiopic), today's date in it, and the tiles that can be pinned from here. The choice is
+ * remembered; the first time it is the region's usual one ([com.tileshell.core.data.defaultCalendarSystemFor]).
+ */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun CalendarSystemsPage(
+    tokens: ColorTokens,
+    accent: Color,
+    onPinCalendarSystem: (String) -> Unit,
+    onPinMoonPhase: () -> Unit,
+    onPinCountdown: () -> Unit,
+    onOpenPanchang: () -> Unit,
+) {
+    val context = LocalContext.current
+    var selected by remember { mutableStateOf(CalendarSystemsPrefs.selected(context)) }
+    val now = remember { System.currentTimeMillis() }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp)
+            .padding(bottom = 16.dp),
+    ) {
+        Text(
+            "calendar system",
+            color = tokens.fgDim,
+            fontSize = 13.sp,
+            modifier = Modifier.padding(bottom = 6.dp),
+        )
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            CALENDAR_SYSTEMS.forEach { system ->
+                HubFilter(
+                    label = system.displayName.substringBefore(" (").lowercase(),
+                    selected = system.id == selected,
+                    tokens = tokens,
+                    accent = accent,
+                    onClick = {
+                        selected = system.id
+                        CalendarSystemsPrefs.select(context, system.id)
+                    },
+                )
+            }
+        }
+        Spacer(Modifier.height(20.dp))
+        val id = selected
+        if (id == null) {
+            Text(
+                "pick a calendar system above to see today's date in it and pin it to start.",
+                color = tokens.fgDim,
+                fontSize = 14.sp,
+            )
+        } else {
+            val details = rememberSystemDetails(id, now)
+            if (id == HINDU_PANCHANG_ID) {
+                Text("panchang", color = tokens.fg, fontSize = 28.sp, fontWeight = FontWeight.Light)
+                Text("tithi, nakshatra, festivals and moon times", color = tokens.fgDim, fontSize = 14.sp)
+                Spacer(Modifier.height(10.dp))
+                HubFilter(label = "open the panchang ›", selected = true, tokens = tokens, accent = accent, onClick = onOpenPanchang)
+            } else {
+                Text(
+                    formatSelectedSystemDate(id, now),
+                    color = tokens.fg,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Light,
+                )
+                details?.today?.let { day ->
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        listOfNotNull(
+                            "day ${day.day} of ${day.monthLength} · ${day.daysLeftInMonth} left in ${day.monthName}",
+                            day.yearNote,
+                        ).joinToString("\n"),
+                        color = tokens.fgDim,
+                        fontSize = 14.sp,
+                    )
+                }
+                details?.upcoming?.takeIf { it.isNotEmpty() }?.let { up ->
+                    Spacer(Modifier.height(10.dp))
+                    up.forEach {
+                        Text("${it.name} ${daysAwayText(it.daysAway)}", color = tokens.fg, fontSize = 14.sp)
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            HubFilter(
+                label = "pin ${calendarSystemFor(id)?.displayName?.substringBefore(" (")?.lowercase().orEmpty()} to start",
+                selected = false,
+                tokens = tokens,
+                accent = accent,
+                onClick = { onPinCalendarSystem(id) },
+            )
+        }
+        Spacer(Modifier.height(28.dp))
+        Text("other tiles", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(bottom = 6.dp))
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            HubFilter(label = "moon phase", selected = false, tokens = tokens, accent = accent, onClick = onPinMoonPhase)
+            HubFilter(label = "countdown", selected = false, tokens = tokens, accent = accent, onClick = onPinCountdown)
+        }
+    }
+}

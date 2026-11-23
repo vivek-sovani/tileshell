@@ -37,3 +37,21 @@ fun formatRomanDate(epochMillis: Long, zone: java.util.TimeZone = java.util.Time
     format.timeZone = zone
     return format.format(java.util.Date(epochMillis)).lowercase(java.util.Locale.ENGLISH)
 }
+
+
+/**
+ * The calendar system to preselect on the calendar hub's "calendar systems" page for a region (an ISO country
+ * code), or null where none stands out: the page then just offers the chips. Only a first guess; the choice is
+ * the user's (someone from India living abroad picks Hindu by hand).
+ */
+fun defaultCalendarSystemFor(countryCode: String?): String? = when (countryCode?.uppercase()) {
+    "IN", "NP" -> HINDU_PANCHANG_ID
+    "SA", "AE", "QA", "KW", "BH", "OM", "YE", "JO", "IQ", "SY", "LB", "LY", "TN", "DZ", "MA", "SD", "PK", "BD", "AF", "MY", "BN", "ID" -> "islamic"
+    "IL" -> "hebrew"
+    "CN", "TW", "HK", "MO" -> "chinese"
+    "IR" -> "persian"
+    "TH", "MM", "KH", "LA", "LK" -> "buddhist"
+    "ET", "ER" -> "ethiopic"
+    "EG" -> "coptic"
+    else -> null
+}

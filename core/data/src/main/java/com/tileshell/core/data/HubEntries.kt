@@ -39,7 +39,9 @@ object HubEntries {
         HubEntry("news", "news", "newshub", "red"),
         HubEntry("shopping", "shopping", "shophub", "magenta"),
         HubEntry("health", "health", "healthhub", "lime"),
-        HubEntry("panchang", "panchang", "calsys", "cobalt"),
+        // Not hubs, but opened from the same list: the personalize sheet and the quick panel.
+        HubEntry("personalize", "personalize", "settings", "steel"),
+        HubEntry("quicksettings", "quick settings", "brightness", "slate"),
     )
 
     fun entryFor(hub: HubEntry): AppEntry =

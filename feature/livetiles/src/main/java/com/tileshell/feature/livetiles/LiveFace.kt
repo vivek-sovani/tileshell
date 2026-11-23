@@ -46,6 +46,8 @@ enum class LiveFace(val flips: Boolean) {
     NOTES(flips = true),
     STICKYNOTE(flips = false),
     FLASHLIGHT(flips = false),
+    // A quick panel toggle pinned to Start (QuickToggleTile); the whole tile is the control.
+    QUICKTOGGLE(flips = false),
     COUNTDOWN(flips = true),
     STEPS(flips = false),
     SPORTS(flips = true),
@@ -93,6 +95,7 @@ enum class LiveFace(val flips: Boolean) {
                 "notepad" -> NOTES
                 "stickynote" -> STICKYNOTE
                 "flashlight" -> FLASHLIGHT
+                "qtoggle" -> QUICKTOGGLE
                 "countdown" -> COUNTDOWN
                 "steps" -> STEPS
                 "sports" -> SPORTS

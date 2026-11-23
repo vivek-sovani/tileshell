@@ -14,6 +14,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -90,6 +91,10 @@ import com.tileshell.core.design.wallpaperBackground
 import com.tileshell.feature.livetiles.Connectivity
 import com.tileshell.feature.livetiles.nextScreenTimeoutPreset
 import com.tileshell.feature.livetiles.openWriteSettingsAccess
+import com.tileshell.feature.livetiles.QuickToggleTile
+import com.tileshell.feature.livetiles.deepLink
+import com.tileshell.feature.livetiles.openDndSettings
+import com.tileshell.feature.livetiles.openWifiSettings
 import com.tileshell.feature.livetiles.rememberAirplaneModeOn
 import com.tileshell.feature.livetiles.rememberBatterySaverOn
 import com.tileshell.feature.livetiles.rememberBluetoothOn
@@ -187,6 +192,8 @@ fun QuickPanelOverlay(
     tileSizes: List<String> = emptyList(),
     onTileOrderChange: (List<String>) -> Unit = {},
     onTileSizesChange: (List<String>) -> Unit = {},
+    /** "pin to start" on a toggle in the panel's edit mode (the tile's id, as in [quickPanelTiles]). */
+    onPinTile: (String) -> Unit = {},
     /**
      * "Widget cards" (Start's tile style) carried onto Quick Panel — see
      * DECISIONS.md "Widget cards carried onto Quick Panel". Off tiles switch
@@ -446,6 +453,7 @@ fun QuickPanelOverlay(
                                     panelFg = panelFg,
                                     panelFgDim = panelFgDim,
                                     editMode = quickPanelEditMode,
+                                    onPin = if (tile.id in PINNABLE_TILE_IDS) ({ onPinTile(tile.id) }) else null,
                                     isDragging = draggingTileId == tile.id,
                                     isDragTarget = quickPanelEditMode && dragTargetId == tile.id && draggingTileId != tile.id,
                                     dragOffset = if (draggingTileId == tile.id) dragDelta else Offset.Zero,
@@ -761,6 +769,9 @@ private fun QuickPanelHeaderIcon(
  * is never an independent resize axis here; see [packQuickPanelRows]).
  */
 internal enum class QuickPanelTileSize(val cols: Int) { SQUARE(1), WIDE(2) }
+
+/** The panel tiles that can be pinned to Start from edit mode: the toggles ([QuickToggleTile]) and the flashlight. */
+private val PINNABLE_TILE_IDS: Set<String> = setOf("flashlight") + QuickToggleTile.DEFS.map { it.id }
 
 private data class QuickPanelTileSpec(
     /** Stable across recompositions/app versions — the key persisted order/size are
@@ -1184,6 +1195,8 @@ private fun QuickPanelTile(
     panelFg: Color = Color.White,
     panelFgDim: Color = Color.White.copy(alpha = 0.62f),
     editMode: Boolean,
+    /** Edit mode's "pin to start" for this tile; null when the tile cannot be a Start tile. */
+    onPin: (() -> Unit)? = null,
     isDragging: Boolean,
     isDragTarget: Boolean,
     dragOffset: Offset,
@@ -1304,6 +1317,20 @@ private fun QuickPanelTile(
             )
         }
         if (editMode) {
+            if (onPin != null) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(Color.Black.copy(alpha = 0.55f))
+                        .clickable(onClick = onPin),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(TileIcons["pin"], contentDescription = "pin ${tile.label} to start", tint = Color.White, modifier = Modifier.size(14.dp))
+                }
+            }
             QuickPanelMoveHandle(
                 color = handleColor,
                 onDragStart = onMoveDragStart,
@@ -1415,25 +1442,4 @@ private fun BoxScope.QuickPanelWidthHandle(
                 )
             },
     )
-}
-
-private fun openWifiSettings(context: Context) {
-    val panel = runCatching { context.startActivity(Intent("android.settings.panel.action.WIFI")) }
-    if (panel.isFailure) deepLink(context, Settings.ACTION_WIFI_SETTINGS)
-}
-
-/**
- * The general "Do Not Disturb" settings screen — not part of the public SDK
- * (there's no `Settings.ACTION_ZEN_MODE_SETTINGS` constant), but the action
- * string itself is a stable AOSP intent-filter present since Marshmallow.
- * Falls back to the access-grant screen (which also lets the user turn DND on
- * from there) if a device's Settings app doesn't expose it.
- */
-private fun openDndSettings(context: Context) {
-    val general = runCatching { context.startActivity(Intent("android.settings.ZEN_MODE_SETTINGS")) }
-    if (general.isFailure) deepLink(context, Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS)
-}
-
-private fun deepLink(context: Context, action: String) {
-    runCatching { context.startActivity(Intent(action)) }
 }
