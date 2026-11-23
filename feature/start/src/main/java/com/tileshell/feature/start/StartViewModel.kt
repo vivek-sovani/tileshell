@@ -395,6 +395,8 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
             "shopping" -> openShoppingHub()
             "health" -> openHealthHub()
             "panchang" -> openPanchang()
+            "personalize" -> openPersonalize()
+            "quicksettings" -> openQuickPanel()
         }
     }
 
