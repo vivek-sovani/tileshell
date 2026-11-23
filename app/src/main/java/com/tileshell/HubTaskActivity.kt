@@ -5,7 +5,7 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Paint
-import android.graphics.Typeface
+import android.os.Build
 import android.os.Bundle
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.lifecycleScope
@@ -52,7 +52,7 @@ class HubTaskActivity : MainActivity() {
     private fun openFrom(intent: Intent) {
         val id = intent.getStringExtra(HubTasks.EXTRA_HUB_ID) ?: intent.data?.host ?: return
         val hub = HubEntries.ALL.firstOrNull { it.id == id } ?: return
-        setTaskDescription(taskDescriptionFor(hub.label, TileAccents.forId(hub.colorId).toArgb()))
+        setTaskDescription(taskDescriptionFor(hub.id, hub.label, TileAccents.forId(hub.colorId).toArgb()))
         val page = intent.getStringExtra(HubTasks.EXTRA_HUB_PAGE)
         if (id == "weather") {
             val name = intent.getStringExtra(HubTasks.EXTRA_WEATHER_NAME)
@@ -71,21 +71,41 @@ class HubTaskActivity : MainActivity() {
         }
     }
 
-    /** The recents card: the hub's name and colour, and its first letter on a plate of that colour as the icon. */
+    /** The recents card: the hub's name, colour and own icon (a plate in its colour with its glyph; see `ic_hub_*`). */
     @Suppress("DEPRECATION")
-    private fun taskDescriptionFor(label: String, color: Int): ActivityManager.TaskDescription {
+    private fun taskDescriptionFor(id: String, label: String, color: Int): ActivityManager.TaskDescription {
         val opaque = color or 0xFF000000.toInt()
+        // Named, not looked up by name at run time, so resource shrinking keeps each icon.
+        val icon = when (id) {
+            "people" -> R.drawable.ic_hub_people
+            "weather" -> R.drawable.ic_hub_weather
+            "calendar" -> R.drawable.ic_hub_calendar
+            "productivity" -> R.drawable.ic_hub_productivity
+            "clock" -> R.drawable.ic_hub_clock
+            "battery" -> R.drawable.ic_hub_battery
+            "money" -> R.drawable.ic_hub_money
+            "markets" -> R.drawable.ic_hub_markets
+            "sports" -> R.drawable.ic_hub_sports
+            "news" -> R.drawable.ic_hub_news
+            "shopping" -> R.drawable.ic_hub_shopping
+            "health" -> R.drawable.ic_hub_health
+            "panchang" -> R.drawable.ic_hub_panchang
+            else -> R.mipmap.ic_launcher
+        }
+        if (Build.VERSION.SDK_INT >= 28) {
+            return ActivityManager.TaskDescription.Builder().setLabel(label).setIcon(icon).setPrimaryColor(opaque).build()
+        }
+        // Before 28 only a bitmap is accepted: the hub's first letter on a plate of its colour.
         val size = 96
-        val icon = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(icon)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
         canvas.drawRoundRect(0f, 0f, size.toFloat(), size.toFloat(), 20f, 20f, Paint(Paint.ANTI_ALIAS_FLAG).apply { this.color = opaque })
         val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             this.color = 0xFFFFFFFF.toInt()
             textSize = 60f
             textAlign = Paint.Align.CENTER
-            typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         }
         canvas.drawText(label.first().uppercaseChar().toString(), size / 2f, size / 2f + 21f, text)
-        return ActivityManager.TaskDescription(label, icon, opaque)
+        return ActivityManager.TaskDescription(label, bitmap, opaque)
     }
 }
