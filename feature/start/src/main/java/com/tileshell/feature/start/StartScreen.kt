@@ -1840,7 +1840,7 @@ fun StartScreen(
                 onOpenPersonalize = viewModel::openPersonalize,
                 onOpenHub = viewModel::openHub,
                 onPinHub = viewModel::pinHub,
-                onPinPhotos = { viewModel.addLiveTile("photos", activeSectionId); Toast.makeText(context, "pinned photo slideshow", Toast.LENGTH_SHORT).show() },
+                onPinPhotos = viewModel::pinPhotosTile,
                 onAddWidget = { provider ->
                     if (feedEnabled) {
                         pendingFeedWidget = provider
@@ -10166,7 +10166,7 @@ private fun PersonalizeSheetLayer(
         photoUris = photoUris,
         onPinPhotosTile = {
             viewModel.closePersonalize()
-            viewModel.addLiveTile("photos")
+            viewModel.pinPhotosTile()
         },
         onPickPhotos = {
             photosPicker.launch(

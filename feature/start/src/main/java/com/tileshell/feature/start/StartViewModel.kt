@@ -505,6 +505,22 @@ class StartViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    /**
+     * The photos slideshow tile, from personalize › live photos or the gallery app's menu: once only — a second
+     * pin says it is already on Start. Needs a gallery app (the tile binds to the default one).
+     */
+    fun pinPhotosTile() {
+        viewModelScope.launch(writeContext) {
+            val exists = tiles.value.any { it is TileModel.App && it.iconKey == "photos" }
+            val message = when {
+                exists -> "already on start"
+                repository.addDefaultTile("photos", activePageSectionId) -> "pinned photo slideshow to start"
+                else -> "no photos app found on this phone"
+            }
+            _pinMessage.tryEmit(message)
+        }
+    }
+
     /** The calendar hub's "systems" page: a calendar-systems tile for [systemId] (the Hindu one asks its language first). */
     fun pinCalendarSystem(systemId: String) {
         if (systemId == com.tileshell.core.data.HINDU_PANCHANG_ID) {
