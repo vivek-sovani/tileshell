@@ -71,7 +71,7 @@ class MusicHubActivity : ComponentActivity() {
             val accentId = rememberHubAccentId(settings)
             // Slides up on open and down on close, as a hub does when it has no tile to grow from.
             var visible by remember { mutableStateOf(false) }
-            val window = remember { HubWindow(this@MusicHubActivity, lifecycleScope) }
+            val window = hubWindow
             LaunchedEffect(Unit) {
                 visible = true
                 // Opaque once it is open, so recents gets a picture of it (see HubWindow).
@@ -80,7 +80,8 @@ class MusicHubActivity : ComponentActivity() {
             LaunchedEffect(visible) {
                 if (!visible && closing) {
                     delay(HUB_CLOSE_MS)
-                    finish()
+                    // Closed with Back: no card left behind (its last picture would be the transparent window).
+                    finishAndRemoveTask()
                 }
             }
             StatusBarVisibilityEffect(hide = settings.hideStatusBar)
@@ -103,6 +104,14 @@ class MusicHubActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private val hubWindow by lazy { HubWindow(this, lifecycleScope) }
+
+    override fun onPause() {
+        // Leaving before the window turned opaque: opaque now, so the recents card has a picture.
+        if (!closing) hubWindow.makeOpaqueNow()
+        super.onPause()
     }
 
     override fun onNewIntent(intent: Intent) {

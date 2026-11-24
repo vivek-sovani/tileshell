@@ -26,6 +26,12 @@ internal class HubWindow(private val activity: Activity, private val scope: Coro
         }
     }
 
+    /** Opaque at once (the task is leaving with a hub open), so recents never gets a picture of a transparent window. */
+    fun makeOpaqueNow() {
+        job?.cancel()
+        setOpaque(true)
+    }
+
     /** Turns the window transparent and gives the conversion a moment, so the hub's shrink shows the Start behind. */
     suspend fun makeTranslucent() {
         job?.cancel()

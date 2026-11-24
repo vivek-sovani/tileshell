@@ -38,7 +38,7 @@ class HubTaskActivity : MainActivity() {
         // the recorded tile's clock restarts since this screen took a moment to start.
         noTransition()
         // The window is transparent while a hub animates and opaque while it is open (see HubWindow).
-        val window = HubWindow(this, lifecycleScope)
+        val window = HubWindow(this, lifecycleScope).also { hubWindow = it }
         startViewModel.beforeHubClose = {
             window.makeTranslucent()
             // Another hub may still be open underneath (calendar → panchang): opaque again once it settles.
@@ -60,11 +60,22 @@ class HubTaskActivity : MainActivity() {
                     window.makeOpaqueSoon { startViewModel.anyHubOpen.value }
                 } else if (seenOpen) {
                     delay(HUB_CLOSE_MS)
-                    finish()
+                    // Closed with Back: take the card out of recents too. A document task with its own launch mode
+                    // stays in recents after finishing, and its last picture is the window after the hub shrank
+                    // away (transparent), so the card came out blank.
+                    finishAndRemoveTask()
                     noTransition()
                 }
             }
         }
+    }
+
+    private var hubWindow: HubWindow? = null
+
+    override fun onPause() {
+        // Leaving (Home, recents, an app) before the window turned opaque: opaque now, so the card has a picture.
+        if (startViewModel.anyHubOpen.value) hubWindow?.makeOpaqueNow()
+        super.onPause()
     }
 
     /** No window animation between this task and the identical Start under it, going in or out. */
