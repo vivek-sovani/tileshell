@@ -23,9 +23,10 @@ simply stays inactive when a permission is denied.
 | `READ_CONTACTS` | Contact names and profile photos for the People live tile and hub. Your favourites order and which ones show on the favourites tile are saved as contact identifiers in TileShell's settings (and in backups you export) | Stays on device |
 | `READ_CALENDAR` | Upcoming calendar events for the Calendar live tile | Stays on device |
 | `ACCESS_COARSE_LOCATION` | Device coarse location (city level) for the Weather live tile | Sent to Open-Meteo (see §2) |
-| `ACTIVITY_RECOGNITION` | Your phone's built-in step-counter sensor reading, for the Health hub and its tile/widget. A daily step history (about four months) is kept in a file on the phone, never uploaded. Asked only the first time you add a Steps tile or card, not at first launch. | Stays on device |
+| `ACTIVITY_RECOGNITION` | Your phone's built-in step-counter sensor reading, for the Health hub and its tile/widget. A daily step history (about four months), steps by hour (two weeks), your recent walks (time, steps, floors climbed from the barometer) and the sleep estimate (worked out from TileShell's own screen on/off log and, with usage access, app use) are kept in files on the phone, never uploaded. Asked only the first time you add a Steps tile or card, not at first launch. | Stays on device |
 | `NOTIFICATION_LISTENER` (special access) | Notification titles and snippets for badges and Mail/Messages live tiles; the names of people who message you in chat and SMS apps, remembered for 30 days for the People hub's "recently messaged" | Stays on device |
-| `INTERNET` | Weather forecast fetches, news RSS feeds, wallpaper URLs | Sent to Open-Meteo and each RSS source (see §2) |
+| `FOREGROUND_SERVICE_HEALTH` | Lets a walk you start in the Health hub keep counting with the screen off, with an ongoing notification; runs only while a walk is running. Install-time permission, no prompt. | Stays on device |
+| `INTERNET` | Weather forecast fetches, air quality, news RSS feeds, wallpaper URLs | Sent to Open-Meteo and each RSS source (see §2) |
 | `NOTIFICATION_LISTENER` — Money hub (optional, on by default once you open it) | New bank SMS (as shown by your messages app) and payment-app notifications, to record transactions: amount, debit or credit, merchant or person, account last 4 digits, method (UPI, card, NEFT…), and balance. Card statements, bill-due reminders (amount and due date) and card bill payments too, shown as bills due by date. Only new notifications; SMS history is never read. OTPs and promotions are ignored. The Money tile shows amounts only if you choose it. Turn off with "read bank messages" in the Money hub's settings. | Stays on device |
 | `USE_BIOMETRIC` | Nothing read; asks for your fingerprint, face or screen lock before showing the Money hub's transactions | Not read; no data transmitted |
 | `PACKAGE_USAGE_STATS` (usage access, special access) | How often each app was opened over the last 30 days, and per-app screen time, to sort the People and Productivity hubs' apps pages by most used and to show screen time in the Battery hub | Stays on device |
@@ -69,6 +70,12 @@ When you grant coarse location for the Weather live tile, TileShell sends your
 approximate GPS coordinates to [Open-Meteo](https://open-meteo.com) to retrieve a
 weather forecast. The request contains latitude/longitude only — no device identifiers,
 no account information. Open-Meteo's own privacy policy applies to data they receive.
+
+### Open-Meteo (air quality)
+When you open the Health hub's air page (or refresh it), TileShell sends the same
+coordinates (your coarse location, or the city set for weather) to Open-Meteo's air quality
+service and shows the air quality and UV index. Nothing is requested in the background, and
+the request contains no device identifiers or account information.
 
 ### RSS news feeds
 The Feed page fetches articles from the RSS/Atom feeds you have enabled (default: a

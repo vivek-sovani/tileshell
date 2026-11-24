@@ -71,7 +71,7 @@ fun HealthTileFace(size: TileSize, active: Boolean, modifier: Modifier = Modifie
 
     var flipped by remember { mutableStateOf(false) }
     var page by remember { mutableIntStateOf(0) }
-    val canFlip = apps.isNotEmpty() && size != TileSize.SMALL
+    val canFlip = size != TileSize.SMALL && (apps.isNotEmpty() || hasInfoNow(context))
     LaunchedEffect(active, canFlip) {
         if (!active || !canFlip) {
             flipped = false
@@ -84,11 +84,30 @@ fun HealthTileFace(size: TileSize, active: Boolean, modifier: Modifier = Modifie
         }
     }
     val goal = (settings ?: HealthSettings()).goal
+    val walk by WalkSession.state.collectAsStateWithLifecycle()
+    val hourly by HealthStore.hourly.collectAsStateWithLifecycle()
+    val air by AirRepository.ui.collectAsStateWithLifecycle()
+    // What the info face says: the busiest hour so far today, the last air reading (never fetched from here) and the day's steps.
+    val busiest = busiestHour(dayHours(hourly, LocalDate.now().toEpochDay()))
+    val aqi = air.snapshot?.usAqi
+    val infoLines = buildList {
+        busiest?.let { add("busiest ${hourRangeLabel(it)}") }
+        aqi?.let { add("air ${it} · ${aqiBand(it).label.substringBefore(" for")}") }
+    }
+    val hasInfo = infoLines.isNotEmpty() && size != TileSize.SMALL
+    // The back alternates between the info face and the apps when both exist.
+    val showInfo = hasInfo && (!canFlip || page % 2 == 1)
     FlipTile(
         flipped = flipped,
         modifier = modifier.fillMaxSize(),
-        front = { if (steps == null) HealthGlyphFront(size) else HealthRingFront(steps, goal, size) },
-        back = { HealthAppsBack(apps, size, page) },
+        front = {
+            when {
+                walk.running -> HealthWalkFront(walk, size)
+                steps == null -> HealthGlyphFront(size)
+                else -> HealthRingFront(steps, goal, size)
+            }
+        },
+        back = { if (showInfo) HealthInfoBack(infoLines, size) else HealthAppsBack(apps, size, page) },
     )
 }
 
@@ -175,5 +194,48 @@ private fun HealthAppsBack(apps: List<HealthApp>, size: TileSize, page: Int) {
             if (pages > 1) "fit · ${(page % pages) + 1}/$pages" else "fit",
             color = color, fontSize = 11.sp, modifier = Modifier.align(Alignment.BottomStart).padding(start = 8.dp, bottom = 4.dp),
         )
+    }
+}
+
+/** Whether there is anything for the info face yet (cheap: only what is already stored). */
+private fun hasInfoNow(context: android.content.Context): Boolean =
+    HealthStore.hourly.value.hours.isNotEmpty() || AirRepository.ui.value.snapshot != null
+
+/** While a walk runs: the word "walking", the timer and the steps counted. */
+@Composable
+private fun HealthWalkFront(walk: WalkState, size: TileSize) {
+    val color = LocalTileFaceColor.current
+    var elapsed by remember { mutableStateOf(0L) }
+    LaunchedEffect(walk.running, walk.paused) {
+        while (walk.running) {
+            elapsed = WalkSession.elapsedMs()
+            if (walk.paused) break
+            delay(1000)
+        }
+    }
+    if (size == TileSize.SMALL) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(clockDuration(elapsed), color = color, fontSize = 13.sp, maxLines = 1)
+        }
+        return
+    }
+    Box(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+        Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(clockDuration(elapsed), color = color, fontSize = if (size.rows >= 2 && size.cols >= 2) 30.sp else 22.sp, maxLines = 1)
+            Text(String.format(Locale.US, "%,d steps", walk.steps), color = color.copy(alpha = 0.85f), fontSize = 12.sp, maxLines = 1)
+        }
+        Text(if (walk.paused) "walk paused" else "walking", color = color, fontSize = 12.sp, modifier = Modifier.align(Alignment.BottomStart))
+    }
+}
+
+/** Back face with a line or two from the new pages. */
+@Composable
+private fun HealthInfoBack(lines: List<String>, size: TileSize) {
+    val color = LocalTileFaceColor.current
+    Box(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+        Column(modifier = Modifier.align(Alignment.Center), horizontalAlignment = Alignment.CenterHorizontally) {
+            lines.forEach { Text(it, color = color, fontSize = if (size.cols >= 2 && size.rows >= 2) 15.sp else 12.sp, maxLines = 2) }
+        }
+        Text("health", color = color, fontSize = 12.sp, modifier = Modifier.align(Alignment.BottomStart))
     }
 }

@@ -269,6 +269,7 @@ fun PersonalizeGuideSheet(
                             tokens = tokens,
                             items = listOf(
                                 "tap the weather, music, calendar, people, productivity, or battery tile to open its hub; swipe left and right between its pages",
+                                "the health hub's walk page counts a walk with the screen off (an ongoing notification shows while it runs); sleep is an estimate from when the phone was left alone; air and uv come from open-meteo for the weather's place",
                                 "people · what's new: tap a message to open its app, tap the arrow to expand and reply, swipe sideways to dismiss; the chips filter by app",
                                 "people · apps and productivity · apps put your most-used apps first once usage access is on",
                                 "productivity: long-press a note, list, or app to add it to the quick row; long-press a quick shortcut to remove it",

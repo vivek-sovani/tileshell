@@ -35,6 +35,28 @@
             android:foregroundServiceType="mediaPlayback" />
 
         <!--
+            Health hub walk: a foreground service of type "health" keeps a walk counting with the screen off,
+            with an ongoing "walking" notification. Started only while a walk runs; stops when it ends.
+        -->
+        <service
+            android:name=".health.WalkService"
+            android:exported="false"
+            android:foregroundServiceType="health" />
+
+        <!-- Health hub bedtime reminder (off by default) and its re-arming after a restart. -->
+        <receiver
+            android:name=".health.SleepReminderReceiver"
+            android:exported="false" />
+        <receiver
+            android:name=".health.SleepReminderBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
             What Android Auto browses and controls: the music hub's shared
             media session (MusicMediaSession). Exported because the car's host
             app is another package; AutoCallerPolicy rejects every other caller
