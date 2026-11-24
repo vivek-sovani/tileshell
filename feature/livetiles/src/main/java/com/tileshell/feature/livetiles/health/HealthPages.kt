@@ -1,0 +1,436 @@
+package com.tileshell.feature.livetiles.health
+
+import android.Manifest
+import android.app.AlarmManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
+import android.content.Context
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tileshell.core.design.ColorTokens
+import com.tileshell.feature.livetiles.BatteryLog
+import com.tileshell.feature.livetiles.Units
+import com.tileshell.feature.livetiles.UsageAccess
+import com.tileshell.feature.livetiles.alarmCaption
+import com.tileshell.feature.livetiles.alarmSourceFor
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.format.TextStyle
+import java.util.Locale
+
+private val Green = Color(0xFF7CB518)
+
+@Composable
+private fun HRow(label: String, value: String, tokens: ColorTokens, onClick: (() -> Unit)? = null) {
+    Column(modifier = Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)) {
+        Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
+        Row(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, color = tokens.fg, fontSize = 15.sp, fontWeight = FontWeight.Light)
+            Text(value, color = tokens.fgDim, fontSize = 15.sp, textAlign = TextAlign.End, modifier = Modifier.padding(start = 12.dp))
+        }
+    }
+}
+
+private fun LazyListScope.rows(items: List<Pair<String, String>>, tokens: ColorTokens) {
+    items.forEach { (l, v) -> item(key = "row-$l") { HRow(l, v, tokens) } }
+}
+
+@Composable
+private fun Caption(text: String, tokens: ColorTokens, modifier: Modifier = Modifier) {
+    Text(text, color = tokens.fgDim, fontSize = 12.sp, letterSpacing = 1.sp, fontWeight = FontWeight.SemiBold, modifier = modifier)
+}
+
+@Composable
+private fun FlatButton(label: String, filled: Boolean, accent: Color, tokens: ColorTokens, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier = modifier
+            .then(if (filled) Modifier.background(accent) else Modifier.border(1.5.dp, tokens.fg))
+            .clickable(onClick = onClick)
+            .padding(vertical = 13.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = if (filled) Color.White else tokens.fg, fontSize = 16.sp, fontWeight = FontWeight.Light)
+    }
+}
+
+// --- steps by hour (today) --------------------------------------------------------
+
+@Composable
+fun StepsByHour(hours: List<Int>, walkHours: Set<Int>, currentHour: Int?, tokens: ColorTokens, accent: Color) {
+    val top = (hours.maxOrNull() ?: 0).coerceAtLeast(1)
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
+        Caption("STEPS BY HOUR", tokens)
+        Row(modifier = Modifier.fillMaxWidth().height(90.dp).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+            hours.forEachIndexed { h, v ->
+                val frac = v.toFloat() / top
+                val color = when {
+                    h == currentHour -> accent
+                    h in walkHours -> Green
+                    currentHour != null && h > currentHour -> Color.Transparent
+                    else -> tokens.fgDim.copy(alpha = 0.45f)
+                }
+                Box(modifier = Modifier.weight(1f).height((82 * frac).coerceAtLeast(if (currentHour == null || h <= currentHour) 2f else 0f).dp).background(color))
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            listOf("12a", "6a", "12p", "6p", "12a").forEach { Text(it, color = tokens.fgDim, fontSize = 10.sp) }
+        }
+    }
+}
+
+// --- walk -------------------------------------------------------------------------
+
+@Composable
+fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, accent: Color, accessLine: @Composable () -> Unit) {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { WalkSession.loadWalks(context) }
+    val state by WalkSession.state.collectAsStateWithLifecycle()
+    val walks by WalkSession.walks.collectAsStateWithLifecycle()
+    var elapsed by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(state.running, state.paused) {
+        while (state.running) {
+            elapsed = WalkSession.elapsedMs()
+            if (state.paused) break
+            delay(1000)
+        }
+        if (!state.running) elapsed = 0L
+    }
+    val notify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val hasBaro = remember { WalkSession.hasBarometer(context) }
+    val km = distanceKm(state.steps, settings.heightCm)
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
+        if (!granted) item(key = "access") { accessLine() }
+        if (!state.running) {
+            item(key = "idle") {
+                Column(modifier = Modifier.padding(top = 10.dp, bottom = 6.dp)) {
+                    Text("0:00", color = tokens.fgDim, fontSize = 56.sp, fontWeight = FontWeight.ExtraLight)
+                    Text(
+                        "counts steps, distance${if (hasBaro) ", floors climbed" else ""} and pace, and keeps going with the screen off",
+                        color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp),
+                    )
+                    FlatButton("start walk", true, accent, tokens, Modifier.fillMaxWidth()) {
+                        if (!granted) return@FlatButton
+                        if (Build.VERSION.SDK_INT >= 33 &&
+                            androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+                        ) notify.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        WalkSession.start(context)
+                    }
+                }
+            }
+        } else {
+            item(key = "timer") {
+                Column(modifier = Modifier.padding(top = 10.dp, bottom = 6.dp)) {
+                    Text(clockDuration(elapsed), color = tokens.fg, fontSize = 64.sp, fontWeight = FontWeight.ExtraLight)
+                    Text(if (state.paused) "paused" else "walking", color = if (state.paused) tokens.fgDim else Green, fontSize = 13.sp)
+                }
+            }
+            val pace = paceLabel(elapsed, km)
+            val spm = stepsPerMinute(state.steps, elapsed)
+            rows(
+                buildList {
+                    add("steps" to "%,d".format(Locale.US, state.steps))
+                    add("distance" to Units.distance(km))
+                    if (state.hasBarometer) add("floors climbed" to state.floors.toString())
+                    add("pace" to (pace?.let { "$it /km" } ?: "—"))
+                    add("steps a minute" to (spm?.toString() ?: "—"))
+                },
+                tokens,
+            )
+            item(key = "buttons") {
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FlatButton(if (state.paused) "resume" else "pause", false, accent, tokens, Modifier.weight(1f)) {
+                        if (state.paused) WalkSession.resume(context) else WalkSession.pause(context)
+                    }
+                    FlatButton("stop", true, accent, tokens, Modifier.weight(1f)) { WalkSession.stop(context) }
+                }
+            }
+        }
+        item(key = "recent") { Caption("RECENT WALKS", tokens, Modifier.padding(top = 22.dp, bottom = 6.dp)) }
+        if (walks.isEmpty()) {
+            item(key = "none") { Text("no walks yet", color = tokens.fgDim, fontSize = 14.sp) }
+        } else {
+            walks.forEach { w ->
+                item(key = "walk-${w.startMs}") {
+                    val parts = buildList {
+                        add(spokenDuration(w.activeMs))
+                        add(Units.distance(distanceKm(w.steps, settings.heightCm)))
+                        if (w.floors > 0) add("${w.floors} floor${if (w.floors == 1) "" else "s"}")
+                    }
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
+                        Column(modifier = Modifier.padding(vertical = 9.dp)) {
+                            Text(walkWhenLabel(w.startMs), color = tokens.fg, fontSize = 15.sp, fontWeight = FontWeight.Light)
+                            Text(parts.joinToString(" · "), color = tokens.fgDim, fontSize = 13.sp)
+                        }
+                    }
+                }
+            }
+        }
+        item(key = "note") {
+            Text(
+                "steps come from the phone's step sensor. floors use the barometer (about 3 m a floor)${if (hasBaro) "" else ", which this phone does not have, so floors are not counted"}. a walk only counts while it runs; walks stay on this phone.",
+                color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp),
+            )
+        }
+    }
+}
+
+// --- sleep ------------------------------------------------------------------------
+
+private fun resumeTimes(context: Context, from: Long, to: Long): List<Long> = runCatching {
+    val usm = context.getSystemService(UsageStatsManager::class.java) ?: return emptyList()
+    val events = usm.queryEvents(from, to) ?: return emptyList()
+    val e = UsageEvents.Event()
+    buildList { while (events.hasNextEvent()) { events.getNextEvent(e); if (e.eventType == UsageEvents.Event.ACTIVITY_RESUMED) add(e.timeStamp) } }
+}.getOrDefault(emptyList())
+
+private data class SleepView(val last: SleepEstimate?, val nights: List<SleepEstimate?>, val monday: Long, val today: Long)
+
+@Composable
+fun SleepPage(settings: HealthSettings, tokens: ColorTokens, accent: Color, onOpenSettings: () -> Unit) {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { BatteryLog.ensureStarted(context) }
+    val samples by BatteryLog.samples.collectAsStateWithLifecycle()
+    val usageOn = remember { UsageAccess.isGranted(context) }
+    var view by remember { mutableStateOf<SleepView?>(null) }
+    LaunchedEffect(samples.size) {
+        view = withContext(Dispatchers.Default) {
+            val now = System.currentTimeMillis()
+            val today = LocalDate.now().toEpochDay()
+            val monday = weekStart(today)
+            val use = screenOnSpans(samples, now) + if (usageOn) usageMoments(resumeTimes(context, now - 8L * 86_400_000L, now)) else emptyList()
+            SleepView(nightEstimate(use, today, now), weekNights(use, monday, today, now), monday, today)
+        }
+    }
+    val v = view
+    val alarm = remember { runCatching { context.getSystemService(AlarmManager::class.java)?.nextAlarmClock }.getOrNull() }
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
+        item(key = "head") {
+            val est = v?.last
+            Column(modifier = Modifier.padding(top = 8.dp)) {
+                Caption("LAST NIGHT · ESTIMATE", tokens)
+                Text(est?.let { sleepDurationLabel(it.durationMs) } ?: if (v == null) "…" else "—", color = tokens.fg, fontSize = 48.sp, fontWeight = FontWeight.ExtraLight)
+                Text(
+                    est?.let { "${clockLabel(it.start)} → ${clockLabel(it.end)} · ${pickupLabel(it.pickups.size)}" }
+                        ?: if (v == null) "reading the log" else "no night found yet: the phone was in use, or tileshell has not been watching long",
+                    color = tokens.fgDim, fontSize = 13.sp,
+                )
+            }
+        }
+        if (v?.last != null) item(key = "timeline") {
+            val est = v.last
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 14.dp)) {
+                Canvas(modifier = Modifier.fillMaxWidth().height(30.dp)) {
+                    drawRect(tokens.sheetLine, Offset.Zero, size)
+                    val a = timelineFraction(est.start, v.today) * size.width
+                    val b = timelineFraction(est.end, v.today) * size.width
+                    drawRect(accent.copy(alpha = 0.85f), Offset(a, 0f), Size((b - a).coerceAtLeast(2f), size.height))
+                    est.pickups.forEach { p ->
+                        val x = timelineFraction(p.start, v.today) * size.width
+                        val w = (timelineFraction(p.end, v.today) * size.width - x).coerceAtLeast(2.dp.toPx())
+                        drawRect(tokens.bg, Offset(x, 0f), Size(w, size.height))
+                    }
+                }
+                Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                    listOf("10p", "12a", "2a", "4a", "6a", "8a").forEach { Text(it, color = tokens.fgDim, fontSize = 10.sp) }
+                }
+            }
+        }
+        if (v != null) {
+            item(key = "week") {
+                val top = 10 * 3_600_000L
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+                    Caption("THIS WEEK", tokens)
+                    Row(modifier = Modifier.fillMaxWidth().height(90.dp).padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+                        v.nights.forEachIndexed { i, n ->
+                            val frac = ((n?.durationMs ?: 0L).toFloat() / top).coerceIn(0f, 1f)
+                            val color = when {
+                                n == null -> Color.Transparent
+                                v.monday + i == v.today -> accent
+                                else -> tokens.fgDim.copy(alpha = 0.45f)
+                            }
+                            Box(modifier = Modifier.weight(1f).height((82 * frac).coerceAtLeast(if (n != null) 2f else 0f).dp).background(color))
+                        }
+                    }
+                    Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        for (i in 0 until 7) Text(
+                            LocalDate.ofEpochDay(v.monday + i).dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.ENGLISH).lowercase(),
+                            color = tokens.fgDim, fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+            }
+            val avg = averageSleep(v.nights)
+            item(key = "avg") { Column(modifier = Modifier.padding(top = 10.dp)) { HRow("average this week", avg?.let(::sleepDurationLabel) ?: "—", tokens) } }
+        }
+        item(key = "alarm") {
+            val label = alarm?.let { info ->
+                val src = alarmSourceFor(context, info)
+                val cap = alarmCaption("", src?.appLabel.orEmpty(), src?.isClockApp == true)
+                "${clockLabel(info.triggerTime)} · $cap"
+            } ?: "none set"
+            HRow("next alarm", label, tokens)
+        }
+        item(key = "bedtime") {
+            HRow("bedtime reminder", if (settings.bedtimeMinute < 0) "off ›" else "${clockLabel(bedtimeMillis(settings.bedtimeMinute))} ›", tokens, onOpenSettings)
+        }
+        item(key = "note") {
+            Text(
+                "an estimate, not a measurement: the longest stretch between 8 pm and noon when the phone's screen was off. a quick look at the phone counts as a pick-up; longer use ends the stretch. read from tileshell's own battery log${if (usageOn) " and app use" else "; usage access would add app use"}. it stays on this phone.",
+                color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp),
+            )
+        }
+    }
+}
+
+private fun bedtimeMillis(minuteOfDay: Int): Long = nextOccurrence(minuteOfDay, System.currentTimeMillis())
+
+// --- air --------------------------------------------------------------------------
+
+@Composable
+fun AirPage(visible: Boolean, refreshKey: Int, tokens: ColorTokens, accent: Color) {
+    val context = LocalContext.current
+    val ui by AirRepository.ui.collectAsStateWithLifecycle()
+    // Fetched when the page is shown (cached; not before the weather rate has passed), and when refresh is pressed.
+    LaunchedEffect(visible, refreshKey) { if (visible) AirRepository.load(context, force = refreshKey > 0) }
+    val s = ui.snapshot
+    val now = System.currentTimeMillis()
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
+        if (s == null) {
+            item(key = "empty") {
+                Text(ui.problem ?: if (ui.loading) "reading air quality…" else "…", color = tokens.fgDim, fontSize = 15.sp, modifier = Modifier.padding(top = 12.dp))
+            }
+            return@LazyColumn
+        }
+        val aqi = s.usAqi
+        item(key = "aqi") {
+            Column(modifier = Modifier.padding(top = 8.dp)) {
+                Caption("AIR QUALITY · US AQI", tokens)
+                Text(aqi?.toString() ?: "—", color = tokens.fg, fontSize = 64.sp, fontWeight = FontWeight.ExtraLight)
+                if (aqi != null) {
+                    val band = aqiBand(aqi)
+                    Text(band.label, color = Color(band.argb), fontSize = 15.sp)
+                    AqiStrip(aqi)
+                }
+            }
+        }
+        fun f(v: Double?, unit: String = "µg/m³") = v?.let { "${it.toInt()} $unit" } ?: "—"
+        rows(
+            listOf(
+                "pm2.5" to f(s.pm25),
+                "pm10" to f(s.pm10),
+                "ozone · no₂" to "${s.ozone?.toInt() ?: "—"} · ${s.no2?.toInt() ?: "—"} µg/m³",
+            ),
+            tokens,
+        )
+        item(key = "uv") {
+            val peak = uvPeak(s.hours)
+            Column(modifier = Modifier.padding(top = 20.dp)) {
+                Caption("UV INDEX", tokens)
+                Text(
+                    s.uvNow?.let { "%.0f · %s".format(Locale.US, it, uvBand(it)) } ?: "—",
+                    color = tokens.fg, fontSize = 32.sp, fontWeight = FontWeight.ExtraLight,
+                )
+                if (peak != null) Text("today's peak ${"%.0f".format(Locale.US, peak.uv)} · ${uvBand(peak.uv!!)} at ${clockLabel(peak.timeMs, java.time.ZoneOffset.ofTotalSeconds(s.utcOffsetSeconds))}", color = tokens.fgDim, fontSize = 13.sp)
+                UvStrip(s, now, tokens)
+            }
+        }
+        item(key = "best") {
+            val best = bestWalkHour(s.hours, now)
+            val zone = java.time.ZoneOffset.ofTotalSeconds(s.utcOffsetSeconds)
+            Column(modifier = Modifier.padding(top = 16.dp)) {
+                HRow(
+                    "best time for a walk",
+                    best?.let { "${hourRangeLabel(java.time.Instant.ofEpochMilli(it.timeMs).atZone(zone).hour)} · aqi ${it.aqi}" } ?: "no good hour left today",
+                    tokens,
+                )
+            }
+        }
+        item(key = "note") {
+            Text(
+                "from open-meteo for the weather's place; only its coordinates are sent, when this page is shown or refreshed. ${ui.problem ?: ""}",
+                color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun AqiStrip(aqi: Int) {
+    val bands = AqiBand.entries
+    val idx = bands.indexOfFirst { aqi <= it.max }.coerceAtLeast(0)
+    val prev = if (idx == 0) 0 else bands[idx - 1].max
+    val span = (if (bands[idx].max == Int.MAX_VALUE) 500 else bands[idx].max) - prev
+    val frac = ((idx + ((aqi - prev).toFloat() / span).coerceIn(0f, 1f)) / bands.size).coerceIn(0.01f, 0.99f)
+    Canvas(modifier = Modifier.fillMaxWidth().height(14.dp).padding(top = 6.dp)) {
+        val w = size.width / bands.size
+        bands.forEachIndexed { i, b -> drawRect(Color(b.argb), Offset(i * w + 1f, 4.dp.toPx()), Size(w - 2f, size.height - 4.dp.toPx())) }
+        drawRect(Color.White, Offset(frac * size.width - 1.5f, 0f), Size(3f, size.height))
+    }
+}
+
+@Composable
+private fun UvStrip(s: AirSnapshot, nowMs: Long, tokens: ColorTokens) {
+    val day = s.hours.filter { it.isDay }
+    if (day.isEmpty()) return
+    val top = maxOf(day.maxOf { it.uv ?: 0.0 }, 6.0)
+    val zone = java.time.ZoneOffset.ofTotalSeconds(s.utcOffsetSeconds)
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+        Row(modifier = Modifier.fillMaxWidth().height(60.dp), horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+            day.forEach { h ->
+                val uv = h.uv ?: 0.0
+                val color = when {
+                    uv < 3 -> Green
+                    uv < 6 -> Color(0xFFE2A200)
+                    uv < 8 -> Color(0xFFE5641E)
+                    uv < 11 -> Color(0xFFD6262B)
+                    else -> Color(0xFF6B3FD4)
+                }
+                val isNow = nowMs in h.timeMs until h.timeMs + 3_600_000L
+                Box(modifier = Modifier.weight(1f).height((56 * (uv / top).toFloat()).coerceAtLeast(2f).dp).background(if (isNow) color else color.copy(alpha = 0.6f)))
+            }
+        }
+        Row(modifier = Modifier.fillMaxWidth().padding(top = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            fun lbl(ms: Long) = java.time.Instant.ofEpochMilli(ms).atZone(zone).hour.let { (if (it % 12 == 0) 12 else it % 12).toString() + if (it < 12) "a" else "p" }
+            Text(lbl(day.first().timeMs), color = tokens.fgDim, fontSize = 10.sp)
+            Text(lbl(day.last().timeMs), color = tokens.fgDim, fontSize = 10.sp)
+        }
+    }
+}

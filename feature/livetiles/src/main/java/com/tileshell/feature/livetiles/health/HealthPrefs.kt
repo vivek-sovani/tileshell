@@ -10,6 +10,8 @@ data class HealthSettings(
     val goal: Int = DEFAULT_GOAL,
     /** Height, for the distance estimate. */
     val heightCm: Int = DEFAULT_HEIGHT_CM,
+    /** Bedtime reminder, minutes after midnight; -1 = off. */
+    val bedtimeMinute: Int = -1,
 )
 
 /** The health hub's settings, in `tileshell.prefs` (so a backup carries them). */
@@ -17,6 +19,7 @@ object HealthPrefs {
     private const val PREFS = "tileshell.prefs"
     const val KEY_GOAL = "health_goal"
     const val KEY_HEIGHT = "health_height_cm"
+    const val KEY_BEDTIME = "health_bedtime_min"
     const val MIN_GOAL = 1_000
     const val MAX_GOAL = 30_000
 
@@ -35,14 +38,14 @@ object HealthPrefs {
     }
 
     fun update(context: Context, transform: (HealthSettings) -> HealthSettings) {
-        val next = transform(current(context)).let { it.copy(goal = it.goal.coerceIn(MIN_GOAL, MAX_GOAL), heightCm = it.heightCm.coerceIn(100, 230)) }
-        prefs(context).edit().putInt(KEY_GOAL, next.goal).putInt(KEY_HEIGHT, next.heightCm).apply()
+        val next = transform(current(context)).let { it.copy(goal = it.goal.coerceIn(MIN_GOAL, MAX_GOAL), heightCm = it.heightCm.coerceIn(100, 230), bedtimeMinute = it.bedtimeMinute.coerceIn(-1, 1439)) }
+        prefs(context).edit().putInt(KEY_GOAL, next.goal).putInt(KEY_HEIGHT, next.heightCm).putInt(KEY_BEDTIME, next.bedtimeMinute).apply()
         _settings.value = next
     }
 
     private fun read(context: Context): HealthSettings {
         val p = prefs(context)
-        return HealthSettings(goal = p.getInt(KEY_GOAL, DEFAULT_GOAL), heightCm = p.getInt(KEY_HEIGHT, DEFAULT_HEIGHT_CM))
+        return HealthSettings(goal = p.getInt(KEY_GOAL, DEFAULT_GOAL), heightCm = p.getInt(KEY_HEIGHT, DEFAULT_HEIGHT_CM), bedtimeMinute = p.getInt(KEY_BEDTIME, -1))
     }
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

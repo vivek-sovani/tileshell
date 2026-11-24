@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
@@ -74,7 +75,8 @@ import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
-private val HEALTH_PIVOTS = listOf("today", "week", "apps")
+private val HEALTH_PIVOTS = listOf("today", "walk", "sleep", "air", "week", "apps")
+private const val APPS_PAGE = 5
 private val AtGoal = Color(0xFF7CB518)
 private val GOAL_CHOICES = listOf(5_000, 8_000, 10_000, 12_000, 15_000)
 
@@ -121,7 +123,11 @@ fun HealthHubScreen(
     BackHandler(enabled = visible) { if (settingsOpen) settingsOpen = false else onDismiss() }
     val pagerState = rememberPagerState(pageCount = { HEALTH_PIVOTS.size })
     var appsEditing by remember { mutableStateOf(false) }
-    LaunchedEffect(pagerState.currentPage) { if (pagerState.currentPage != 2) appsEditing = false }
+    LaunchedEffect(pagerState.currentPage) { if (pagerState.currentPage != APPS_PAGE) appsEditing = false }
+    var airRefresh by remember { mutableStateOf(0) }
+    val hourly by HealthStore.hourly.collectAsStateWithLifecycle()
+    val walks by WalkSession.walks.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { WalkSession.loadWalks(context); SleepReminder.sync(context) }
     val s = settings ?: HealthSettings()
 
     SheetStage(rightHalf = rightHalf, spanHinge = true, modifier = modifier) {
@@ -149,8 +155,11 @@ fun HealthHubScreen(
                     modifier = Modifier.weight(1f),
                 ) { page ->
                     when (page) {
-                        0 -> TodayPage(steps, granted, s, history, tokens, accent)
-                        1 -> WeekPage(s, history, tokens, accent)
+                        0 -> TodayPage(steps, granted, s, history, hourly, walks, tokens, accent)
+                        1 -> WalkPage(granted, s, tokens, accent) { AccessLine(tokens, accent) }
+                        2 -> SleepPage(s, tokens, accent) { settingsOpen = true }
+                        3 -> AirPage(visible && pagerState.currentPage == 3, airRefresh, tokens, accent)
+                        4 -> WeekPage(s, history, tokens, accent)
                         else -> HealthAppsPage(tokens, accent, appsEditing)
                     }
                 }
@@ -160,7 +169,8 @@ fun HealthHubScreen(
             val barActions: (Int) -> List<HubAppBarAction> = { forPage ->
                 buildList {
                     add(HubAppBarAction("back", "back") { if (settingsOpen) settingsOpen = false else onDismiss() })
-                    if (!settingsOpen && forPage == 2) {
+                    if (!settingsOpen && forPage == 3) add(HubAppBarAction("refresh", "refresh air quality", "refresh") { airRefresh++ })
+                    if (!settingsOpen && forPage == APPS_PAGE) {
                         add(HubAppBarAction(if (appsEditing) "check" else "edit", "edit apps", if (appsEditing) "done" else "edit apps") { appsEditing = !appsEditing })
                     } else {
                         add(HubAppBarAction("settings", "health settings", "settings") { settingsOpen = !settingsOpen })
@@ -222,17 +232,33 @@ private fun StepsRing(steps: Int, goal: Int, accent: Color, tokens: ColorTokens,
 }
 
 @Composable
-private fun TodayPage(steps: Int?, granted: Boolean, settings: HealthSettings, history: List<DaySteps>, tokens: ColorTokens, accent: Color) {
+private fun TodayPage(
+    steps: Int?, granted: Boolean, settings: HealthSettings, history: List<DaySteps>,
+    hourly: HourlySteps, walks: List<Walk>, tokens: ColorTokens, accent: Color,
+) {
     val today = remember { LocalDate.now().toEpochDay() }
     // The live reading while it is there, else what the history last noted for today.
     val shown = steps ?: stepsOn(history, today)
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         if (!granted) item(key = "access") { AccessLine(tokens, accent) }
         item(key = "ring") {
-            Box(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), contentAlignment = Alignment.Center) {
-                StepsRing(shown, settings.goal, accent, tokens, 190, big = true)
+            val hours = dayHours(hourly, today)
+            val busiest = busiestHour(hours)
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                StepsRing(shown, settings.goal, accent, tokens, 170, big = true)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("busiest hour", color = tokens.fgDim, fontSize = 12.sp)
+                    Text(busiest?.let { hourRangeLabel(it) } ?: "—", color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.ExtraLight)
+                    if (busiest != null) Text("${n(hours[busiest])} steps", color = tokens.fgDim, fontSize = 12.sp)
+                }
             }
         }
+        item(key = "byhour") {
+            val zone = remember { java.time.ZoneId.systemDefault() }
+            val nowHour = remember(shown) { (hourIndex(System.currentTimeMillis()) % 24).toInt() }
+            StepsByHour(dayHours(hourly, today), walkHoursOfDay(walks, today, zone), nowHour, tokens, accent)
+        }
+        item(key = "gap") { Box(modifier = Modifier.height(10.dp)) }
         val rows = listOf(
             "distance" to com.tileshell.feature.livetiles.Units.distance(distanceKm(shown, settings.heightCm)),
             "calories (estimate)" to "${n(caloriesKcal(shown))} kcal",
@@ -369,7 +395,7 @@ private fun HealthSettingsPage(settings: HealthSettings, tokens: ColorTokens, ac
             dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("cancel") } },
         )
     }
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
         Column {
             Text("daily goal", color = tokens.fg, fontSize = 15.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
@@ -386,9 +412,22 @@ private fun HealthSettingsPage(settings: HealthSettings, tokens: ColorTokens, ac
                 Text("+", color = accent, fontSize = 26.sp, modifier = Modifier.clickable { HealthPrefs.update(context) { it.copy(heightCm = it.heightCm + 5) } }.padding(horizontal = 10.dp))
             }
         }
+        Column {
+            Text("bedtime reminder", color = tokens.fg, fontSize = 15.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                listOf(-1 to "off", 21 * 60 to "9 pm", 22 * 60 to "10 pm", 23 * 60 to "11 pm", 0 to "12 am").forEach { (m, label) ->
+                    HubFilter(label, settings.bedtimeMinute == m, tokens, accent) {
+                        HealthPrefs.update(context) { it.copy(bedtimeMinute = m) }
+                        SleepReminder.sync(context)
+                    }
+                }
+            }
+            Text("a notification at that time each day, to wind down for the sleep estimate. off by default.", color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        }
+        Text("clear walks", color = Color(0xFFE5645A), fontSize = 15.sp, modifier = Modifier.clickable { WalkSession.clearWalks(context) }.padding(vertical = 4.dp))
         Text("clear step history", color = Color(0xFFE5645A), fontSize = 15.sp, modifier = Modifier.clickable { confirmClear = true }.padding(vertical = 4.dp))
         Text(
-            "steps come from your phone's own step counter and stay on this phone; they are not in backups. distance, calories and active minutes are estimates.",
+            "steps, walks and the sleep estimate come from your phone's own sensors and usage, and stay on this phone; they are not in backups. distance, calories, active minutes and sleep are estimates. air quality is read from open-meteo for the weather's place.",
             color = tokens.fgDim, fontSize = 12.sp,
         )
     }
