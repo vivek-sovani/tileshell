@@ -69,6 +69,7 @@ object WalkSession {
     fun start(context: Context) {
         val app = context.applicationContext
         if (_state.value.running || !canWalk(app)) return
+        loadWalks(app)
         ascent.restart()
         stepsAccum = 0
         activeBefore = 0L
@@ -99,10 +100,10 @@ object WalkSession {
     }
 
     /** Ends the walk, saves it (when it counted anything) and lets the service go. */
-    fun stop(context: Context) {
+    fun stop(context: Context): Walk? {
         val app = context.applicationContext
         val s = _state.value
-        if (!s.running) return
+        if (!s.running) return null
         val active = if (s.paused) activeBefore else activeBefore + SystemClock.elapsedRealtime() - resumedAt
         unregister(app)
         val end = System.currentTimeMillis()
@@ -110,12 +111,14 @@ object WalkSession {
         _state.value = WalkState()
         runCatching { app.stopService(Intent(app, WalkService::class.java)) }
         if (walk.steps > 0 || walk.activeMs > 60_000L) {
+            // Shown at once (a list read right after stop sees it); the file follows on the worker thread.
+            val next = addWalk(_walks.value, walk)
+            _walks.value = next
             handler.post {
-                val next = addWalk(_walks.value, walk)
-                _walks.value = next
                 runCatching { File(app.filesDir, FILE).writeText(encodeWalks(next)) }
             }
         }
+        return walk
     }
 
     fun clearWalks(context: Context) {

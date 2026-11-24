@@ -4056,7 +4056,11 @@ private fun StartPage(
                     val iconColor = (model as? TileModel.App)
                         ?.takeIf { appIconColors && tileOverride == null && it.packageName.isNotBlank() }
                         ?.let { rememberDominantIconColor(it.packageName, it.activityName) }
+                    // A health tile turns green while a walk runs.
+                    val walkAccent = (model as? TileModel.App)?.takeIf { it.iconKey == "healthhub" }
+                        ?.let { com.tileshell.feature.livetiles.health.healthWalkingAccent() }
                     val tileAccent = when {
+                        walkAccent != null -> walkAccent
                         tileOverride != null -> TileAccents.colorForOverride(tileOverride, accentId)
                         multiColor -> TileAccents.forId(model.colorId)
                         iconColor != null -> iconColor
