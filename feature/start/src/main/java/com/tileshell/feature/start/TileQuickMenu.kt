@@ -214,6 +214,20 @@ internal fun TileQuickMenuLayer(
                 viewModel.toggleFolder(tile.id)
             })
         }
+        // The health tile's walk: start (or stop) it from here, the one way a small tile can.
+        if (app != null && app.packageName.isBlank() && app.iconKey == "healthhub") {
+            val walking = com.tileshell.feature.livetiles.health.WalkSession.state.value.running
+            add(MiniAction("walk", if (walking) "stop walk" else "start walk", TileIcons[if (walking) "stop" else "steps"]) {
+                viewModel.closeTileMenu()
+                if (walking) {
+                    com.tileshell.feature.livetiles.health.WalkSession.stop(context)
+                } else if (com.tileshell.feature.livetiles.health.WalkSession.canWalk(context)) {
+                    com.tileshell.feature.livetiles.health.WalkSession.start(context)
+                } else {
+                    Toast.makeText(context, "turn on physical activity in the health hub first", Toast.LENGTH_SHORT).show()
+                }
+            })
+        }
         shortcuts.forEach { entry ->
             add(
                 MiniAction("shortcut:${entry.activityName}", entry.label, shortcut = entry) {

@@ -121,7 +121,8 @@ fun HealthHubScreen(
 
     var settingsOpen by remember { mutableStateOf(false) }
     BackHandler(enabled = visible) { if (settingsOpen) settingsOpen = false else onDismiss() }
-    val pagerState = rememberPagerState(pageCount = { HEALTH_PIVOTS.size })
+    // A tap on the tile while a walk runs lands on the walk page.
+    val pagerState = rememberPagerState(initialPage = if (WalkSession.state.value.running) 1 else 0, pageCount = { HEALTH_PIVOTS.size })
     var appsEditing by remember { mutableStateOf(false) }
     LaunchedEffect(pagerState.currentPage) { if (pagerState.currentPage != APPS_PAGE) appsEditing = false }
     var airRefresh by remember { mutableStateOf(0) }

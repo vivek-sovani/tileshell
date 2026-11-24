@@ -160,3 +160,70 @@ class HealthPagesLogicTest {
         assertNotNull(decodeAirCache(encodeAirCache(18.5, 73.8, "{}", 5L))); assertNull(decodeAirCache("bad"))
     }
 }
+
+class HealthTileLogicTest {
+    private val utc = ZoneId.of("UTC")
+    private val h = 3_600_000L
+    private fun walk(startMs: Long) = Walk(startMs, startMs + 30 * 60_000L, 30 * 60_000L, 3000, 2)
+
+    @Test
+    fun `tile kinds by size`() {
+        assertEquals(HealthTileKind.SMALL, healthTileKind(com.tileshell.core.data.TileSize.SMALL))
+        assertEquals(HealthTileKind.SMALL, healthTileKind(com.tileshell.core.data.TileSize.TALL))
+        assertEquals(HealthTileKind.MEDIUM, healthTileKind(com.tileshell.core.data.TileSize.MEDIUM))
+        assertEquals(HealthTileKind.WIDE, healthTileKind(com.tileshell.core.data.TileSize.WIDE))
+        assertEquals(HealthTileKind.LARGE, healthTileKind(com.tileshell.core.data.TileSize.LARGE))
+        assertEquals(HealthTileKind.LARGE, healthTileKind(com.tileshell.core.data.TileSize.XLARGE))
+    }
+
+    @Test
+    fun `back faces keep their order, skip what has nothing to say and round robin`() {
+        val all = backFaces(BackInputs(true, true, true, true))
+        assertEquals(listOf(BackFace.SLEEP, BackFace.AIR, BackFace.LAST_WALK, BackFace.APPS), all)
+        val some = backFaces(BackInputs(false, true, false, true))
+        assertEquals(listOf(BackFace.AIR, BackFace.APPS), some)
+        assertEquals(BackFace.AIR, backFaceFor(some, 0)); assertEquals(BackFace.APPS, backFaceFor(some, 1)); assertEquals(BackFace.AIR, backFaceFor(some, 2))
+        assertNull(backFaceFor(emptyList(), 3)); assertEquals(BackFace.APPS, backFaceFor(some, -1))
+    }
+
+    @Test
+    fun `sleep shows from waking until noon, air only when worth a look, last walk today or yesterday`() {
+        val night = SleepEstimate(h * 23 - 24 * h + 24 * h, 24 * h + 7 * h, emptyList())   // ends 7:00 on day 1
+        assertFalse(sleepFaceEligible(night, 24 * h + 6 * h, utc))       // still asleep
+        assertTrue(sleepFaceEligible(night, 24 * h + 7 * h + 1, utc))
+        assertTrue(sleepFaceEligible(night, 24 * h + 11 * h, utc))
+        assertFalse(sleepFaceEligible(night, 24 * h + 12 * h, utc))
+        assertFalse(sleepFaceEligible(night, 48 * h + 8 * h, utc))       // next morning: another night
+        assertFalse(sleepFaceEligible(null, 0, utc))
+        assertFalse(airFaceEligible(50, 5.9)); assertTrue(airFaceEligible(51, null)); assertTrue(airFaceEligible(20, 6.0)); assertFalse(airFaceEligible(null, null))
+        val now = 10 * 24 * h + 9 * h
+        assertNotNull(lastWalkEligible(listOf(walk(now - 2 * h)), now, utc))
+        assertNotNull(lastWalkEligible(listOf(walk(9 * 24 * h + 23 * h)), now, utc))
+        assertNull(lastWalkEligible(listOf(walk(8 * 24 * h + 12 * h)), now, utc)); assertNull(lastWalkEligible(emptyList(), now, utc))
+    }
+
+    @Test
+    fun `labels`() {
+        assertEquals("5 pm", hourLabel(17)); assertEquals("12 am", hourLabel(0))
+        assertEquals("86 moderate", airBandShort(86)); assertEquals("120 unhealthy", airBandShort(120))
+        assertNull(streakLabel(0)); assertEquals("1 day at goal", streakLabel(1)); assertEquals("4 days at goal", streakLabel(4))
+        assertEquals("30 min · 2 floors", walkTimeFloors(walk(0))); assertEquals("30 min", walkTimeFloors(walk(0).copy(floors = 0)))
+        assertEquals("+2,906 steps", plusSteps(2906))
+    }
+
+    @Test
+    fun `walk confirm and saved flow`() {
+        val w = walk(0)
+        var s: WalkUi = WalkUi.None
+        s = reduceWalkUi(s, WalkUiEvent.KeepGoing); assertEquals(WalkUi.None, s)
+        s = reduceWalkUi(s, WalkUiEvent.StopTapped); assertEquals(WalkUi.Confirm, s)
+        s = reduceWalkUi(s, WalkUiEvent.KeepGoing); assertEquals(WalkUi.None, s)
+        s = reduceWalkUi(reduceWalkUi(s, WalkUiEvent.StopTapped), WalkUiEvent.Tick(5, running = false)); assertEquals(WalkUi.None, s)   // ended elsewhere
+        s = reduceWalkUi(reduceWalkUi(WalkUi.None, WalkUiEvent.StopTapped), WalkUiEvent.SaveTapped(w, 1_000)); assertEquals(WalkUi.Saved(w, 1_000), s)
+        assertEquals(s, reduceWalkUi(s, WalkUiEvent.Tick(1_000 + SAVED_MS - 1, running = false)))
+        assertEquals(WalkUi.None, reduceWalkUi(s, WalkUiEvent.Tick(1_000 + SAVED_MS, running = false)))
+        assertEquals(WalkUi.None, reduceWalkUi(s, WalkUiEvent.Tick(2_000, running = true)))         // a new walk replaces the summary
+        assertEquals(WalkUi.None, reduceWalkUi(reduceWalkUi(WalkUi.None, WalkUiEvent.StopTapped), WalkUiEvent.SaveTapped(null, 0)))
+        assertEquals(WalkUi.None, reduceWalkUi(WalkUi.None, WalkUiEvent.SaveTapped(w, 0)))             // a save needs a question first
+    }
+}

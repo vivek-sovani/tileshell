@@ -40,6 +40,11 @@ class WalkService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
+        if (intent?.action == ACTION_PAUSE || intent?.action == ACTION_RESUME) {
+            if (intent.action == ACTION_PAUSE) WalkSession.pause(this) else WalkSession.resume(this)
+            runCatching { getSystemService(NotificationManager::class.java).notify(ID, build()) }
+            return START_NOT_STICKY
+        }
         val nm = getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(NotificationChannel(CHANNEL, "walking", NotificationManager.IMPORTANCE_LOW).apply {
             description = "shown while a walk is being counted"
@@ -75,6 +80,10 @@ class WalkService : Service() {
             this, 1, Intent(this, WalkService::class.java).setAction(ACTION_STOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        val pausePi = PendingIntent.getService(
+            this, 2, Intent(this, WalkService::class.java).setAction(if (s.paused) ACTION_RESUME else ACTION_PAUSE),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
         return Notification.Builder(this, CHANNEL)
             .setSmallIcon(applicationInfo.icon.takeIf { it != 0 } ?: android.R.drawable.ic_menu_directions)
             .setContentTitle(if (s.paused) "walk paused" else "walking")
@@ -82,6 +91,7 @@ class WalkService : Service() {
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .setContentIntent(openPi)
+            .addAction(Notification.Action.Builder(null, if (s.paused) "resume" else "pause", pausePi).build())
             .addAction(Notification.Action.Builder(null, "stop", stopPi).build())
             .build()
     }
@@ -90,5 +100,7 @@ class WalkService : Service() {
         private const val CHANNEL = "walk"
         private const val ID = 7421
         const val ACTION_STOP = "com.tileshell.walk.STOP"
+        const val ACTION_PAUSE = "com.tileshell.walk.PAUSE"
+        const val ACTION_RESUME = "com.tileshell.walk.RESUME"
     }
 }

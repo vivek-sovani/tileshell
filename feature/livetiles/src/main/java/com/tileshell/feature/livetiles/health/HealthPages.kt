@@ -214,13 +214,6 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
 
 // --- sleep ------------------------------------------------------------------------
 
-private fun resumeTimes(context: Context, from: Long, to: Long): List<Long> = runCatching {
-    val usm = context.getSystemService(UsageStatsManager::class.java) ?: return emptyList()
-    val events = usm.queryEvents(from, to) ?: return emptyList()
-    val e = UsageEvents.Event()
-    buildList { while (events.hasNextEvent()) { events.getNextEvent(e); if (e.eventType == UsageEvents.Event.ACTIVITY_RESUMED) add(e.timeStamp) } }
-}.getOrDefault(emptyList())
-
 private data class SleepView(val last: SleepEstimate?, val nights: List<SleepEstimate?>, val monday: Long, val today: Long)
 
 @Composable

@@ -65,6 +65,13 @@ object AirRepository {
         }
     }
 
+    /** The cached reading (memory, else the file), never fetching: what the tile uses. */
+    fun peek(context: Context): AirSnapshot? {
+        _ui.value.snapshot?.let { return it }
+        val c = runCatching { decodeAirCache(File(context.applicationContext.filesDir, FILE).readText()) }.getOrNull() ?: return null
+        return parseAirQuality(c[3], c[2].toLong())
+    }
+
     fun clear(context: Context) {
         runCatching { File(context.applicationContext.filesDir, FILE).delete() }
         _ui.value = AirUi()
