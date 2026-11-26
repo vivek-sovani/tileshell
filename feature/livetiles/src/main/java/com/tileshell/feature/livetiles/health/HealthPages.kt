@@ -6,6 +6,7 @@ import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
 import android.os.Build
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -36,6 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -134,7 +139,22 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
     }
     val notify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val hasBaro = remember { WalkSession.hasBarometer(context) }
-    val km = distanceKm(state.steps, settings.heightCm)
+    val km = state.meters / 1000.0
+    var selected by remember { mutableStateOf<Long?>(null) }
+    BackHandler(enabled = selected != null) { selected = null }
+    val startNow: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) notify.launch(Manifest.permission.POST_NOTIFICATIONS)
+        WalkSession.start(context)
+    }
+    // The route needs the location permission: asked once, when a walk is first started; the walk goes ahead either way.
+    val locationAsk = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { startNow() }
+    val picked = selected?.let { id -> walks.firstOrNull { it.startMs == id } }
+    if (picked != null) {
+        WalkDetail(picked, settings, tokens, accent, onBack = { selected = null }, onDeleted = { selected = null })
+        return
+    }
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         if (!granted) item(key = "access") { accessLine() }
         if (!state.running) {
@@ -142,15 +162,15 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
                 Column(modifier = Modifier.padding(top = 10.dp, bottom = 6.dp)) {
                     Text("0:00", color = tokens.fgDim, fontSize = 56.sp, fontWeight = FontWeight.ExtraLight)
                     Text(
-                        "counts steps, distance${if (hasBaro) ", floors climbed" else ""} and pace, and keeps going with the screen off",
+                        "counts steps, distance${if (hasBaro) ", floors climbed" else ""} and pace, records your route with GPS, beeps at each ${if (Units.isImperial) "mile" else "kilometre"}, and keeps going with the screen off",
                         color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp),
                     )
                     FlatButton("start walk", true, accent, tokens, Modifier.fillMaxWidth()) {
                         if (!granted) return@FlatButton
-                        if (Build.VERSION.SDK_INT >= 33 &&
-                            androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
-                        ) notify.launch(Manifest.permission.POST_NOTIFICATIONS)
-                        WalkSession.start(context)
+                        if (settings.recordRoute && !WalkSession.canRoute(context) && !HealthPrefs.routeAsked(context)) {
+                            HealthPrefs.setRouteAsked(context, true)
+                            locationAsk.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                        } else startNow()
                     }
                 }
             }
@@ -161,14 +181,15 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
                     Text(if (state.paused) "paused" else "walking", color = if (state.paused) tokens.fgDim else Green, fontSize = 13.sp)
                 }
             }
-            val pace = paceLabel(elapsed, km)
+            val pace = paceText(elapsed, km, Units.isImperial)
             val spm = stepsPerMinute(state.steps, elapsed)
             rows(
                 buildList {
                     add("steps" to "%,d".format(Locale.US, state.steps))
                     add("distance" to Units.distance(km))
                     if (state.hasBarometer) add("floors climbed" to state.floors.toString())
-                    add("pace" to (pace?.let { "$it /km" } ?: "—"))
+                    add("pace" to (pace ?: "—"))
+                    if (settings.recordRoute && WalkSession.canRoute(context)) add("route" to if (state.gps) "recording" else "waiting for gps")
                     add("steps a minute" to (spm?.toString() ?: "—"))
                 },
                 tokens,
@@ -190,14 +211,17 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
                 item(key = "walk-${w.startMs}") {
                     val parts = buildList {
                         add(spokenDuration(w.activeMs))
-                        add(Units.distance(distanceKm(w.steps, settings.heightCm)))
+                        add(Units.distance(walkKm(w, settings.heightCm)))
                         if (w.floors > 0) add("${w.floors} floor${if (w.floors == 1) "" else "s"}")
                     }
-                    Column(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.fillMaxWidth().clickable { selected = w.startMs }) {
                         Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
-                        Column(modifier = Modifier.padding(vertical = 9.dp)) {
-                            Text(walkWhenLabel(w.startMs), color = tokens.fg, fontSize = 15.sp, fontWeight = FontWeight.Light)
-                            Text(parts.joinToString(" · "), color = tokens.fgDim, fontSize = 13.sp)
+                        Row(modifier = Modifier.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(walkWhenLabel(w.startMs), color = tokens.fg, fontSize = 15.sp, fontWeight = FontWeight.Light)
+                                Text(parts.joinToString(" · "), color = tokens.fgDim, fontSize = 13.sp)
+                            }
+                            Text(if (w.hasRoute) "route ›" else "›", color = accent, fontSize = 13.sp)
                         }
                     }
                 }
@@ -205,9 +229,93 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
         }
         item(key = "note") {
             Text(
-                "steps come from the phone's step sensor. floors use the barometer (about 3 m a floor)${if (hasBaro) "" else ", which this phone does not have, so floors are not counted"}. a walk only counts while it runs; walks stay on this phone.",
+                "steps come from the phone's step sensor. floors use the barometer (about 3 m a floor, only while you are stepping)${if (hasBaro) "" else ", which this phone does not have, so floors are not counted"}. the route uses GPS while a walk runs, if location is allowed; distance then comes from it, else from your steps. walks and routes stay on this phone.",
                 color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp),
             )
+        }
+    }
+}
+
+@Composable
+private fun WalkDetail(w: Walk, settings: HealthSettings, tokens: ColorTokens, accent: Color, onBack: () -> Unit, onDeleted: () -> Unit) {
+    val context = LocalContext.current
+    var route by remember(w.startMs) { mutableStateOf<List<RoutePoint>?>(null) }
+    LaunchedEffect(w.startMs) {
+        route = if (w.hasRoute) withContext(Dispatchers.IO) { WalkSession.loadRoute(context, w.startMs) } else emptyList()
+    }
+    var confirmDelete by remember { mutableStateOf(false) }
+    if (confirmDelete) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("delete this walk?") },
+            text = { Text("its time, distance and route are removed from this phone.") },
+            confirmButton = { androidx.compose.material3.TextButton(onClick = { confirmDelete = false; WalkSession.deleteWalk(context, w.startMs); onDeleted() }) { Text("delete") } },
+            dismissButton = { androidx.compose.material3.TextButton(onClick = { confirmDelete = false }) { Text("cancel") } },
+        )
+    }
+    val imperial = Units.isImperial
+    val km = walkKm(w, settings.heightCm)
+    val interval = if (imperial) 1609.344 else 1000.0
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
+        item(key = "back") { Text("‹ walks", color = accent, fontSize = 15.sp, modifier = Modifier.clickable(onClick = onBack).padding(vertical = 8.dp)) }
+        item(key = "head") {
+            Column {
+                Caption(walkWhenLabel(w.startMs).uppercase(), tokens)
+                Text(Units.distance(km), color = tokens.fg, fontSize = 56.sp, fontWeight = FontWeight.ExtraLight)
+                Text("${clockDuration(w.activeMs)} walking", color = tokens.fgDim, fontSize = 14.sp)
+            }
+        }
+        item(key = "route") {
+            val pts = route
+            Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                Caption("ROUTE", tokens)
+                if (pts == null) {
+                    Text("…", color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp))
+                } else if (pts.size < 2) {
+                    Text(
+                        if (w.hasRoute) "the route could not be read" else "no route was recorded: location was off or not allowed for this walk",
+                        color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp),
+                    )
+                } else {
+                    val marks = remember(pts, interval) { routeMarks(pts, interval).map { m -> pts.indexOfFirst { it === m } } }
+                    Canvas(modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(260.dp).background(tokens.sheetLine.copy(alpha = 0.25f))) {
+                        val xy = projectRoute(pts, size.width, size.height, 24.dp.toPx())
+                        val path = Path()
+                        xy.forEachIndexed { i, (x, y) -> if (i == 0 || pts[i].newSegment) path.moveTo(x, y) else path.lineTo(x, y) }
+                        drawPath(path, accent, style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+                        marks.filter { it >= 0 }.forEach { i -> drawCircle(Color.White, 5.dp.toPx(), Offset(xy[i].first, xy[i].second)); drawCircle(accent, 3.dp.toPx(), Offset(xy[i].first, xy[i].second)) }
+                        drawCircle(Green, 7.dp.toPx(), Offset(xy.first().first, xy.first().second))
+                        drawCircle(Color(0xFFD6262B), 7.dp.toPx(), Offset(xy.last().first, xy.last().second))
+                    }
+                    Text("green start · red end · dots at each ${if (imperial) "mile" else "kilometre"}. drawn from your own points, no map is downloaded.", color = tokens.fgDim, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                }
+            }
+        }
+        item(key = "gap") { Box(modifier = Modifier.height(12.dp)) }
+        val spm = stepsPerMinute(w.steps, w.activeMs)
+        rows(
+            buildList {
+                add("time walking" to clockDuration(w.activeMs))
+                add("average pace" to (paceText(w.activeMs, km, imperial) ?: "—"))
+                add("steps" to "%,d".format(Locale.US, w.steps))
+                add("steps a minute" to (spm?.toString() ?: "—"))
+                if (w.floors > 0) add("floors climbed" to w.floors.toString())
+                add("started" to clockLabel(w.startMs))
+                add("ended" to clockLabel(w.endMs))
+                add("distance from" to if (w.hasRoute && w.meters > 0) "gps" else "step estimate")
+            },
+            tokens,
+        )
+        val times = splitTimes(w.splits)
+        if (times.isNotEmpty()) {
+            item(key = "splits") { Caption(if (imperial) "MILE TIMES" else "KILOMETRE TIMES", tokens, Modifier.padding(top = 18.dp, bottom = 4.dp)) }
+            val fastest = times.min()
+            times.forEachIndexed { i, t ->
+                item(key = "split-$i") { HRow("${if (imperial) "mile" else "km"} ${i + 1}", clockDuration(t) + if (times.size > 1 && t == fastest) " · fastest" else "", tokens) }
+            }
+        }
+        item(key = "delete") {
+            Text("delete this walk", color = Color(0xFFE5645A), fontSize = 15.sp, modifier = Modifier.clickable { confirmDelete = true }.padding(top = 20.dp, bottom = 12.dp))
         }
     }
 }

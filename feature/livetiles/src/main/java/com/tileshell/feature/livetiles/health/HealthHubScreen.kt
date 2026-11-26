@@ -425,6 +425,27 @@ private fun HealthSettingsPage(settings: HealthSettings, tokens: ColorTokens, ac
             }
             Text("a notification at that time each day, to wind down for the sleep estimate. off by default.", color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         }
+        Column {
+            Text("sound at each ${if (com.tileshell.feature.livetiles.Units.isImperial) "mile" else "kilometre"} of a walk", color = tokens.fg, fontSize = 15.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                listOf(0 to "off", 1 to "beep", 2 to "beep + time").forEach { (v, label) ->
+                    HubFilter(label, settings.kmAlert == v, tokens, accent) { HealthPrefs.update(context) { it.copy(kmAlert = v) } }
+                }
+            }
+            Text("the time is spoken by the phone's text-to-speech, for example \"2 kilometres, 9 minutes 40 seconds for the last one\".", color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        }
+        Column {
+            Text("record the route", color = tokens.fg, fontSize = 15.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                listOf(true to "on", false to "off").forEach { (v, label) ->
+                    HubFilter(label, settings.recordRoute == v, tokens, accent) {
+                        HealthPrefs.update(context) { it.copy(recordRoute = v) }
+                        if (v) HealthPrefs.setRouteAsked(context, false)
+                    }
+                }
+            }
+            Text("uses GPS while a walk runs, only if you allow location, and gives a map of the walk and a more exact distance. it is stored on this phone only and is never sent anywhere.", color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        }
         Text("clear walks", color = Color(0xFFE5645A), fontSize = 15.sp, modifier = Modifier.clickable { WalkSession.clearWalks(context) }.padding(vertical = 4.dp))
         Text("clear step history", color = Color(0xFFE5645A), fontSize = 15.sp, modifier = Modifier.clickable { confirmClear = true }.padding(vertical = 4.dp))
         Text(

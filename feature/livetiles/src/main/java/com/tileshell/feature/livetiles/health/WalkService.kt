@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -51,7 +52,12 @@ class WalkService : Service() {
             setShowBadge(false)
         })
         val ok = runCatching {
-            startForeground(ID, build(), ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH)
+            // Health, and location too while a route is being recorded (needs the fine location grant).
+            if (Build.VERSION.SDK_INT >= 29) {
+                val type = ServiceInfo.FOREGROUND_SERVICE_TYPE_HEALTH or
+                    if (WalkSession.canRoute(this) && HealthPrefs.current(this).recordRoute) ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION else 0
+                startForeground(ID, build(), type)
+            } else startForeground(ID, build())
         }.isSuccess
         if (!ok || !WalkSession.state.value.running) {
             if (!ok) WalkSession.stop(this)
@@ -72,7 +78,7 @@ class WalkService : Service() {
 
     private fun build(): Notification {
         val s = WalkSession.state.value
-        val km = distanceKm(s.steps, HealthPrefs.current(this).heightCm)
+        val km = s.meters / 1000.0
         val text = "${clockDuration(WalkSession.elapsedMs())} · ${s.steps} steps · ${Units.distance(km)}"
         val open = packageManager.getLaunchIntentForPackage(packageName)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         val openPi = open?.let { PendingIntent.getActivity(this, 0, it, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE) }

@@ -41,7 +41,7 @@
         <service
             android:name=".health.WalkService"
             android:exported="false"
-            android:foregroundServiceType="health" />
+            android:foregroundServiceType="health|location" />
 
         <!-- Health hub bedtime reminder (off by default) and its re-arming after a restart. -->
         <receiver

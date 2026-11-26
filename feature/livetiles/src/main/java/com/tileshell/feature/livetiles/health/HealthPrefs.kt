@@ -12,6 +12,10 @@ data class HealthSettings(
     val heightCm: Int = DEFAULT_HEIGHT_CM,
     /** Bedtime reminder, minutes after midnight; -1 = off. */
     val bedtimeMinute: Int = -1,
+    /** At each kilometre (mile) of a walk: 0 nothing, 1 a beep, 2 a beep and the time said aloud. */
+    val kmAlert: Int = 2,
+    /** Record a walk's route with GPS (needs the location permission; the walk works without it). */
+    val recordRoute: Boolean = true,
 )
 
 /** The health hub's settings, in `tileshell.prefs` (so a backup carries them). */
@@ -20,6 +24,10 @@ object HealthPrefs {
     const val KEY_GOAL = "health_goal"
     const val KEY_HEIGHT = "health_height_cm"
     const val KEY_BEDTIME = "health_bedtime_min"
+    const val KEY_KM_ALERT = "health_km_alert"
+    const val KEY_ROUTE = "health_route"
+    /** Set once the location question has been put, so a walk never asks twice. */
+    const val KEY_ROUTE_ASKED = "health_route_asked"
     const val MIN_GOAL = 1_000
     const val MAX_GOAL = 30_000
 
@@ -38,14 +46,20 @@ object HealthPrefs {
     }
 
     fun update(context: Context, transform: (HealthSettings) -> HealthSettings) {
-        val next = transform(current(context)).let { it.copy(goal = it.goal.coerceIn(MIN_GOAL, MAX_GOAL), heightCm = it.heightCm.coerceIn(100, 230), bedtimeMinute = it.bedtimeMinute.coerceIn(-1, 1439)) }
-        prefs(context).edit().putInt(KEY_GOAL, next.goal).putInt(KEY_HEIGHT, next.heightCm).putInt(KEY_BEDTIME, next.bedtimeMinute).apply()
+        val next = transform(current(context)).let { it.copy(goal = it.goal.coerceIn(MIN_GOAL, MAX_GOAL), heightCm = it.heightCm.coerceIn(100, 230), bedtimeMinute = it.bedtimeMinute.coerceIn(-1, 1439), kmAlert = it.kmAlert.coerceIn(0, 2)) }
+        prefs(context).edit().putInt(KEY_GOAL, next.goal).putInt(KEY_HEIGHT, next.heightCm).putInt(KEY_BEDTIME, next.bedtimeMinute).putInt(KEY_KM_ALERT, next.kmAlert).putBoolean(KEY_ROUTE, next.recordRoute).apply()
         _settings.value = next
     }
 
     private fun read(context: Context): HealthSettings {
         val p = prefs(context)
-        return HealthSettings(goal = p.getInt(KEY_GOAL, DEFAULT_GOAL), heightCm = p.getInt(KEY_HEIGHT, DEFAULT_HEIGHT_CM), bedtimeMinute = p.getInt(KEY_BEDTIME, -1))
+        return HealthSettings(goal = p.getInt(KEY_GOAL, DEFAULT_GOAL), heightCm = p.getInt(KEY_HEIGHT, DEFAULT_HEIGHT_CM), bedtimeMinute = p.getInt(KEY_BEDTIME, -1), kmAlert = p.getInt(KEY_KM_ALERT, 2), recordRoute = p.getBoolean(KEY_ROUTE, true))
+    }
+
+    fun routeAsked(context: Context): Boolean = prefs(context).getBoolean(KEY_ROUTE_ASKED, false)
+
+    fun setRouteAsked(context: Context, asked: Boolean) {
+        prefs(context).edit().putBoolean(KEY_ROUTE_ASKED, asked).apply()
     }
 
     private fun prefs(context: Context) = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

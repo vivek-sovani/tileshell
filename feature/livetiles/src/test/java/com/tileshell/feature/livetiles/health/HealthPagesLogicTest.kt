@@ -54,12 +54,72 @@ class HealthPagesLogicTest {
 
     @Test
     fun `ascent ignores wobble, counts climbs, and descents only move the low point`() {
-        val a = AscentTracker()
-        listOf(0.0, 0.5, 0.2, 0.6, 0.1).forEach(a::add)
+        val a = AscentTracker(hysteresis = 1.2, smoothing = 1.0)
+        listOf(0.0, 0.5, 0.2, 0.6, 0.1).forEach { a.add(it) }
         assertEquals(0.0, a.ascentMeters, 0.0)
-        listOf(1.5, 3.0, 6.0, 5.5, 2.0, 5.0).forEach(a::add)   // up 6 m, down to 2, up 3
+        listOf(1.5, 3.0, 6.0, 5.5, 2.0, 5.0).forEach { a.add(it) }   // up 6 m, down to 2, up 3
         assertEquals(9.0, a.ascentMeters, 0.01)
         assertEquals(3, a.floors)
+    }
+
+    @Test
+    fun `sensor noise over a long walk adds no floors`() {
+        val a = AscentTracker()
+        val rnd = java.util.Random(7)
+        repeat(5_000) { a.add(rnd.nextGaussian() * 0.8) }          // ~1 m jitter, 15+ minutes of readings
+        assertEquals(0, a.floors)
+    }
+
+    @Test
+    fun `a real climb counts, and pressure change while standing still does not`() {
+        val up = AscentTracker()
+        val rnd = java.util.Random(3)
+        repeat(300) { up.add(it * 0.04 + rnd.nextGaussian() * 0.5) }   // 12 m of stairs with noise
+        assertTrue(up.floors in 3..4)
+        val still = AscentTracker()
+        repeat(300) { still.add(it * 0.04, moving = false) }           // a lift: pressure moves, no steps
+        assertEquals(0, still.floors)
+    }
+
+    @Test
+    fun `route tracker drops poor fixes and jumps, and measures the route`() {
+        val t = RouteTracker()
+        assertTrue(t.add(18.5200, 73.8500, 8f, 0))
+        assertEquals(false, t.add(18.5201, 73.8500, 80f, 2_000))       // poor accuracy
+        assertEquals(false, t.add(18.52001, 73.8500, 5f, 2_000))       // 1 m: standing
+        assertEquals(false, t.add(18.5300, 73.8500, 5f, 3_000))        // 1.1 km in a second
+        assertTrue(t.add(18.5210, 73.8500, 5f, 20_000))                // ~111 m, fine
+        assertEquals(111.0, t.meters, 3.0)
+        t.breakSegment()
+        assertTrue(t.add(18.5300, 73.8500, 5f, 600_000))               // after a pause: no distance for the gap
+        assertEquals(111.0, t.meters, 3.0)
+        assertTrue(t.points.last().newSegment)
+        val back = decodeRoute(encodeRoute(t.points))
+        assertEquals(t.points.size, back.size)
+        assertEquals(t.points.last().newSegment, back.last().newSegment)
+        assertEquals(18.5300, back.last().lat, 0.00001)
+    }
+
+    @Test
+    fun `route marks, projection and the km announcement`() {
+        val pts = (0..30).map { RoutePoint(18.5 + it * 0.0009, 73.85, it * 1000L, it == 0) }   // ~100 m a point, 3 km
+        assertEquals(3, routeMarks(pts, 1000.0).size)
+        val xy = projectRoute(pts, 300f, 200f, 10f)
+        assertEquals(pts.size, xy.size)
+        assertTrue(xy.all { it.first in 0f..300f && it.second in 0f..200f })
+        assertEquals("1 kilometre in 9 minutes 12 seconds", kmAnnouncement(1, 552_000, 552_000, false))
+        assertEquals("2 miles. 10 minutes for the last one, 19 minutes 30 seconds in all", kmAnnouncement(2, 600_000, 1_170_000, true))
+        assertEquals("1 hour 5 minutes", spokenWords(65 * m)); assertEquals("45 seconds", spokenWords(45_000))
+        assertEquals(listOf(550_000L, 600_000L), splitTimes(listOf(550_000L, 1_150_000L)))
+    }
+
+    @Test
+    fun `walks keep their distance, splits and route flag, and older lines still read`() {
+        val w = Walk(1000, 2000, 900, 1200, 2, 1520, listOf(540_000L, 1_100_000L), true)
+        assertEquals(listOf(w), decodeWalks(encodeWalks(listOf(w))))
+        val old = decodeWalks("1000\t2000\t900\t1200\t2").single()
+        assertEquals(0, old.meters); assertEquals(false, old.hasRoute)
+        assertEquals(1.52, walkKm(w, 170), 0.001); assertEquals(distanceKm(1200, 170), walkKm(old, 170), 0.001)
     }
 
     @Test

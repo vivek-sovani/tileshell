@@ -160,7 +160,7 @@ fun HealthTileFace(size: TileSize, active: Boolean, modifier: Modifier = Modifie
         if (WalkSession.canWalk(context)) WalkSession.start(context)
         else Toast.makeText(context, "turn on physical activity in the health hub first", Toast.LENGTH_SHORT).show()
     }
-    val km = distanceKm(walk.steps, s.heightCm)
+    val km = walk.meters / 1000.0
     val ui = walkUi
     val face: @Composable () -> Unit = when {
         walk.running && ui is WalkUi.Confirm -> {
@@ -176,7 +176,7 @@ fun HealthTileFace(size: TileSize, active: Boolean, modifier: Modifier = Modifie
             }
         }
         ui is WalkUi.Saved && kind != HealthTileKind.SMALL -> {
-            { WalkSavedFace(ui.walk, distanceKm(ui.walk.steps, s.heightCm)) }
+            { WalkSavedFace(ui.walk, walkKm(ui.walk, s.heightCm)) }
         }
         else -> {
             { StepsFront(kind, steps, s, hours, walks, sleep, air, history, today, startWalk) }
@@ -292,7 +292,7 @@ private fun StepsFront(
                     FaceText("${(progress * 100).toInt()}% of ${String.format(Locale.US, "%,d", goal)}", 14)
                     sleep?.let { FaceText("slept ${hm(it.durationMs)}", 12, dim = true) }
                     air?.usAqi?.let { aqi -> FaceText("air $aqi" + (air.uvNow?.let { " · uv ${it.toInt()}" } ?: ""), 12, dim = true) }
-                    lastWalk?.let { w -> FaceText("walk ${Units.distance(distanceKm(w.steps, s.heightCm))}" + if (w.floors > 0) " · ${w.floors} fl" else "", 12, dim = true) }
+                    lastWalk?.let { w -> FaceText("walk ${Units.distance(walkKm(w, s.heightCm))}" + if (w.floors > 0) " · ${w.floors} fl" else "", 12, dim = true) }
                 }
             }
             Text("health", color = color, fontSize = 12.sp, modifier = Modifier.align(Alignment.BottomStart))
@@ -423,7 +423,7 @@ private fun AirBack(a: AirSnapshot, place: String, nowMs: Long) {
 private fun LastWalkBack(w: Walk, s: HealthSettings, history: List<DaySteps>, today: Long, liveSteps: Int?) {
     Column(modifier = Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.Center) {
         FaceText("last walk · ${clockLabel(w.startMs)}", 12, dim = true)
-        FaceText(Units.distance(distanceKm(w.steps, s.heightCm)), 26, weight = androidx.compose.ui.text.font.FontWeight.ExtraLight)
+        FaceText(Units.distance(walkKm(w, s.heightCm)), 26, weight = androidx.compose.ui.text.font.FontWeight.ExtraLight)
         FaceText(walkTimeFloors(w), 13)
         daysAtGoalLabel(history, today, liveSteps, s.goal)?.let { FaceText(it, 12, dim = true) }
     }
