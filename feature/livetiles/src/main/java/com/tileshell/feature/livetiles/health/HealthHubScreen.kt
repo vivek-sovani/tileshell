@@ -75,8 +75,8 @@ import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
 
-private val HEALTH_PIVOTS = listOf("today", "walk", "sleep", "air", "week", "apps")
-private const val APPS_PAGE = 5
+private val HEALTH_PIVOTS = listOf("today", "walk", "sleep", "air", "week", "month", "apps")
+private const val APPS_PAGE = 6
 private val AtGoal = Color(0xFF7CB518)
 private val GOAL_CHOICES = listOf(5_000, 8_000, 10_000, 12_000, 15_000)
 
@@ -160,7 +160,8 @@ fun HealthHubScreen(
                         1 -> WalkPage(granted, s, tokens, accent) { AccessLine(tokens, accent) }
                         2 -> SleepPage(s, tokens, accent) { settingsOpen = true }
                         3 -> AirPage(visible && pagerState.currentPage == 3, airRefresh, tokens, accent)
-                        4 -> WeekPage(s, history, tokens, accent)
+                        4 -> PeriodPage(false, s, history, walks, tokens, accent)
+                        5 -> PeriodPage(true, s, history, walks, tokens, accent)
                         else -> HealthAppsPage(tokens, accent, appsEditing)
                     }
                 }
@@ -288,19 +289,36 @@ private fun TodayPage(
 
 // --- week -------------------------------------------------------------------------
 
+/** The week and month pages: steps per day with a summary, then every walk in the period. */
 @Composable
-private fun WeekPage(settings: HealthSettings, history: List<DaySteps>, tokens: ColorTokens, accent: Color) {
+private fun PeriodPage(month: Boolean, settings: HealthSettings, history: List<DaySteps>, walks: List<Walk>, tokens: ColorTokens, accent: Color) {
+    val context = LocalContext.current
     val today = remember { LocalDate.now().toEpochDay() }
-    var lastWeek by remember { mutableStateOf(false) }
-    val thisStart = weekStart(today)
-    val start = if (lastWeek) thisStart - 7 else thisStart
-    val stats = remember(history, start, settings.goal) { weekStats(history, start, today, settings.goal) }
-    val other = remember(history, start, settings.goal) { weekStats(history, if (lastWeek) thisStart else thisStart - 7, today, settings.goal) }
+    var previous by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf<Long?>(null) }
+    BackHandler(enabled = selected != null) { selected = null }
+    val picked = selected?.let { id -> walks.firstOrNull { it.startMs == id } }
+    if (picked != null) {
+        WalkDetail(picked, settings, tokens, accent, onBack = { selected = null }, onDeleted = { selected = null })
+        return
+    }
+    fun startOf(prev: Boolean): Long =
+        if (month) monthStart(if (prev) monthStart(today) - 1 else today) else weekStart(today) - if (prev) 7 else 0
+    fun lengthOf(start: Long) = if (month) monthLength(start) else 7
+    val start = startOf(previous)
+    val length = lengthOf(start)
+    val stats = remember(history, start, settings.goal) { rangeStats(history, start, length, today, settings.goal) }
+    val otherStart = startOf(!previous)
+    val other = remember(history, otherStart, settings.goal) { rangeStats(history, otherStart, lengthOf(otherStart), today, settings.goal) }
+    val periodWalks = remember(walks, start, length) { walksBetween(walks, start, start + length - 1) }
+    val totals = remember(periodWalks, settings.heightCm) { walkTotals(periodWalks, settings.heightCm) }
     val top = maxOf(settings.goal, stats.days.filterNotNull().maxOrNull() ?: 0).coerceAtLeast(1)
+    val noun = if (month) "month" else "week"
+    val gap = if (month) 2.dp else 6.dp
     LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 18.dp, vertical = 4.dp)) {
         item(key = "filters") {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
-                listOf(false to "this week", true to "last week").forEach { (v, label) -> HubFilter(label, lastWeek == v, tokens, accent) { lastWeek = v } }
+                listOf(false to "this $noun", true to "last $noun").forEach { (v, label) -> HubFilter(label, previous == v, tokens, accent) { previous = v } }
             }
         }
         item(key = "total") {
@@ -311,7 +329,7 @@ private fun WeekPage(settings: HealthSettings, history: List<DaySteps>, tokens: 
         }
         item(key = "bars") {
             Column(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp)) {
-                Row(modifier = Modifier.fillMaxWidth().height(110.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+                Row(modifier = Modifier.fillMaxWidth().height(110.dp), horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.Bottom) {
                     stats.days.forEachIndexed { i, v ->
                         val day = stats.start + i
                         val frac = ((v ?: 0).toFloat() / top).coerceIn(0f, 1f)
@@ -324,22 +342,36 @@ private fun WeekPage(settings: HealthSettings, history: List<DaySteps>, tokens: 
                         Box(modifier = Modifier.weight(1f).height((110 * frac).coerceAtLeast(if (v != null) 2f else 0f).dp).background(color))
                     }
                 }
-                Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    for (i in 0 until 7) {
-                        Text(
-                            LocalDate.ofEpochDay(stats.start + i).dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.ENGLISH).lowercase(),
-                            color = tokens.fgDim, fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.weight(1f),
-                        )
+                if (month) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        listOf(1, 8, 15, 22, length).forEach { Text("$it", color = tokens.fgDim, fontSize = 10.sp) }
+                    }
+                } else {
+                    Row(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(gap)) {
+                        for (i in 0 until 7) {
+                            Text(
+                                LocalDate.ofEpochDay(stats.start + i).dayOfWeek.getDisplayName(TextStyle.NARROW, Locale.ENGLISH).lowercase(),
+                                color = tokens.fgDim, fontSize = 10.sp, textAlign = TextAlign.Center, modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
             }
         }
-        val best = stats.bestIndex?.let { i -> "${LocalDate.ofEpochDay(stats.start + i).dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).lowercase()} · ${n(stats.days[i] ?: 0)}" } ?: "—"
-        listOf(
-            "best day" to best,
-            "days at goal" to "${stats.daysAtGoal} of ${stats.days.count { it != null }}",
-            (if (lastWeek) "this week" else "last week") to n(other.total),
-        ).forEach { (label, value) ->
+        val best = stats.bestIndex?.let { i ->
+            val d = LocalDate.ofEpochDay(stats.start + i)
+            val name = if (month) "${d.dayOfMonth} ${d.month.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).lowercase()}" else d.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.ENGLISH).lowercase()
+            "$name · ${n(stats.days[i] ?: 0)}"
+        } ?: "—"
+        val summary = buildList {
+            add("best day" to best)
+            add("days at goal" to "${stats.daysAtGoal} of ${stats.days.count { it != null }}")
+            add("distance" to com.tileshell.feature.livetiles.Units.distance(distanceKm(stats.total, settings.heightCm)))
+            add("active minutes" to n(activeMinutes(stats.total)))
+            add("calories (estimate)" to n(caloriesKcal(stats.total)))
+            add((if (previous) "this $noun" else "last $noun") to n(other.total))
+        }
+        summary.forEach { (label, value) ->
             item(key = label) {
                 Column(modifier = Modifier.fillMaxWidth()) {
                     Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
@@ -349,6 +381,18 @@ private fun WeekPage(settings: HealthSettings, history: List<DaySteps>, tokens: 
                     }
                 }
             }
+        }
+        item(key = "walks-head") {
+            Caption(
+                if (periodWalks.isEmpty()) "WALKS" else "WALKS · ${totals.count} · ${com.tileshell.feature.livetiles.Units.distance(totals.km)} · ${spokenDuration(totals.activeMs)}" +
+                    if (totals.floors > 0) " · ${totals.floors} floors" else "",
+                tokens, Modifier.padding(top = 22.dp, bottom = 6.dp),
+            )
+        }
+        if (periodWalks.isEmpty()) {
+            item(key = "walks-none") { Text("no walks this $noun", color = tokens.fgDim, fontSize = 14.sp) }
+        } else {
+            walksSection(periodWalks, settings, tokens, accent) { selected = it }
         }
     }
 }

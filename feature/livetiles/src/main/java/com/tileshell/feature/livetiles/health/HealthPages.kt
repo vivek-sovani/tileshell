@@ -63,7 +63,7 @@ import java.util.Locale
 private val Green = Color(0xFF7CB518)
 
 @Composable
-private fun HRow(label: String, value: String, tokens: ColorTokens, onClick: (() -> Unit)? = null) {
+internal fun HRow(label: String, value: String, tokens: ColorTokens, onClick: (() -> Unit)? = null) {
     Column(modifier = Modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)) {
         Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
         Row(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -78,7 +78,7 @@ private fun LazyListScope.rows(items: List<Pair<String, String>>, tokens: ColorT
 }
 
 @Composable
-private fun Caption(text: String, tokens: ColorTokens, modifier: Modifier = Modifier) {
+internal fun Caption(text: String, tokens: ColorTokens, modifier: Modifier = Modifier) {
     Text(text, color = tokens.fgDim, fontSize = 12.sp, letterSpacing = 1.sp, fontWeight = FontWeight.SemiBold, modifier = modifier)
 }
 
@@ -207,25 +207,7 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
         if (walks.isEmpty()) {
             item(key = "none") { Text("no walks yet", color = tokens.fgDim, fontSize = 14.sp) }
         } else {
-            walks.forEach { w ->
-                item(key = "walk-${w.startMs}") {
-                    val parts = buildList {
-                        add(spokenDuration(w.activeMs))
-                        add(Units.distance(walkKm(w, settings.heightCm)))
-                        if (w.floors > 0) add("${w.floors} floor${if (w.floors == 1) "" else "s"}")
-                    }
-                    Column(modifier = Modifier.fillMaxWidth().clickable { selected = w.startMs }) {
-                        Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
-                        Row(modifier = Modifier.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(walkWhenLabel(w.startMs), color = tokens.fg, fontSize = 15.sp, fontWeight = FontWeight.Light)
-                                Text(parts.joinToString(" · "), color = tokens.fgDim, fontSize = 13.sp)
-                            }
-                            Text(if (w.hasRoute) "route ›" else "›", color = accent, fontSize = 13.sp)
-                        }
-                    }
-                }
-            }
+            walksSection(walks, settings, tokens, accent) { selected = it }
         }
         item(key = "note") {
             Text(
@@ -236,8 +218,31 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
     }
 }
 
+/** One tappable row per walk (when, time, distance, floors), for the walk, week and month pages. */
+internal fun LazyListScope.walksSection(walks: List<Walk>, settings: HealthSettings, tokens: ColorTokens, accent: Color, onOpen: (Long) -> Unit) {
+    walks.forEach { w ->
+        item(key = "walk-${w.startMs}") {
+            val parts = buildList {
+                add(spokenDuration(w.activeMs))
+                add(Units.distance(walkKm(w, settings.heightCm)))
+                if (w.floors > 0) add("${w.floors} floor${if (w.floors == 1) "" else "s"}")
+            }
+            Column(modifier = Modifier.fillMaxWidth().clickable { onOpen(w.startMs) }) {
+                Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
+                Row(modifier = Modifier.padding(vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(walkWhenLabel(w.startMs), color = tokens.fg, fontSize = 15.sp, fontWeight = FontWeight.Light)
+                        Text(parts.joinToString(" · "), color = tokens.fgDim, fontSize = 13.sp)
+                    }
+                    Text(if (w.hasRoute) "route ›" else "›", color = accent, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
 @Composable
-private fun WalkDetail(w: Walk, settings: HealthSettings, tokens: ColorTokens, accent: Color, onBack: () -> Unit, onDeleted: () -> Unit) {
+internal fun WalkDetail(w: Walk, settings: HealthSettings, tokens: ColorTokens, accent: Color, onBack: () -> Unit, onDeleted: () -> Unit) {
     val context = LocalContext.current
     var route by remember(w.startMs) { mutableStateOf<List<RoutePoint>?>(null) }
     LaunchedEffect(w.startMs) {

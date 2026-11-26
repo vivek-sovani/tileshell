@@ -68,8 +68,17 @@ data class WeekStats(
     val daysAtGoal: Int,
 )
 
-fun weekStats(history: List<DaySteps>, start: Long, todayEpochDay: Long, goal: Int): WeekStats {
-    val days = (0 until 7).map { i ->
+fun weekStats(history: List<DaySteps>, start: Long, todayEpochDay: Long, goal: Int): WeekStats =
+    rangeStats(history, start, 7, todayEpochDay, goal)
+
+/** The first day of the month [epochDay] is in, and how many days it has. */
+fun monthStart(epochDay: Long): Long = LocalDate.ofEpochDay(epochDay).withDayOfMonth(1).toEpochDay()
+
+fun monthLength(startEpochDay: Long): Int = LocalDate.ofEpochDay(startEpochDay).lengthOfMonth()
+
+/** The same summary over any run of [length] days from [start] (a week, a month). */
+fun rangeStats(history: List<DaySteps>, start: Long, length: Int, todayEpochDay: Long, goal: Int): WeekStats {
+    val days = (0 until length).map { i ->
         val day = start + i
         if (day > todayEpochDay) null else stepsOn(history, day)
     }
@@ -84,3 +93,16 @@ fun weekStats(history: List<DaySteps>, start: Long, todayEpochDay: Long, goal: I
         daysAtGoal = played.count { it >= goal && goal > 0 },
     )
 }
+
+/** What a set of walks adds up to. */
+data class WalkTotals(val count: Int, val activeMs: Long, val km: Double, val floors: Int, val steps: Int)
+
+fun walkTotals(walks: List<Walk>, heightCm: Int): WalkTotals =
+    WalkTotals(walks.size, walks.sumOf { it.activeMs }, walks.sumOf { walkKm(it, heightCm) }, walks.sumOf { it.floors }, walks.sumOf { it.steps })
+
+/** Walks that started on a local day from [fromDay] to [toDay], newest first. */
+fun walksBetween(walks: List<Walk>, fromDay: Long, toDay: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<Walk> =
+    walks.filter {
+        val d = java.time.Instant.ofEpochMilli(it.startMs).atZone(zone).toLocalDate().toEpochDay()
+        d in fromDay..toDay
+    }.sortedByDescending { it.startMs }

@@ -123,6 +123,22 @@ class HealthPagesLogicTest {
     }
 
     @Test
+    fun `month stats and walks in a period`() {
+        val nov = java.time.LocalDate.of(2026, 11, 1).toEpochDay()
+        assertEquals(nov, monthStart(nov + 25)); assertEquals(30, monthLength(nov))
+        val hist = listOf(DaySteps(nov, 9000), DaySteps(nov + 1, 3000), DaySteps(nov + 9, 12000))
+        val st = rangeStats(hist, nov, 30, nov + 10, 8000)
+        assertEquals(30, st.days.size); assertEquals(24_000, st.total); assertEquals(2, st.daysAtGoal)
+        assertEquals(9, st.bestIndex); assertNull(st.days[11])
+        val z = java.time.ZoneOffset.UTC
+        val inside = Walk(nov * 86_400_000L + 3_600_000L, nov * 86_400_000L + 7_200_000L, 1_800_000L, 2000, 1, 1500)
+        val outside = inside.copy(startMs = (nov - 2) * 86_400_000L)
+        assertEquals(listOf(inside), walksBetween(listOf(outside, inside), nov, nov + 29, z))
+        val t = walkTotals(listOf(inside, inside.copy(startMs = 5, meters = 500)), 170)
+        assertEquals(2, t.count); assertEquals(2.0, t.km, 0.001); assertEquals(2, t.floors)
+    }
+
+    @Test
     fun `pressure to height and pace wording`() {
         assertEquals(0.0, heightFromPressure(1013.25f), 0.01)
         assertTrue(heightFromPressure(1012.0f) in 9.0..12.0)
