@@ -248,7 +248,7 @@ private fun TodayPage(
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 StepsRing(shown, settings.goal, accent, tokens, 170, big = true)
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("busiest hour", color = tokens.fgDim, fontSize = 12.sp)
+                    Text("most active hour", color = tokens.fgDim, fontSize = 12.sp)
                     Text(busiest?.let { hourRangeLabel(it) } ?: "—", color = tokens.fg, fontSize = 22.sp, fontWeight = FontWeight.ExtraLight)
                     if (busiest != null) Text("${n(hours[busiest])} steps", color = tokens.fgDim, fontSize = 12.sp)
                 }
