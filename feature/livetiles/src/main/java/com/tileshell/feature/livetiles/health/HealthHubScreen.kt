@@ -488,7 +488,22 @@ private fun HealthSettingsPage(settings: HealthSettings, tokens: ColorTokens, ac
                     }
                 }
             }
-            Text("uses GPS while a walk runs, only if you allow location, and gives a map of the walk and a more exact distance. it is stored on this phone only and is never sent anywhere.", color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+            val (allowed, askLocation) = rememberLocationAsk()
+            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("location access", color = tokens.fg, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                if (allowed) Text("allowed", color = tokens.fgDim, fontSize = 13.sp)
+                else Text("not allowed · allow", color = accent, fontSize = 13.sp, modifier = Modifier.clickable(onClick = askLocation))
+            }
+            Text("uses GPS while a walk runs, only if you allow location, and gives a route and a more exact distance. the route is stored on this phone only and is never sent anywhere. you are asked whenever a walk starts without it, until you answer.", color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
+        }
+        Column {
+            Text("map behind the route", color = tokens.fg, fontSize = 15.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+                listOf(true to "on", false to "off").forEach { (v, label) ->
+                    HubFilter(label, settings.mapTiles == v, tokens, accent) { HealthPrefs.update(context) { it.copy(mapTiles = v) } }
+                }
+            }
+            Text("when you open a walk with a route, map tiles for that area are downloaded from OpenStreetMap, which learns the area (not the time or who you are), and kept on this phone. off draws the route on a plain background.", color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         }
         Text("clear walks", color = Color(0xFFE5645A), fontSize = 15.sp, modifier = Modifier.clickable { WalkSession.clearWalks(context) }.padding(vertical = 4.dp))
         Text("clear step history", color = Color(0xFFE5645A), fontSize = 15.sp, modifier = Modifier.clickable { confirmClear = true }.padding(vertical = 4.dp))

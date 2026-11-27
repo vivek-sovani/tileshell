@@ -302,4 +302,19 @@ class HealthTileLogicTest {
         assertEquals(WalkUi.None, reduceWalkUi(reduceWalkUi(WalkUi.None, WalkUiEvent.StopTapped), WalkUiEvent.SaveTapped(null, 0)))
         assertEquals(WalkUi.None, reduceWalkUi(WalkUi.None, WalkUiEvent.SaveTapped(w, 0)))             // a save needs a question first
     }
+
+    @Test
+    fun mapFitPutsRouteInsideWindowWithTiles() {
+        val pts = listOf(RoutePoint(18.5200, 73.8500, 0L), RoutePoint(18.5260, 73.8570, 1L))
+        val fit = fitMap(pts, 360f, 260f, 36f)!!
+        pts.forEach { p ->
+            val (x, y) = fit.project(p.lat, p.lon)
+            assertTrue(x in 0f..360f && y in 0f..260f)
+        }
+        val tiles = fit.tiles()
+        assertTrue(tiles.isNotEmpty() && tiles.size <= 20)
+        assertTrue(tiles.all { it.z == fit.zoom })
+        val (l, t, side) = fit.place(tiles.first())
+        assertTrue(side > 100f && l <= 360f && t <= 260f)
+    }
 }

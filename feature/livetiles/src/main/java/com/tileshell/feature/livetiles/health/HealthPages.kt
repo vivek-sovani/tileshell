@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -30,6 +31,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -38,6 +40,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -59,6 +62,7 @@ import kotlinx.coroutines.withContext
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.roundToInt
 
 private val Green = Color(0xFF7CB518)
 
@@ -137,19 +141,11 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
         }
         if (!state.running) elapsed = 0L
     }
-    val notify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val hasBaro = remember { WalkSession.hasBarometer(context) }
     val km = state.meters / 1000.0
     var selected by remember { mutableStateOf<Long?>(null) }
     BackHandler(enabled = selected != null) { selected = null }
-    val startNow: () -> Unit = {
-        if (Build.VERSION.SDK_INT >= 33 &&
-            androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) notify.launch(Manifest.permission.POST_NOTIFICATIONS)
-        WalkSession.start(context)
-    }
-    // The route needs the location permission: asked once, when a walk is first started; the walk goes ahead either way.
-    val locationAsk = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { startNow() }
+    val startWalk = rememberWalkStarter(settings)
     val picked = selected?.let { id -> walks.firstOrNull { it.startMs == id } }
     if (picked != null) {
         WalkDetail(picked, settings, tokens, accent, onBack = { selected = null }, onDeleted = { selected = null })
@@ -167,10 +163,7 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
                     )
                     FlatButton("start walk", true, accent, tokens, Modifier.fillMaxWidth()) {
                         if (!granted) return@FlatButton
-                        if (settings.recordRoute && !WalkSession.canRoute(context) && !HealthPrefs.routeAsked(context)) {
-                            HealthPrefs.setRouteAsked(context, true)
-                            locationAsk.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-                        } else startNow()
+                        startWalk()
                     }
                 }
             }
@@ -216,6 +209,50 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
             )
         }
     }
+}
+
+/**
+ * Starts a walk from anywhere (the page, the tile): asks for the notification permission (Android 13+) and, while the
+ * route is on and location is not allowed, for location once; the walk starts whatever the answer.
+ */
+@Composable
+fun rememberWalkStarter(settings: HealthSettings): () -> Unit {
+    val context = LocalContext.current
+    val notify = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val startNow: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            androidx.core.content.ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) notify.launch(Manifest.permission.POST_NOTIFICATIONS)
+        WalkSession.start(context)
+    }
+    val locationAsk = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { startNow() }
+    val recordRoute = rememberUpdatedState(settings.recordRoute)
+    return {
+        if (recordRoute.value && !WalkSession.canRoute(context) && !HealthPrefs.routeAsked(context)) {
+            HealthPrefs.setRouteAsked(context, true)
+            locationAsk.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        } else startNow()
+    }
+}
+
+/** Location answer for the settings row: "allowed", "not allowed" (tap to ask or open settings). */
+@Composable
+fun rememberLocationAsk(): Pair<Boolean, () -> Unit> {
+    val context = LocalContext.current
+    var allowed by remember { mutableStateOf(WalkSession.canRoute(context)) }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { allowed = WalkSession.canRoute(context) }
+    val open: () -> Unit = {
+        val act = context as? android.app.Activity
+        if (act != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(act, Manifest.permission.ACCESS_FINE_LOCATION).not() && HealthPrefs.routeAsked(context)) {
+            runCatching {
+                context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        } else {
+            HealthPrefs.setRouteAsked(context, true)
+            ask.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        }
+    }
+    return allowed to open
 }
 
 /** One tappable row per walk (when, time, distance, floors), for the walk, week and month pages. */
@@ -283,16 +320,34 @@ internal fun WalkDetail(w: Walk, settings: HealthSettings, tokens: ColorTokens, 
                     )
                 } else {
                     val marks = remember(pts, interval) { routeMarks(pts, interval).map { m -> pts.indexOfFirst { it === m } } }
+                    var tiles by remember(pts, settings.mapTiles) { mutableStateOf<Map<TileKey, androidx.compose.ui.graphics.ImageBitmap>>(emptyMap()) }
+                    var boxSize by remember { mutableStateOf(Size.Zero) }
+                    val fit = remember(pts, boxSize) { if (boxSize.width > 0f) fitMap(pts, boxSize.width, boxSize.height, boxSize.width * 0.1f) else null }
+                    LaunchedEffect(fit, settings.mapTiles) {
+                        val f = fit ?: return@LaunchedEffect
+                        if (!settings.mapTiles) return@LaunchedEffect
+                        tiles = withContext(Dispatchers.IO) { MapTiles.load(context, f.tiles()).mapValues { it.value.asImageBitmap() } }
+                    }
                     Canvas(modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(260.dp).background(tokens.sheetLine.copy(alpha = 0.25f))) {
-                        val xy = projectRoute(pts, size.width, size.height, 24.dp.toPx())
+                        if (boxSize != size) boxSize = size
+                        val f = fit ?: return@Canvas
+                        tiles.forEach { (k, img) ->
+                            val (l, t, side) = f.place(k)
+                            drawImage(img, srcOffset = androidx.compose.ui.unit.IntOffset.Zero, srcSize = androidx.compose.ui.unit.IntSize(img.width, img.height),
+                                dstOffset = androidx.compose.ui.unit.IntOffset(l.roundToInt(), t.roundToInt()), dstSize = androidx.compose.ui.unit.IntSize(side.roundToInt() + 1, side.roundToInt() + 1))
+                        }
+                        val xy = pts.map { f.project(it.lat, it.lon) }
                         val path = Path()
                         xy.forEachIndexed { i, (x, y) -> if (i == 0 || pts[i].newSegment) path.moveTo(x, y) else path.lineTo(x, y) }
+                        drawPath(path, Color.White, style = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
                         drawPath(path, accent, style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-                        marks.filter { it >= 0 }.forEach { i -> drawCircle(Color.White, 5.dp.toPx(), Offset(xy[i].first, xy[i].second)); drawCircle(accent, 3.dp.toPx(), Offset(xy[i].first, xy[i].second)) }
+                        marks.filter { it >= 0 }.forEach { i -> drawCircle(Color.White, 6.dp.toPx(), Offset(xy[i].first, xy[i].second)); drawCircle(accent, 3.5.dp.toPx(), Offset(xy[i].first, xy[i].second)) }
+                        drawCircle(Color.White, 9.dp.toPx(), Offset(xy.first().first, xy.first().second))
                         drawCircle(Green, 7.dp.toPx(), Offset(xy.first().first, xy.first().second))
+                        drawCircle(Color.White, 9.dp.toPx(), Offset(xy.last().first, xy.last().second))
                         drawCircle(Color(0xFFD6262B), 7.dp.toPx(), Offset(xy.last().first, xy.last().second))
                     }
-                    Text("green start · red end · dots at each ${if (imperial) "mile" else "kilometre"}. drawn from your own points, no map is downloaded.", color = tokens.fgDim, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                    Text("green start · red end · dots at each ${if (imperial) "mile" else "kilometre"}.${if (settings.mapTiles) " map © OpenStreetMap contributors." else " map background is off in settings."}", color = tokens.fgDim, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
                 }
             }
         }
@@ -314,9 +369,23 @@ internal fun WalkDetail(w: Walk, settings: HealthSettings, tokens: ColorTokens, 
         val times = splitTimes(w.splits)
         if (times.isNotEmpty()) {
             item(key = "splits") { Caption(if (imperial) "MILE TIMES" else "KILOMETRE TIMES", tokens, Modifier.padding(top = 18.dp, bottom = 4.dp)) }
-            val fastest = times.min()
-            times.forEachIndexed { i, t ->
-                item(key = "split-$i") { HRow("${if (imperial) "mile" else "km"} ${i + 1}", clockDuration(t) + if (times.size > 1 && t == fastest) " · fastest" else "", tokens) }
+            item(key = "split-bars") {
+                val fastest = times.min()
+                val slowest = times.max()
+                Column(modifier = Modifier.fillMaxWidth().padding(top = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    times.forEachIndexed { i, t ->
+                        val frac = (t.toFloat() / slowest).coerceIn(0.15f, 1f)
+                        val best = times.size > 1 && t == fastest
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("${i + 1}", color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.width(22.dp))
+                            Box(modifier = Modifier.weight(1f).height(20.dp).background(tokens.sheetLine.copy(alpha = 0.3f))) {
+                                Box(modifier = Modifier.fillMaxWidth(frac).height(20.dp).background(if (best) Green else accent.copy(alpha = 0.7f)))
+                            }
+                            Text(clockDuration(t), color = tokens.fg, fontSize = 13.sp, textAlign = TextAlign.End, modifier = Modifier.width(52.dp))
+                        }
+                    }
+                    Text("longer bar = slower ${if (imperial) "mile" else "kilometre"}${if (times.size > 1) ", green is the fastest" else ""}.", color = tokens.fgDim, fontSize = 11.sp)
+                }
             }
         }
         item(key = "delete") {

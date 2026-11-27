@@ -67,6 +67,13 @@ use the microphone. Its word lists ship with the app. Nothing is learned or kept
 
 ## 2. Third-party services
 
+### OpenStreetMap (walk route map)
+When you open a saved walk that has a GPS route, TileShell downloads the map tiles for that
+area from [OpenStreetMap](https://www.openstreetmap.org)'s tile server (the tile numbers, so the
+area, and your IP address, as with any web request; no account, no time, no route points). Tiles
+are cached on the phone. It can be turned off in the health hub's settings ("map behind the route"),
+which draws the route on a plain background. The route itself never leaves the phone.
+
 ### Open-Meteo (weather)
 When you grant coarse location for the Weather live tile, TileShell sends your
 approximate GPS coordinates to [Open-Meteo](https://open-meteo.com) to retrieve a

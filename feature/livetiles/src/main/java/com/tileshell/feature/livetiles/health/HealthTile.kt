@@ -156,8 +156,9 @@ fun HealthTileFace(size: TileSize, active: Boolean, modifier: Modifier = Modifie
         }
     }
 
+    val starter = rememberWalkStarter(s)
     val startWalk: () -> Unit = {
-        if (WalkSession.canWalk(context)) WalkSession.start(context)
+        if (WalkSession.canWalk(context)) starter()
         else Toast.makeText(context, "turn on physical activity in the health hub first", Toast.LENGTH_SHORT).show()
     }
     val km = walk.meters / 1000.0
