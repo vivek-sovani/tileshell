@@ -488,11 +488,29 @@ private fun HealthSettingsPage(settings: HealthSettings, tokens: ColorTokens, ac
                     }
                 }
             }
-            val (allowed, askLocation) = rememberLocationAsk()
+            val loc = rememberLocationAsk()
+            loc.instruction?.let { msg ->
+                androidx.compose.material3.AlertDialog(
+                    onDismissRequest = loc.dismiss,
+                    title = { Text("allow precise location") },
+                    text = { Text(msg) },
+                    confirmButton = { androidx.compose.material3.TextButton(onClick = loc.proceed) { Text("open settings") } },
+                    dismissButton = { androidx.compose.material3.TextButton(onClick = loc.dismiss) { Text("not now") } },
+                )
+            }
             Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("location access", color = tokens.fg, fontSize = 14.sp, modifier = Modifier.weight(1f))
-                if (allowed) Text("allowed", color = tokens.fgDim, fontSize = 13.sp)
-                else Text("not allowed · allow", color = accent, fontSize = 13.sp, modifier = Modifier.clickable(onClick = askLocation))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("location access", color = tokens.fg, fontSize = 14.sp)
+                    Text(
+                        when (loc.state) {
+                            LocationState.PRECISE -> "allowed, precise"
+                            LocationState.APPROXIMATE -> "approximate only, precise is needed"
+                            LocationState.NONE -> "not allowed"
+                        },
+                        color = tokens.fgDim, fontSize = 12.sp,
+                    )
+                }
+                if (loc.state != LocationState.PRECISE) Text(if (loc.state == LocationState.NONE) "allow" else "fix", color = accent, fontSize = 14.sp, modifier = Modifier.clickable(onClick = loc.act).padding(8.dp))
             }
             Text("uses GPS while a walk runs, only if you allow location, and gives a route and a more exact distance. the route is stored on this phone only and is never sent anywhere. you are asked whenever a walk starts without it, until you answer.", color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 4.dp))
         }

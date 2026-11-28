@@ -49,7 +49,8 @@ class HealthSampleWorker(context: Context, params: WorkerParameters) : Coroutine
         val today = LocalDate.now().toEpochDay()
         val resolution = resolveSteps(counter, baseline, today)
         if (resolution.newBaseline != baseline) StepsPrefs.saveBaseline(context, resolution.newBaseline)
-        HealthStore.record(context, today, resolution.stepsToday)
+        WalkSession.loadWalks(context)
+        HealthStore.record(context, today, maxOf(resolution.stepsToday, WalkSession.walkStepsToday()))
         return Result.success()
     }
 

@@ -148,9 +148,13 @@ internal fun rememberStepsToday(active: Boolean): Int? {
                 if (resolution.newBaseline != baseline) {
                     StepsPrefs.saveBaseline(context, resolution.newBaseline)
                 }
-                steps = resolution.stepsToday
+                // Steps before the day's first reading (or a reboot) are not seen by the baseline; walks are measured, so
+                // today is at least what today's walks counted.
+                com.tileshell.feature.livetiles.health.WalkSession.loadWalks(context)
+                val today = maxOf(resolution.stepsToday, com.tileshell.feature.livetiles.health.WalkSession.walkStepsToday())
+                steps = today
                 // The health hub's history: today's count, kept by day.
-                com.tileshell.feature.livetiles.health.HealthStore.record(context, LocalDate.now().toEpochDay(), resolution.stepsToday)
+                com.tileshell.feature.livetiles.health.HealthStore.record(context, LocalDate.now().toEpochDay(), today)
             }
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit

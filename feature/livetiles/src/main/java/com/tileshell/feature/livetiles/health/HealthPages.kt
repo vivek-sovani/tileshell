@@ -36,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -231,28 +232,67 @@ fun rememberWalkStarter(settings: HealthSettings): () -> Unit {
         if (recordRoute.value && !WalkSession.canRoute(context) && !HealthPrefs.routeAsked(context)) {
             HealthPrefs.setRouteAsked(context, true)
             locationAsk.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
-        } else startNow()
+        } else {
+            if (recordRoute.value && !WalkSession.canRoute(context)) {
+                android.widget.Toast.makeText(context, "no route will be recorded: precise location is off (health settings › location access)", android.widget.Toast.LENGTH_LONG).show()
+            }
+            startNow()
+        }
     }
 }
 
-/** Location answer for the settings row: "allowed", "not allowed" (tap to ask or open settings). */
+/** What the walk route can use: precise location (needed), only approximate, or nothing. */
+enum class LocationState { PRECISE, APPROXIMATE, NONE }
+
+fun locationState(context: Context): LocationState {
+    fun granted(p: String) = androidx.core.content.ContextCompat.checkSelfPermission(context, p) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    return when {
+        granted(Manifest.permission.ACCESS_FINE_LOCATION) -> LocationState.PRECISE
+        granted(Manifest.permission.ACCESS_COARSE_LOCATION) -> LocationState.APPROXIMATE
+        else -> LocationState.NONE
+    }
+}
+
+/**
+ * State of the location permission for the settings row (re-read when the app is shown again, e.g. back from the
+ * system settings) and the action for it: ask, or, when the system will not ask again, explain and open the settings.
+ * [instruction] is non-null while the explanation should be shown; call [dismiss] to clear it.
+ */
+class LocationAsk(val state: LocationState, val act: () -> Unit, val instruction: String?, val proceed: () -> Unit, val dismiss: () -> Unit)
+
 @Composable
-fun rememberLocationAsk(): Pair<Boolean, () -> Unit> {
+fun rememberLocationAsk(): LocationAsk {
     val context = LocalContext.current
-    var allowed by remember { mutableStateOf(WalkSession.canRoute(context)) }
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { allowed = WalkSession.canRoute(context) }
-    val open: () -> Unit = {
-        val act = context as? android.app.Activity
-        if (act != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(act, Manifest.permission.ACCESS_FINE_LOCATION).not() && HealthPrefs.routeAsked(context)) {
-            runCatching {
-                context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
-            }
-        } else {
-            HealthPrefs.setRouteAsked(context, true)
-            ask.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+    var state by remember { mutableStateOf(locationState(context)) }
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val obs = androidx.lifecycle.LifecycleEventObserver { _, e -> if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) state = locationState(context) }
+        owner.lifecycle.addObserver(obs)
+        onDispose { owner.lifecycle.removeObserver(obs) }
+    }
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { state = locationState(context) }
+    var instruction by remember { mutableStateOf<String?>(null) }
+    val openSettings: () -> Unit = {
+        runCatching {
+            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null)).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
         }
     }
-    return allowed to open
+    val act: () -> Unit = {
+        val activity = context as? android.app.Activity
+        val canAsk = state == LocationState.NONE && (!HealthPrefs.routeAsked(context) ||
+            (activity != null && androidx.core.app.ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_FINE_LOCATION)))
+        if (canAsk) {
+            HealthPrefs.setRouteAsked(context, true)
+            ask.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+        } else {
+            instruction = if (state == LocationState.APPROXIMATE) {
+                "Only approximate location is allowed, which is not enough to draw a route. On the next screen open Permissions, then Location, choose \"Allow only while using the app\" and turn on \"Use precise location\"."
+            } else {
+                "Location was turned off for tileshell. On the next screen open Permissions, then Location, choose \"Allow only while using the app\" and turn on \"Use precise location\"."
+            }
+        }
+    }
+    return LocationAsk(state, act, instruction, proceed = { instruction = null; openSettings() }, dismiss = { instruction = null })
 }
 
 /** One tappable row per walk (when, time, distance, floors), for the walk, week and month pages. */
@@ -328,7 +368,7 @@ internal fun WalkDetail(w: Walk, settings: HealthSettings, tokens: ColorTokens, 
                         if (!settings.mapTiles) return@LaunchedEffect
                         tiles = withContext(Dispatchers.IO) { MapTiles.load(context, f.tiles()).mapValues { it.value.asImageBitmap() } }
                     }
-                    Canvas(modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(260.dp).background(tokens.sheetLine.copy(alpha = 0.25f))) {
+                    Canvas(modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(260.dp).clipToBounds().background(tokens.sheetLine.copy(alpha = 0.25f))) {
                         if (boxSize != size) boxSize = size
                         val f = fit ?: return@Canvas
                         tiles.forEach { (k, img) ->

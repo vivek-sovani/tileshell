@@ -79,6 +79,12 @@ object WalkSession {
         handler.post { _walks.value = runCatching { decodeWalks(File(app.filesDir, FILE).readText()) }.getOrDefault(emptyList()) }
     }
 
+    /** Steps of the walks that started today: they are part of today's count, so today can never be lower. */
+    fun walkStepsToday(zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): Int {
+        val today = java.time.LocalDate.now(zone)
+        return _walks.value.filter { java.time.Instant.ofEpochMilli(it.startMs).atZone(zone).toLocalDate() == today }.sumOf { it.steps }
+    }
+
     fun canWalk(context: Context): Boolean =
         ContextCompat.checkSelfPermission(context, Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED &&
             (context.getSystemService(Context.SENSOR_SERVICE) as? SensorManager)?.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) != null
@@ -154,6 +160,7 @@ object WalkSession {
             val before = _walks.value
             val next = addWalk(before, walk)
             _walks.value = next
+            HealthStore.record(app, java.time.LocalDate.now().toEpochDay(), walkStepsToday())
             val dropped = (before + walk).filter { w -> next.none { it.startMs == w.startMs } }
             handler.post {
                 runCatching { File(app.filesDir, FILE).writeText(encodeWalks(next)) }
