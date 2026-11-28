@@ -84,6 +84,10 @@ object Units {
     fun elevation(m: Int, units: ResolvedUnits = current): String =
         if (units == ResolvedUnits.IMPERIAL) "${Math.round(m * 3.28084).toInt()} ft" else "$m m"
 
+    /** A body weight as `70 kg` or `154 lb`. */
+    fun weight(kg: Int, units: ResolvedUnits = current): String =
+        if (units == ResolvedUnits.IMPERIAL) "${Math.round(kg * 2.20462).toInt()} lb" else "$kg kg"
+
     /** A height, e.g. `170 cm` or `5′7″`. */
     fun height(cm: Int, units: ResolvedUnits = current): String {
         if (units != ResolvedUnits.IMPERIAL) return "$cm cm"

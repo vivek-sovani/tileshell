@@ -2,6 +2,7 @@ package com.tileshell.feature.livetiles.health
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 
@@ -58,5 +59,22 @@ class HealthLogicTest {
         val empty = weekStats(emptyList(), monday, monday - 1, 8_000)
         assertNull(empty.bestIndex)
         assertEquals(0, empty.average)
+    }
+
+    @Test
+    fun walkCaloriesUseMetWeightAndClimb() {
+        // 30 min at 5 km/h, 70 kg: (3.3 - 1) x 70 x 0.5 = 80.5
+        assertEquals(81, walkKcal(30 * 60_000L, 2.5, 0, 70))
+        assertEquals(0, walkKcal(0, 0.0, 0, 70))
+        assertTrue(walkKcal(30 * 60_000L, 2.5, 100, 70) > walkKcal(30 * 60_000L, 2.5, 0, 70))
+        assertTrue(walkKcal(30 * 60_000L, 2.5, 0, 90) > walkKcal(30 * 60_000L, 2.5, 0, 70))
+    }
+
+    @Test
+    fun dayCaloriesDoNotCountWalkStepsTwice() {
+        val w = Walk(startMs = 0, endMs = 1_800_000, activeMs = 1_800_000, steps = 3_000, floors = 0, meters = 2_500)
+        // 1,000 steps outside the walk at 0.04 = 40, plus the walk's 81
+        assertEquals(121, dayKcal(4_000, listOf(w), 170, 70))
+        assertEquals(160, dayKcal(4_000, emptyList(), 170, 70))
     }
 }

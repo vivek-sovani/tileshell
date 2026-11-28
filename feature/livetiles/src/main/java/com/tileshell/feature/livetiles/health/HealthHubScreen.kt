@@ -263,7 +263,7 @@ private fun TodayPage(
         item(key = "gap") { Box(modifier = Modifier.height(10.dp)) }
         val rows = listOf(
             "distance" to com.tileshell.feature.livetiles.Units.distance(distanceKm(shown, settings.heightCm)),
-            "calories (estimate)" to "${n(caloriesKcal(shown))} kcal",
+            "calories (estimate)" to "${n(dayKcal(shown, walksBetween(walks, today, today), settings.heightCm, settings.weightKg))} kcal",
             "active minutes (estimate)" to "${activeMinutes(shown)} min",
             "streak" to streak(history.let { recordDay(it, today, shown) }, today, settings.goal).let { if (it == 0) "no days at goal yet" else if (it == 1) "1 day at goal" else "$it days at goal" },
         )
@@ -368,7 +368,7 @@ private fun PeriodPage(month: Boolean, settings: HealthSettings, history: List<D
             add("days at goal" to "${stats.daysAtGoal} of ${stats.days.count { it != null }}")
             add("distance" to com.tileshell.feature.livetiles.Units.distance(distanceKm(stats.total, settings.heightCm)))
             add("active minutes" to n(activeMinutes(stats.total)))
-            add("calories (estimate)" to n(caloriesKcal(stats.total)))
+            add("calories (estimate)" to n(dayKcal(stats.total, periodWalks, settings.heightCm, settings.weightKg)))
             add((if (previous) "this $noun" else "last $noun") to n(other.total))
         }
         summary.forEach { (label, value) ->
@@ -458,6 +458,14 @@ private fun HealthSettingsPage(settings: HealthSettings, tokens: ColorTokens, ac
             }
         }
         Column {
+            Text("weight, for the calorie estimate", color = tokens.fg, fontSize = 15.sp)
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp), modifier = Modifier.padding(top = 6.dp)) {
+                Text("−", color = accent, fontSize = 26.sp, modifier = Modifier.clickable { HealthPrefs.update(context) { it.copy(weightKg = it.weightKg - 1) } }.padding(horizontal = 10.dp))
+                Text(com.tileshell.feature.livetiles.Units.weight(settings.weightKg), color = tokens.fg, fontSize = 18.sp, fontWeight = FontWeight.Light)
+                Text("+", color = accent, fontSize = 26.sp, modifier = Modifier.clickable { HealthPrefs.update(context) { it.copy(weightKg = it.weightKg + 1) } }.padding(horizontal = 10.dp))
+            }
+        }
+        Column {
             Text("bedtime reminder", color = tokens.fg, fontSize = 15.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
                 listOf(-1 to "off", 21 * 60 to "9 pm", 22 * 60 to "10 pm", 23 * 60 to "11 pm", 0 to "12 am").forEach { (m, label) ->
@@ -526,7 +534,7 @@ private fun HealthSettingsPage(settings: HealthSettings, tokens: ColorTokens, ac
         Text("clear walks", color = Color(0xFFE5645A), fontSize = 15.sp, modifier = Modifier.clickable { WalkSession.clearWalks(context) }.padding(vertical = 4.dp))
         Text("clear step history", color = Color(0xFFE5645A), fontSize = 15.sp, modifier = Modifier.clickable { confirmClear = true }.padding(vertical = 4.dp))
         Text(
-            "steps, walks and the sleep estimate come from your phone's own sensors and usage, and stay on this phone; they are not in backups. distance, calories, active minutes and sleep are estimates. air quality is read from open-meteo for the weather's place.",
+            "steps, walks and the sleep estimate come from your phone's own sensors and usage, and stay on this phone; they are not in backups. distance, calories (from your weight, pace and climb), active minutes and sleep are estimates. air quality is read from open-meteo for the weather's place.",
             color = tokens.fgDim, fontSize = 12.sp,
         )
     }

@@ -11917,3 +11917,6 @@ Pivots are now today → walk → sleep → air → week → apps. All of it use
 - Map tiles are fetched in parallel (6 at a time, one retry) and drawn as each arrives, so a slow or failed tile no longer leaves a grey band for the whole page. Tapping the map opens it full screen (`RouteMapFullScreen`: a window-sized fit so more detail, pinch to zoom up to 6x by scaling the drawn layer, drag to move).
 - "Floors climbed" is replaced by "elevation gain" in metres (feet with imperial units): `Walk.ascentM` (new last codec column; walks saved before it use floors x 3 m, `walkAscentM`). The barometer logic is unchanged (smoothing, hysteresis, only while stepping); `floors` is still stored.
 - Today's steps are never lower than the steps of today's walks (the baseline misses steps before the first reading of the day).
+
+## Walk calories use the MET formula, with a weight setting
+A walk's calories are (MET - 1) x weight x hours, MET from the walk's speed (Compendium walking values, 2.3 to 6.3) plus 0.1 per percent of average gradient from the elevation gain; the resting 1 MET is left out. The day, week and month totals add each walk's figure to the old 0.04 kcal a step (scaled by weight / 70) for steps outside walks, so walk steps are not counted twice. Weight is a health setting (default 70 kg, 30-200; shown in lb for imperial units). All estimates.

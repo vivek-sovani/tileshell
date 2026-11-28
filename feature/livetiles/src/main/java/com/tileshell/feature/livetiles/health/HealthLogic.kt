@@ -13,6 +13,7 @@ data class DaySteps(val epochDay: Long, val steps: Int)
 
 const val DEFAULT_GOAL = 8_000
 const val DEFAULT_HEIGHT_CM = 170
+const val DEFAULT_WEIGHT_KG = 70
 const val KEEP_DAYS = 120
 
 /**
@@ -35,6 +36,37 @@ fun distanceKm(steps: Int, heightCm: Int): Double = steps * strideMeters(heightC
 
 /** A rough energy figure: about 0.04 kcal a step. An estimate, not a measurement. */
 fun caloriesKcal(steps: Int): Int = (steps * 0.04).roundToInt()
+
+/** Walking MET (Compendium of Physical Activities) for a speed in km/h, plus 0.1 for each percent of average gradient. */
+fun walkMet(speedKmh: Double, gradePct: Double = 0.0): Double {
+    val base = when {
+        speedKmh < 3.2 -> 2.3
+        speedKmh < 4.8 -> 2.9
+        speedKmh < 5.6 -> 3.3
+        speedKmh < 6.4 -> 3.8
+        speedKmh < 7.2 -> 5.0
+        else -> 6.3
+    }
+    return base + 0.1 * gradePct.coerceIn(0.0, 15.0)
+}
+
+/** Calories burnt by a walk beyond resting: (MET - 1) x weight x hours. An estimate. */
+fun walkKcal(activeMs: Long, km: Double, ascentM: Int, weightKg: Int): Int {
+    if (activeMs <= 0L) return 0
+    val hours = activeMs / 3_600_000.0
+    val grade = if (km > 0.05) ascentM / (km * 1000.0) * 100.0 else 0.0
+    return ((walkMet(km / hours, grade) - 1.0) * weightKg * hours).roundToInt().coerceAtLeast(0)
+}
+
+/** Calories a step is worth outside a walk, scaled from 0.04 for 70 kg. */
+fun stepKcal(steps: Int, weightKg: Int): Double = steps * 0.04 * weightKg / DEFAULT_WEIGHT_KG
+
+/** A day's (or period's) calories: each walk by the MET formula, the rest of the steps at the per-step rate. */
+fun dayKcal(totalSteps: Int, walks: List<Walk>, heightCm: Int, weightKg: Int): Int {
+    val walkSteps = walks.sumOf { it.steps }
+    val walkKcal = walks.sumOf { walkKcal(it.activeMs, walkKm(it, heightCm), walkAscentM(it), weightKg) }
+    return walkKcal + stepKcal((totalSteps - walkSteps).coerceAtLeast(0), weightKg).roundToInt()
+}
 
 /** Active minutes, roughly: a brisk walk is about 100 steps a minute. An estimate. */
 fun activeMinutes(steps: Int): Int = steps / 100
