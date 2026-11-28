@@ -21,7 +21,12 @@ data class Walk(
     val meters: Int = 0,
     val splits: List<Long> = emptyList(),
     val hasRoute: Boolean = false,
+    /** Elevation gained in metres (barometer); 0 on walks saved before it was kept, which fall back to floors x 3 m. */
+    val ascentM: Int = 0,
 )
+
+/** The elevation gain of a saved walk in metres. */
+fun walkAscentM(w: Walk): Int = if (w.ascentM > 0) w.ascentM else (w.floors * METERS_PER_FLOOR).toInt()
 
 /** The distance of a saved walk in km. */
 fun walkKm(w: Walk, heightCm: Int): Double = if (w.meters > 0) w.meters / 1000.0 else distanceKm(w.steps, heightCm)
@@ -121,7 +126,7 @@ fun addWalk(walks: List<Walk>, walk: Walk): List<Walk> = (walks + walk).sortedBy
 
 fun encodeWalks(walks: List<Walk>): String =
     walks.joinToString("\n") {
-        "${it.startMs}\t${it.endMs}\t${it.activeMs}\t${it.steps}\t${it.floors}\t${it.meters}\t${it.splits.joinToString(",")}\t${if (it.hasRoute) 1 else 0}"
+        "${it.startMs}\t${it.endMs}\t${it.activeMs}\t${it.steps}\t${it.floors}\t${it.meters}\t${it.splits.joinToString(",")}\t${if (it.hasRoute) 1 else 0}\t${it.ascentM}"
     }
 
 fun decodeWalks(text: String): List<Walk> = text.lineSequence().mapNotNull { line ->
@@ -136,6 +141,7 @@ fun decodeWalks(text: String): List<Walk> = text.lineSequence().mapNotNull { lin
         f.getOrNull(5)?.toIntOrNull() ?: 0,
         f.getOrNull(6)?.split(',')?.mapNotNull { it.toLongOrNull() }.orEmpty(),
         f.getOrNull(7) == "1",
+        f.getOrNull(8)?.toIntOrNull() ?: 0,
     )
 }.toList().sortedByDescending { it.startMs }.take(KEEP_WALKS)
 

@@ -293,7 +293,7 @@ private fun StepsFront(
                     FaceText("${(progress * 100).toInt()}% of ${String.format(Locale.US, "%,d", goal)}", 14)
                     sleep?.let { FaceText("slept ${hm(it.durationMs)}", 12, dim = true) }
                     air?.usAqi?.let { aqi -> FaceText("air $aqi" + (air.uvNow?.let { " · uv ${it.toInt()}" } ?: ""), 12, dim = true) }
-                    lastWalk?.let { w -> FaceText("walk ${Units.distance(walkKm(w, s.heightCm))}" + if (w.floors > 0) " · ${w.floors} fl" else "", 12, dim = true) }
+                    lastWalk?.let { w -> FaceText("walk ${Units.distance(walkKm(w, s.heightCm))}" + if (walkAscentM(w) > 0) " · ${Units.elevation(walkAscentM(w))} up" else "", 12, dim = true) }
                 }
             }
             Text("health", color = color, fontSize = 12.sp, modifier = Modifier.align(Alignment.BottomStart))
@@ -310,7 +310,7 @@ private fun StepsFront(
                         InfoLine("moon", sleep?.let { hm(it.durationMs) })
                         InfoLine("cloud", air?.usAqi?.let { "aqi $it" })
                         InfoLine("brightness", air?.uvNow?.let { "uv ${it.toInt()}" })
-                        InfoLine("steps", lastWalk?.takeIf { it.floors > 0 }?.let { "${it.floors} floors" })
+                        InfoLine("steps", lastWalk?.takeIf { walkAscentM(it) > 0 }?.let { "${Units.elevation(walkAscentM(it))} up" })
                     }
                 }
                 Spacer(Modifier.height(10.dp))
@@ -355,7 +355,7 @@ private fun WalkingFace(kind: HealthTileKind, walk: WalkState, elapsed: Long, km
             FaceText(if (walk.paused) "walk paused" else "walking", 12, dim = true)
             Text(clockDuration(elapsed), color = color, fontSize = if (kind == HealthTileKind.MEDIUM) 30.sp else 40.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.ExtraLight, maxLines = 1)
             FaceText(String.format(Locale.US, "%,d steps", walk.steps), 13)
-            FaceText(Units.distance(km) + if (walk.hasBarometer) " · ${walk.floors} fl" else "", 13)
+            FaceText(Units.distance(km) + if (walk.hasBarometer) " · ${Units.elevation(walk.ascentM)} up" else "", 13)
         }
         if (kind == HealthTileKind.MEDIUM) {
             RoundButton(if (walk.paused) "play" else "pause", false, color, onPause, Modifier.align(Alignment.BottomStart))

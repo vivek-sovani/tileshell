@@ -385,7 +385,7 @@ private fun PeriodPage(month: Boolean, settings: HealthSettings, history: List<D
         item(key = "walks-head") {
             Caption(
                 if (periodWalks.isEmpty()) "WALKS" else "WALKS · ${totals.count} · ${com.tileshell.feature.livetiles.Units.distance(totals.km)} · ${spokenDuration(totals.activeMs)}" +
-                    if (totals.floors > 0) " · ${totals.floors} floors" else "",
+                    if (totals.ascentM > 0) " · ${com.tileshell.feature.livetiles.Units.elevation(totals.ascentM)} up" else "",
                 tokens, Modifier.padding(top = 22.dp, bottom = 6.dp),
             )
         }

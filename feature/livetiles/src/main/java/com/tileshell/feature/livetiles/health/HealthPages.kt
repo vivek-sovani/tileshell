@@ -37,7 +37,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.ui.geometry.Offset
+import kotlinx.coroutines.launch
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -159,7 +166,7 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
                 Column(modifier = Modifier.padding(top = 10.dp, bottom = 6.dp)) {
                     Text("0:00", color = tokens.fgDim, fontSize = 56.sp, fontWeight = FontWeight.ExtraLight)
                     Text(
-                        "counts steps, distance${if (hasBaro) ", floors climbed" else ""} and pace, records your route with GPS, beeps at each ${if (Units.isImperial) "mile" else "kilometre"}, and keeps going with the screen off",
+                        "counts steps, distance${if (hasBaro) ", elevation gain" else ""} and pace, records your route with GPS, beeps at each ${if (Units.isImperial) "mile" else "kilometre"}, and keeps going with the screen off",
                         color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp),
                     )
                     FlatButton("start walk", true, accent, tokens, Modifier.fillMaxWidth()) {
@@ -181,7 +188,7 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
                 buildList {
                     add("steps" to "%,d".format(Locale.US, state.steps))
                     add("distance" to Units.distance(km))
-                    if (state.hasBarometer) add("floors climbed" to state.floors.toString())
+                    if (state.hasBarometer) add("elevation gain" to Units.elevation(state.ascentM))
                     add("pace" to (pace ?: "—"))
                     if (settings.recordRoute && WalkSession.canRoute(context)) add("route" to if (state.gps) "recording" else "waiting for gps")
                     add("steps a minute" to (spm?.toString() ?: "—"))
@@ -205,7 +212,7 @@ fun WalkPage(granted: Boolean, settings: HealthSettings, tokens: ColorTokens, ac
         }
         item(key = "note") {
             Text(
-                "steps come from the phone's step sensor. floors use the barometer (about 3 m a floor, only while you are stepping)${if (hasBaro) "" else ", which this phone does not have, so floors are not counted"}. the route uses GPS while a walk runs, if location is allowed; distance then comes from it, else from your steps. walks and routes stay on this phone.",
+                "steps come from the phone's step sensor. elevation gain uses the barometer (only while you are stepping, small wobbles ignored)${if (hasBaro) "" else ", which this phone does not have, so elevation is not counted"}. the route uses GPS while a walk runs, if location is allowed; distance then comes from it, else from your steps. walks and routes stay on this phone.",
                 color = tokens.fgDim, fontSize = 12.sp, modifier = Modifier.padding(top = 12.dp),
             )
         }
@@ -295,14 +302,14 @@ fun rememberLocationAsk(): LocationAsk {
     return LocationAsk(state, act, instruction, proceed = { instruction = null; openSettings() }, dismiss = { instruction = null })
 }
 
-/** One tappable row per walk (when, time, distance, floors), for the walk, week and month pages. */
+/** One tappable row per walk (when, time, distance, elevation gain), for the walk, week and month pages. */
 internal fun LazyListScope.walksSection(walks: List<Walk>, settings: HealthSettings, tokens: ColorTokens, accent: Color, onOpen: (Long) -> Unit) {
     walks.forEach { w ->
         item(key = "walk-${w.startMs}") {
             val parts = buildList {
                 add(spokenDuration(w.activeMs))
                 add(Units.distance(walkKm(w, settings.heightCm)))
-                if (w.floors > 0) add("${w.floors} floor${if (w.floors == 1) "" else "s"}")
+                if (walkAscentM(w) > 0) add("${Units.elevation(walkAscentM(w))} up")
             }
             Column(modifier = Modifier.fillMaxWidth().clickable { onOpen(w.startMs) }) {
                 Box(modifier = Modifier.fillMaxWidth().height(0.5.dp).background(tokens.sheetLine))
@@ -314,6 +321,87 @@ internal fun LazyListScope.walksSection(walks: List<Walk>, settings: HealthSetti
                     Text(if (w.hasRoute) "route ›" else "›", color = accent, fontSize = 13.sp)
                 }
             }
+        }
+    }
+}
+
+/** The route over map tiles (when [useTiles]); tiles arrive one by one, a few at a time, and are cached. */
+@Composable
+internal fun RouteMap(pts: List<RoutePoint>, intervalM: Double, useTiles: Boolean, accent: Color, backdrop: Color, modifier: Modifier) {
+    val context = LocalContext.current
+    val marks = remember(pts, intervalM) { routeMarks(pts, intervalM).map { m -> pts.indexOfFirst { it === m } } }
+    var tiles by remember(pts, useTiles) { mutableStateOf<Map<TileKey, androidx.compose.ui.graphics.ImageBitmap>>(emptyMap()) }
+    var boxSize by remember { mutableStateOf(Size.Zero) }
+    val fit = remember(pts, boxSize) { if (boxSize.width > 0f) fitMap(pts, boxSize.width, boxSize.height, minOf(boxSize.width, boxSize.height) * 0.1f) else null }
+    LaunchedEffect(fit, useTiles) {
+        val f = fit ?: return@LaunchedEffect
+        if (!useTiles) return@LaunchedEffect
+        val gate = kotlinx.coroutines.sync.Semaphore(6)
+        kotlinx.coroutines.coroutineScope {
+            f.tiles().take(60).forEach { k ->
+                launch(Dispatchers.IO) {
+                    gate.acquire()
+                    val bmp = try { MapTiles.get(context, k) } finally { gate.release() }
+                    if (bmp != null) tiles = tiles + (k to bmp.asImageBitmap())
+                }
+            }
+        }
+    }
+    Canvas(modifier = modifier.background(backdrop)) {
+        if (boxSize != size) boxSize = size
+        val f = fit ?: return@Canvas
+        tiles.forEach { (k, img) ->
+            val (l, t, side) = f.place(k)
+            drawImage(img, srcOffset = androidx.compose.ui.unit.IntOffset.Zero, srcSize = androidx.compose.ui.unit.IntSize(img.width, img.height),
+                dstOffset = androidx.compose.ui.unit.IntOffset(l.roundToInt(), t.roundToInt()), dstSize = androidx.compose.ui.unit.IntSize(side.roundToInt() + 1, side.roundToInt() + 1))
+        }
+        val xy = pts.map { f.project(it.lat, it.lon) }
+        val path = Path()
+        xy.forEachIndexed { i, (x, y) -> if (i == 0 || pts[i].newSegment) path.moveTo(x, y) else path.lineTo(x, y) }
+        drawPath(path, Color.White, style = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        drawPath(path, accent, style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+        marks.filter { it >= 0 }.forEach { i -> drawCircle(Color.White, 6.dp.toPx(), Offset(xy[i].first, xy[i].second)); drawCircle(accent, 3.5.dp.toPx(), Offset(xy[i].first, xy[i].second)) }
+        drawCircle(Color.White, 9.dp.toPx(), Offset(xy.first().first, xy.first().second))
+        drawCircle(Green, 7.dp.toPx(), Offset(xy.first().first, xy.first().second))
+        drawCircle(Color.White, 9.dp.toPx(), Offset(xy.last().first, xy.last().second))
+        drawCircle(Color(0xFFD6262B), 7.dp.toPx(), Offset(xy.last().first, xy.last().second))
+    }
+}
+
+/** The route map over the whole screen: pinch to zoom, drag to move, back or "close" to leave. */
+@Composable
+internal fun RouteMapFullScreen(pts: List<RoutePoint>, intervalM: Double, useTiles: Boolean, accent: Color, tokens: ColorTokens, onClose: () -> Unit) {
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+    ) {
+        var scale by remember { mutableStateOf(1f) }
+        var offset by remember { mutableStateOf(Offset.Zero) }
+        var box by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+        Box(modifier = Modifier.fillMaxSize().background(tokens.bg)) {
+            RouteMap(
+                pts, intervalM, useTiles, accent, tokens.sheetLine.copy(alpha = 0.25f),
+                Modifier.fillMaxSize()
+                    .onSizeChanged { box = it }
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            scale = (scale * zoom).coerceIn(1f, 6f)
+                            val maxX = box.width * (scale - 1f) / 2f
+                            val maxY = box.height * (scale - 1f) / 2f
+                            offset = Offset((offset.x + pan.x * scale).coerceIn(-maxX, maxX), (offset.y + pan.y * scale).coerceIn(-maxY, maxY))
+                        }
+                    }
+                    .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y },
+            )
+            Text(
+                "‹ close", color = accent, fontSize = 16.sp,
+                modifier = Modifier.align(Alignment.TopStart).statusBarsPadding().padding(12.dp)
+                    .background(tokens.bg.copy(alpha = 0.7f)).clickable(onClick = onClose).padding(horizontal = 12.dp, vertical = 8.dp),
+            )
+            Text(
+                "map © OpenStreetMap contributors", color = tokens.fgDim, fontSize = 10.sp,
+                modifier = Modifier.align(Alignment.BottomEnd).navigationBarsPadding().padding(8.dp).background(tokens.bg.copy(alpha = 0.7f)).padding(horizontal = 6.dp, vertical = 2.dp),
+            )
         }
     }
 }
@@ -359,35 +447,13 @@ internal fun WalkDetail(w: Walk, settings: HealthSettings, tokens: ColorTokens, 
                         color = tokens.fgDim, fontSize = 13.sp, modifier = Modifier.padding(top = 6.dp),
                     )
                 } else {
-                    val marks = remember(pts, interval) { routeMarks(pts, interval).map { m -> pts.indexOfFirst { it === m } } }
-                    var tiles by remember(pts, settings.mapTiles) { mutableStateOf<Map<TileKey, androidx.compose.ui.graphics.ImageBitmap>>(emptyMap()) }
-                    var boxSize by remember { mutableStateOf(Size.Zero) }
-                    val fit = remember(pts, boxSize) { if (boxSize.width > 0f) fitMap(pts, boxSize.width, boxSize.height, boxSize.width * 0.1f) else null }
-                    LaunchedEffect(fit, settings.mapTiles) {
-                        val f = fit ?: return@LaunchedEffect
-                        if (!settings.mapTiles) return@LaunchedEffect
-                        tiles = withContext(Dispatchers.IO) { MapTiles.load(context, f.tiles()).mapValues { it.value.asImageBitmap() } }
-                    }
-                    Canvas(modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(260.dp).clipToBounds().background(tokens.sheetLine.copy(alpha = 0.25f))) {
-                        if (boxSize != size) boxSize = size
-                        val f = fit ?: return@Canvas
-                        tiles.forEach { (k, img) ->
-                            val (l, t, side) = f.place(k)
-                            drawImage(img, srcOffset = androidx.compose.ui.unit.IntOffset.Zero, srcSize = androidx.compose.ui.unit.IntSize(img.width, img.height),
-                                dstOffset = androidx.compose.ui.unit.IntOffset(l.roundToInt(), t.roundToInt()), dstSize = androidx.compose.ui.unit.IntSize(side.roundToInt() + 1, side.roundToInt() + 1))
-                        }
-                        val xy = pts.map { f.project(it.lat, it.lon) }
-                        val path = Path()
-                        xy.forEachIndexed { i, (x, y) -> if (i == 0 || pts[i].newSegment) path.moveTo(x, y) else path.lineTo(x, y) }
-                        drawPath(path, Color.White, style = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-                        drawPath(path, accent, style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
-                        marks.filter { it >= 0 }.forEach { i -> drawCircle(Color.White, 6.dp.toPx(), Offset(xy[i].first, xy[i].second)); drawCircle(accent, 3.5.dp.toPx(), Offset(xy[i].first, xy[i].second)) }
-                        drawCircle(Color.White, 9.dp.toPx(), Offset(xy.first().first, xy.first().second))
-                        drawCircle(Green, 7.dp.toPx(), Offset(xy.first().first, xy.first().second))
-                        drawCircle(Color.White, 9.dp.toPx(), Offset(xy.last().first, xy.last().second))
-                        drawCircle(Color(0xFFD6262B), 7.dp.toPx(), Offset(xy.last().first, xy.last().second))
-                    }
-                    Text("green start · red end · dots at each ${if (imperial) "mile" else "kilometre"}.${if (settings.mapTiles) " map © OpenStreetMap contributors." else " map background is off in settings."}", color = tokens.fgDim, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
+                    var full by remember { mutableStateOf(false) }
+                    if (full) RouteMapFullScreen(pts, interval, settings.mapTiles, accent, tokens) { full = false }
+                    RouteMap(
+                        pts, interval, settings.mapTiles, accent, tokens.sheetLine.copy(alpha = 0.25f),
+                        Modifier.fillMaxWidth().padding(top = 8.dp).height(260.dp).clipToBounds().clickable { full = true },
+                    )
+                    Text("tap the map to see it full screen. green start · red end · dots at each ${if (imperial) "mile" else "kilometre"}.${if (settings.mapTiles) " map © OpenStreetMap contributors." else " map background is off in settings."}", color = tokens.fgDim, fontSize = 11.sp, modifier = Modifier.padding(top = 4.dp))
                 }
             }
         }
@@ -399,7 +465,7 @@ internal fun WalkDetail(w: Walk, settings: HealthSettings, tokens: ColorTokens, 
                 add("average pace" to (paceText(w.activeMs, km, imperial) ?: "—"))
                 add("steps" to "%,d".format(Locale.US, w.steps))
                 add("steps a minute" to (spm?.toString() ?: "—"))
-                if (w.floors > 0) add("floors climbed" to w.floors.toString())
+                if (walkAscentM(w) > 0) add("elevation gain" to Units.elevation(walkAscentM(w)))
                 add("started" to clockLabel(w.startMs))
                 add("ended" to clockLabel(w.endMs))
                 add("distance from" to if (w.hasRoute && w.meters > 0) "gps" else "step estimate")

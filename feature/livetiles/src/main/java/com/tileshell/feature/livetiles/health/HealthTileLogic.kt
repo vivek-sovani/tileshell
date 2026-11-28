@@ -1,6 +1,7 @@
 package com.tileshell.feature.livetiles.health
 
 import com.tileshell.core.data.TileSize
+import com.tileshell.feature.livetiles.Units
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Locale
@@ -63,10 +64,10 @@ fun streakLabel(days: Int): String? = when {
     else -> "$days days at goal"
 }
 
-/** "24 min · 4 floors" (floors left out when none). */
+/** "24 min · 12 m up" (elevation left out when none). */
 fun walkTimeFloors(w: Walk): String = buildList {
     add(spokenDuration(w.activeMs))
-    if (w.floors > 0) add("${w.floors} floor${if (w.floors == 1) "" else "s"}")
+    if (walkAscentM(w) > 0) add("${Units.elevation(walkAscentM(w))} up")
 }.joinToString(" · ")
 
 fun plusSteps(steps: Int): String = String.format(Locale.US, "+%,d steps", steps)

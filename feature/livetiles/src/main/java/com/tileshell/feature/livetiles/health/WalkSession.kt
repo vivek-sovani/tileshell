@@ -30,6 +30,8 @@ data class WalkState(
     val activeMs: Long = 0L,
     val steps: Int = 0,
     val floors: Int = 0,
+    /** Elevation gained so far, metres. */
+    val ascentM: Int = 0,
     /** Whether this phone has a barometer; floors are hidden without one. */
     val hasBarometer: Boolean = false,
     /** Distance so far in metres: the GPS route when one is recording, else the step estimate. */
@@ -152,7 +154,7 @@ object WalkSession {
         val end = System.currentTimeMillis()
         val points = route.points.toList()
         val hasRoute = points.size >= 2
-        val walk = Walk(s.startMs, end, active, s.steps, s.floors, s.meters, splits.toList(), hasRoute)
+        val walk = Walk(s.startMs, end, active, s.steps, s.floors, s.meters, splits.toList(), hasRoute, s.ascentM)
         _state.value = WalkState()
         runCatching { app.stopService(Intent(app, WalkService::class.java)) }
         if (walk.steps > 0 || walk.activeMs > 60_000L) {
@@ -222,7 +224,8 @@ object WalkSession {
                         // Climbing only counts while the walker is stepping: a lift or the weather is not floors.
                         ascent.add(heightFromPressure(event.values[0]), SystemClock.elapsedRealtime() - lastStepAt < MOVING_WINDOW_MS)
                         val f = ascent.floors
-                        if (f != _state.value.floors) _state.value = _state.value.copy(floors = f)
+                        val a = Math.round(ascent.ascentMeters).toInt()
+                        if (f != _state.value.floors || a != _state.value.ascentM) _state.value = _state.value.copy(floors = f, ascentM = a)
                     }
                 }
             }

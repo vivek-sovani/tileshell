@@ -80,6 +80,10 @@ object Units {
         if (units == ResolvedUnits.IMPERIAL) String.format(Locale.US, "%.1f mi", kmToMiles(km))
         else String.format(Locale.US, "%.1f km", km)
 
+    /** An elevation in metres as `12 m` or `39 ft`. */
+    fun elevation(m: Int, units: ResolvedUnits = current): String =
+        if (units == ResolvedUnits.IMPERIAL) "${Math.round(m * 3.28084).toInt()} ft" else "$m m"
+
     /** A height, e.g. `170 cm` or `5′7″`. */
     fun height(cm: Int, units: ResolvedUnits = current): String {
         if (units != ResolvedUnits.IMPERIAL) return "$cm cm"

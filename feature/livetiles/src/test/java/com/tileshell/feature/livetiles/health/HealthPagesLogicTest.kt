@@ -135,7 +135,7 @@ class HealthPagesLogicTest {
         val outside = inside.copy(startMs = (nov - 2) * 86_400_000L)
         assertEquals(listOf(inside), walksBetween(listOf(outside, inside), nov, nov + 29, z))
         val t = walkTotals(listOf(inside, inside.copy(startMs = 5, meters = 500)), 170)
-        assertEquals(2, t.count); assertEquals(2.0, t.km, 0.001); assertEquals(2, t.floors)
+        assertEquals(2, t.count); assertEquals(2.0, t.km, 0.001); assertEquals(6, t.ascentM)
     }
 
     @Test
@@ -283,7 +283,7 @@ class HealthTileLogicTest {
         assertEquals("5 pm", hourLabel(17)); assertEquals("12 am", hourLabel(0))
         assertEquals("86 moderate", airBandShort(86)); assertEquals("120 unhealthy", airBandShort(120))
         assertNull(streakLabel(0)); assertEquals("1 day at goal", streakLabel(1)); assertEquals("4 days at goal", streakLabel(4))
-        assertEquals("30 min · 2 floors", walkTimeFloors(walk(0))); assertEquals("30 min", walkTimeFloors(walk(0).copy(floors = 0)))
+        assertTrue(walkTimeFloors(walk(0)).startsWith("30 min · ") && walkTimeFloors(walk(0)).endsWith(" up")); assertEquals("30 min", walkTimeFloors(walk(0).copy(floors = 0)))
         assertEquals("+2,906 steps", plusSteps(2906))
     }
 
@@ -316,5 +316,16 @@ class HealthTileLogicTest {
         assertTrue(tiles.all { it.z == fit.zoom })
         val (l, t, side) = fit.place(tiles.first())
         assertTrue(side > 100f && l <= 360f && t <= 260f)
+    }
+
+    @Test
+    fun elevationGainSurvivesTheCodecAndFallsBackToFloors() {
+        val w = walk(0).copy(ascentM = 17)
+        assertEquals(17, decodeWalks(encodeWalks(listOf(w))).single().ascentM)
+        assertEquals(17, walkAscentM(w))
+        assertEquals(6, walkAscentM(walk(0).copy(ascentM = 0, floors = 2)))
+        // a line saved before the column existed still reads
+        val old = "100\t200\t60000\t50\t2\t0\t\t0"
+        assertEquals(0, decodeWalks(old).single().ascentM)
     }
 }

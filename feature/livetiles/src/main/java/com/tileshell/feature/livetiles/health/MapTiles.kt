@@ -69,7 +69,31 @@ fun fitMap(points: List<RoutePoint>, width: Float, height: Float, pad: Float): M
 
 /** OpenStreetMap tiles, cached on disk (the cache folder the system may clear). Needs the network for tiles not yet cached. */
 object MapTiles {
-    private const val MAX_TILES = 20
+    private const val MAX_TILES = 60
+
+    /** One tile from the disk cache or the network (one retry); null when it cannot be had. */
+    fun get(context: Context, k: TileKey): Bitmap? {
+        val dir = File(context.applicationContext.cacheDir, "maptiles").apply { mkdirs() }
+        val f = File(dir, "${k.z}_${k.x}_${k.y}.png")
+        if (f.exists()) runCatching { BitmapFactory.decodeFile(f.path) }.getOrNull()?.let { return it }
+        repeat(2) {
+            val bmp = runCatching {
+                val c = (URL("https://tile.openstreetmap.org/${k.z}/${k.x}/${k.y}.png").openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 8_000
+                    readTimeout = 8_000
+                    setRequestProperty("User-Agent", "TileShell-launcher/1.0 (walk route map)")
+                }
+                try {
+                    if (c.responseCode == 200) {
+                        val bytes = c.inputStream.use { it.readBytes() }
+                        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.also { f.writeBytes(bytes) }
+                    } else null
+                } finally { c.disconnect() }
+            }.getOrNull()
+            if (bmp != null) return bmp
+        }
+        return null
+    }
 
     fun load(context: Context, keys: List<TileKey>): Map<TileKey, Bitmap> {
         val dir = File(context.applicationContext.cacheDir, "maptiles").apply { mkdirs() }

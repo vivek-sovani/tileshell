@@ -11912,3 +11912,8 @@ Pivots are now today → walk → sleep → air → week → apps. All of it use
 - Kilometre splits are horizontal bars (longer = slower, fastest in green).
 - The location question moved into `rememberWalkStarter`, used by the walk page and the tile, so a walk started from the tile asks too; the settings page has a "location access" row (ask, or open the app's settings after a permanent denial).
 - Cause of "no route, never asked" not proven: most likely the walk was started from the tile (which never asked) or location had been denied earlier.
+
+## Walk detail: map fills with progressive tiles, full-screen map; elevation gain instead of floors (user-requested)
+- Map tiles are fetched in parallel (6 at a time, one retry) and drawn as each arrives, so a slow or failed tile no longer leaves a grey band for the whole page. Tapping the map opens it full screen (`RouteMapFullScreen`: a window-sized fit so more detail, pinch to zoom up to 6x by scaling the drawn layer, drag to move).
+- "Floors climbed" is replaced by "elevation gain" in metres (feet with imperial units): `Walk.ascentM` (new last codec column; walks saved before it use floors x 3 m, `walkAscentM`). The barometer logic is unchanged (smoothing, hysteresis, only while stepping); `floors` is still stored.
+- Today's steps are never lower than the steps of today's walks (the baseline misses steps before the first reading of the day).

@@ -95,10 +95,10 @@ fun rangeStats(history: List<DaySteps>, start: Long, length: Int, todayEpochDay:
 }
 
 /** What a set of walks adds up to. */
-data class WalkTotals(val count: Int, val activeMs: Long, val km: Double, val floors: Int, val steps: Int)
+data class WalkTotals(val count: Int, val activeMs: Long, val km: Double, val ascentM: Int, val steps: Int)
 
 fun walkTotals(walks: List<Walk>, heightCm: Int): WalkTotals =
-    WalkTotals(walks.size, walks.sumOf { it.activeMs }, walks.sumOf { walkKm(it, heightCm) }, walks.sumOf { it.floors }, walks.sumOf { it.steps })
+    WalkTotals(walks.size, walks.sumOf { it.activeMs }, walks.sumOf { walkKm(it, heightCm) }, walks.sumOf { walkAscentM(it) }, walks.sumOf { it.steps })
 
 /** Walks that started on a local day from [fromDay] to [toDay], newest first. */
 fun walksBetween(walks: List<Walk>, fromDay: Long, toDay: Long, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): List<Walk> =
